@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import type { Session, User } from '@supabase/supabase-js';   // ← correct types
+import type { Session, User } from '@supabase/supabase-js';
 
-/* ────────── row shapes ────────── */
 type Listing = {
   id: string;
   title: string;
@@ -21,23 +20,23 @@ type Bid = {
   timestamp: string;
 };
 
-/* ────────── page component ────────── */
 export default function ListingDetailsPage() {
-  const { id }   = useParams<{ id: string }>();
-  const router   = useRouter();
+  const { id } = useParams<{ id: string }>();
+  const router        = useRouter();
 
   const [listing, setListing] = useState<Listing | null>(null);
   const [bids,    setBids]    = useState<Bid[]>([]);
-  const [_session]            = useState<Session | null>(null);  // ← unused, keep to silence ESLint
-  const [user,    setUser]    = useState<User    | null>(null);
   const [price,   setPrice]   = useState('');
+  const [session, setSession] = useState<Session | null>(null);
+  const [user,    setUser]    = useState<User    | null>(null);
 
-  /* ────────── fetch + realtime ────────── */
+  /* ─────────────── fetch listing + bids + realtime ─────────────── */
   useEffect(() => {
+    // keep auth info (session is not used for logic, but held for future use)
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
 
-    const load = async () => {
-      /* listing */
+    const fetchAll = async () => {
       const { data: l } = await supabase
         .from('listings')
         .select('*')
@@ -45,7 +44,6 @@ export default function ListingDetailsPage() {
         .single();
       setListing(l ?? null);
 
-      /* bids */
       const { data: b } = await supabase
         .from('bids')
         .select('*')
@@ -53,29 +51,33 @@ export default function ListingDetailsPage() {
         .order('timestamp', { ascending: false });
       setBids(b ?? []);
     };
-    load();
+    fetchAll();
 
-    /* realtime on new bids for this item */
-    const ch = supabase
-      .channel('bids-rt')
+    const channel = supabase
+      .channel('bids-stream')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` },
-        () => load(),
+        () => fetchAll()
       )
       .subscribe();
 
-    return () => { ch.unsubscribe(); };   // ← sync cleanup (no TS 2345)
+    return () => {
+      channel.unsubscribe();   // sync cleanup → avoids TS 2345
+    };
   }, [id]);
 
-  /* ────────── submit bid ────────── */
+  /* ─────────────── submit bid ─────────────── */
   const placeBid = async () => {
-    if (!user) { router.push('/auth'); return; }
+    if (!user) {
+      router.push('/auth');
+      return;
+    }
+    const amt   = parseFloat(price);
+    const floor = Math.max(listing!.min_price, bids[0]?.bid_price ?? 0);
 
-    const amt = parseFloat(price);
-    const min = Math.max(listing!.min_price, bids[0]?.bid_price || 0);
-    if (isNaN(amt) || amt <= min) {
-      alert(`Bid must be > ₹${min}`);
+    if (isNaN(amt) || amt <= floor) {
+      alert(`Bid must be higher than ₹${floor}`);
       return;
     }
 
@@ -84,12 +86,15 @@ export default function ListingDetailsPage() {
       bidder_id: user.id,
       bid_price: amt,
     });
+
     if (error) alert(error.message);
-    else setPrice('');
+    else       setPrice('');
   };
 
-  /* ────────── render ────────── */
-  if (!listing) return <p className="p-6">Loading…</p>;
+  /* ─────────────── render ─────────────── */
+  if (!listing) {
+    return <p className="p-6">Loading…</p>;
+  }
 
   return (
     <main className="max-w-xl mx-auto px-4 py-10 space-y-6">
@@ -101,12 +106,12 @@ export default function ListingDetailsPage() {
       <p>{listing.description}</p>
       <p className="text-sm text-gray-600">Min Price ₹{listing.min_price}</p>
 
-      {/* bid form */}
+      {/* ── Bid form ── */}
       <div className="space-x-2 mt-4">
         <input
           type="number"
           value={price}
-          onChange={e => setPrice(e.target.value)}
+          onChange={(e) => setPrice(e.target.value)}
           placeholder="Your bid ₹"
           className="border px-3 py-2 rounded w-40"
         />
