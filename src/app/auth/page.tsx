@@ -1,37 +1,61 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/lib/supabaseClient';
-import { useRouter } from 'next/navigation';
 
 export default function AuthPage() {
   const router = useRouter();
+  const [session, setSession] = useState<any>(null);
 
-  // When the session already exists (return visit) → jump to /listings
+  /* 🔄 keep live session state */
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.push('/listings');
-    });
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
 
-    const { data: { subscription } } =
-      supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' && session) router.push('/listings');
-      });
-
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => setSession(newSession)
+    );
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, []);
 
+  /* ────────────────────────────────
+     Already logged-in view
+  ──────────────────────────────── */
+  if (session) {
+    return (
+      <div className="max-w-sm mx-auto py-16 text-center space-y-4">
+        <p className="text-xl">✅ You’re already logged in.</p>
+
+        <button
+          onClick={() => router.push('/listings')}
+          className="px-4 py-2 bg-indigo-600 text-white rounded"
+        >
+          Go to Listings
+        </button>
+
+        <button
+          onClick={() => supabase.auth.signOut()}
+          className="block mx-auto text-sm text-red-600 underline"
+        >
+          Log out
+        </button>
+      </div>
+    );
+  }
+
+  /* ────────────────────────────────
+     Sign-in / Sign-up UI
+  ──────────────────────────────── */
   return (
-    <div style={{ maxWidth: 400, margin: '2rem auto' }}>
+    <div className="max-w-sm mx-auto py-16">
       <Auth
         supabaseClient={supabase}
         appearance={{ theme: ThemeSupa }}
-        providers={['google']}
+        providers={[] /* add 'google' later when ready */}
         theme="dark"
-        redirectTo={`https://${process.env.NEXT_PUBLIC_CODESPACE_HOST}/listings`}
-        // ^ Codespaces exposes this env var automatically
+        redirectTo="/listings"
       />
     </div>
   );

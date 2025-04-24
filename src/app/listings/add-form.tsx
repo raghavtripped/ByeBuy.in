@@ -1,121 +1,93 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function AddListingForm() {
-  const [user, setUser] = useState<any>(null);
-
-  // form fields
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [minPrice, setMinPrice] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [title, setTitle]         = useState('');
+  const [description, setDesc]    = useState('');
+  const [minPrice, setMinPrice]   = useState('');
+  const [endTime, setEndTime]     = useState('');
+  const [photo, setPhoto]         = useState<File | null>(null);
+  const [user, setUser]           = useState<any>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
   }, []);
 
-  if (!user) return null; // hide form for anonymous visitors
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return alert('Log in first');
 
-    try {
-      let photoUrl: string | null = null;
+    let photoUrl: string | null = null;
 
-      if (photoFile) {
-        const ext = photoFile.name.split('.').pop();
-        const path = `${user.id}/${Date.now()}.${ext}`;
+    if (photo) {
+      const ext = photo.name.split('.').pop();
+      const filePath = `${user.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase
+        .storage.from('listing-images')
+        .upload(filePath, photo);
+      if (upErr) return alert('Image upload failed: ' + upErr.message);
 
-        const { error: upErr } = await supabase.storage
-          .from('listing-images')
-          .upload(path, photoFile);
-
-        if (upErr) throw upErr;
-
-        const { data } = supabase.storage
-          .from('listing-images')
-          .getPublicUrl(path);
-        photoUrl = data.publicUrl;
-      }
-
-      const { error } = await supabase.from('listings').insert([
-        {
-          title,
-          description,
-          min_price: parseFloat(minPrice),
-          end_time: new Date(endTime).toISOString(),
-          seller_id: user.id,
-          photos: photoUrl,
-        },
-      ]);
-
-      if (error) throw error;
-
-      alert('Listing added!');
-      setTitle('');
-      setDescription('');
-      setMinPrice('');
-      setEndTime('');
-      setPhotoFile(null);
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      photoUrl = supabase
+        .storage.from('listing-images')
+        .getPublicUrl(filePath).data.publicUrl;
     }
+
+    const { error } = await supabase.from('listings').insert({
+      title,
+      description,
+      min_price: parseFloat(minPrice),
+      end_time: new Date(endTime),
+      seller_id: user.id,
+      photos: photoUrl,
+    });
+
+    if (error) return alert('Insert failed: ' + error.message);
+
+    // reset
+    setTitle(''); setDesc(''); setMinPrice(''); setEndTime(''); setPhoto(null);
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="mb-10 border rounded-lg p-6 space-y-4"
-    >
-      <h2 className="text-xl font-semibold mb-2">Add a New Listing</h2>
-
+    <form onSubmit={handleSubmit} className="mb-10 space-y-3">
+      <h2 className="text-xl font-semibold">Add a New Listing</h2>
       <input
-        required
         placeholder="Title"
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={e => setTitle(e.target.value)}
+        required
         className="w-full border px-3 py-2 rounded"
       />
-
       <textarea
-        required
         placeholder="Description"
         value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        onChange={e => setDesc(e.target.value)}
+        required
         className="w-full border px-3 py-2 rounded"
       />
-
       <input
-        required
         type="number"
-        placeholder="Minimum price (₹)"
+        placeholder="Min Price ₹"
         value={minPrice}
-        onChange={(e) => setMinPrice(e.target.value)}
+        onChange={e => setMinPrice(e.target.value)}
+        required
         className="w-full border px-3 py-2 rounded"
       />
-
       <input
-        required
         type="datetime-local"
         value={endTime}
-        onChange={(e) => setEndTime(e.target.value)}
+        onChange={e => setEndTime(e.target.value)}
+        required
         className="w-full border px-3 py-2 rounded"
       />
-
       <input
         type="file"
         accept="image/*"
-        onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+        onChange={e => setPhoto(e.target.files?.[0] || null)}
       />
-
-      <button
-        type="submit"
-        className="bg-green-600 text-white px-4 py-2 rounded"
-      >
-        Add Listing
+      <button className="bg-indigo-600 text-white px-4 py-2 rounded">
+        Save
       </button>
     </form>
   );

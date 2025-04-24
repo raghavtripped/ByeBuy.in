@@ -1,68 +1,56 @@
 'use client';
 
-import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
-export default function BidHistory() {
+export default function BidHistoryPage() {
   const { id } = useParams();
   const [bids, setBids] = useState<any[]>([]);
 
   useEffect(() => {
-    async function fetchBids() {
+    const getBids = async () => {
       const { data } = await supabase
         .from('bids')
-        .select('*')
+        .select('id,bid_price,bidder_id,timestamp')
         .eq('item_id', id)
         .order('timestamp', { ascending: false });
       setBids(data || []);
-    }
+    };
+    getBids();
 
-    fetchBids();
-
-    const ch = supabase
-      .channel('bids-history')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', table: 'bids', schema: 'public' },
-        (payload) => {
-          if (payload.new.item_id === id) fetchBids();
-        }
-      )
+    const ch = supabase.channel('bids-feed')
+      .on('postgres_changes',
+        { event:'INSERT', schema:'public', table:'bids', filter:`item_id=eq.${id}` },
+        () => getBids())
       .subscribe();
 
     return () => supabase.removeChannel(ch);
   }, [id]);
 
-  const highestBid = bids[0]?.bid_price ?? null;
+  const top = bids[0]?.bid_price ?? null;
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">
-        📊 Live Bids for Listing ID {String(id).slice(0, 6)}…
+    <main className="max-w-md mx-auto px-4 py-10">
+      <h1 className="text-2xl font-bold mb-4">
+        📊 Live Bids (Listing {String(id).slice(0,6)}…)
       </h1>
 
       {bids.length === 0 ? (
         <p>No bids yet.</p>
       ) : (
-        <ul className="space-y-4">
-          {bids.map((b) => (
-            <li
-              key={b.id}
-              className={`p-4 border rounded ${
-                b.bid_price === highestBid ? 'bg-green-50' : ''
-              }`}
-            >
-              <strong>₹{b.bid_price}</strong> —{' '}
-              {new Date(b.timestamp).toLocaleString()}
-              {b.bid_price === highestBid && (
-                <span className="text-green-600 font-semibold ml-2">
-                  🔥 Highest bid
-                </span>
+        <ul className="space-y-3">
+          {bids.map(b => (
+            <li key={b.id}
+                className={`border rounded p-3 ${b.bid_price===top?'bg-green-50':''}`}>
+              <strong>₹{b.bid_price}</strong> &nbsp;
+              <span className="text-xs text-gray-500">
+                by {b.bidder_id.slice(0,6)}… &middot;&nbsp;
+                {new Date(b.timestamp).toLocaleString()}
+              </span>
+              {b.bid_price===top && (
+                <span className="ml-2 text-green-600 font-semibold">🔥 Highest</span>
               )}
-              <div className="text-xs text-gray-600">
-                Bidder {b.bidder_id.slice(0, 8)}…
-              </div>
             </li>
           ))}
         </ul>
