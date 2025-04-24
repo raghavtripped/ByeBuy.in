@@ -10,7 +10,6 @@ export default function BidHistoryPage() {
   const { id } = useParams<{ id: string }>();
   const [bids, setBids] = useState<BidRow[]>([]);
 
-  /* ───────────────────────────── live feed ─── */
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase
@@ -18,7 +17,6 @@ export default function BidHistoryPage() {
         .select('bid_price,bidder_id,timestamp')
         .eq('item_id', id)
         .order('timestamp', { ascending: false });
-
       setBids(data ?? []);
     };
     load();
@@ -28,21 +26,18 @@ export default function BidHistoryPage() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` },
-        () => load(),
+        () => load()
       )
       .subscribe();
 
-    /* ✅  sync cleanup — no TS warnings */
     return () => { ch.unsubscribe(); };
   }, [id]);
 
   const top = bids[0]?.bid_price ?? null;
 
-  /* ───────────────────────────── UI ─── */
   return (
     <div className="max-w-lg mx-auto p-6">
       <h2 className="text-xl font-bold mb-4">📊 Live bids for {id}</h2>
-
       {bids.length === 0 ? (
         <p>No bids yet.</p>
       ) : (
@@ -56,7 +51,8 @@ export default function BidHistoryPage() {
             >
               <div className="font-semibold">₹{b.bid_price}</div>
               <div className="text-sm text-gray-500">
-                by {b.bidder_id.slice(0, 6)}… • {new Date(b.timestamp).toLocaleString()}
+                by {b.bidder_id.slice(0, 6)}… •{' '}
+                {new Date(b.timestamp).toLocaleString()}
               </div>
             </li>
           ))}

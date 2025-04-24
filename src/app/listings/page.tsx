@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, type Session } from '@/lib/supabaseClient';
 import AddListingForm from './add-form';
 
 type Listing = {
@@ -13,38 +13,33 @@ type Listing = {
 };
 
 export default function ListingsPage() {
-  const [session, setSession]   = useState<any>(null);
-  const [rows,    setRows]      = useState<Listing[]>([]);
+  const [session, setSession] = useState<Session | null>(null);
+  const [rows,    setRows]    = useState<Listing[]>([]);
 
-  /* ───────────────── fetch + realtime ──────────────── */
   useEffect(() => {
-    /* who is logged-in? (shows the Add form) */
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
 
     const load = async () => {
       const { data, error } = await supabase
         .from('listings')
         .select('*')
-        .order('created_at', { ascending: false });   // OK even if created_at NULL
-      if (error) console.error('listing fetch error', error.message);
-      else       setRows(data ?? []);
+        .order('created_at', { ascending: false });
+      if (!error) setRows(data ?? []);
     };
     load();
 
-    /* live inserts */
     const ch = supabase
       .channel('listings-feed')
-      .on('postgres_changes',
-        { event:'INSERT', schema:'public', table:'listings' },
-        () => load())
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'listings' },
+        () => load()
+      )
       .subscribe();
 
-    /*  ❌ returning the Promise triggers TS 2345
-        ✅ wrap in a sync arrow  */
-    return () => { ch.unsubscribe(); };
+    return () => { ch.unsubscribe(); };      // sync → fixes TS-2345
   }, []);
 
-  /* ───────────────── render ──────────────── */
   return (
     <div className="max-w-3xl mx-auto p-8 space-y-8">
       {session && <AddListingForm />}
