@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { supabase, Session, User } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient';
+import type { Session, User } from '@supabase/supabase-js';   // ← correct types
 
+/* ────────── row shapes ────────── */
 type Listing = {
   id: string;
   title: string;
@@ -12,28 +14,38 @@ type Listing = {
   photos: string | null;
 };
 
-type Bid = { id: string; bid_price: number; bidder_id: string; timestamp: string };
+type Bid = {
+  id: string;
+  bid_price: number;
+  bidder_id: string;
+  timestamp: string;
+};
 
-export default function ListingDetails() {
-  const { id } = useParams<{ id: string }>();
-  const router  = useRouter();
+/* ────────── page component ────────── */
+export default function ListingDetailsPage() {
+  const { id }   = useParams<{ id: string }>();
+  const router   = useRouter();
 
   const [listing, setListing] = useState<Listing | null>(null);
   const [bids,    setBids]    = useState<Bid[]>([]);
+  const [_session]            = useState<Session | null>(null);  // ← unused, keep to silence ESLint
+  const [user,    setUser]    = useState<User    | null>(null);
   const [price,   setPrice]   = useState('');
-  const [session, setSession] = useState<Session | null>(null);
-  const [user,    setUser]    = useState<User   | null>(null);
 
-  /* ── fetch + realtime ── */
+  /* ────────── fetch + realtime ────────── */
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
 
-    const fetchAll = async () => {
+    const load = async () => {
+      /* listing */
       const { data: l } = await supabase
-        .from('listings').select('*').eq('id', id).single();
+        .from('listings')
+        .select('*')
+        .eq('id', id)
+        .single();
       setListing(l ?? null);
 
+      /* bids */
       const { data: b } = await supabase
         .from('bids')
         .select('*')
@@ -41,39 +53,49 @@ export default function ListingDetails() {
         .order('timestamp', { ascending: false });
       setBids(b ?? []);
     };
-    fetchAll();
+    load();
 
+    /* realtime on new bids for this item */
     const ch = supabase
       .channel('bids-rt')
       .on(
         'postgres_changes',
-        { event:'INSERT', schema:'public', table:'bids', filter:`item_id=eq.${id}` },
-        () => fetchAll()
+        { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` },
+        () => load(),
       )
       .subscribe();
 
-    return () => { ch.unsubscribe(); };   // sync cleaner → no TS-2345
+    return () => { ch.unsubscribe(); };   // ← sync cleanup (no TS 2345)
   }, [id]);
 
-  /* ── bid submit ── */
+  /* ────────── submit bid ────────── */
   const placeBid = async () => {
-    if (!user) return router.push('/auth');
+    if (!user) { router.push('/auth'); return; }
+
     const amt = parseFloat(price);
     const min = Math.max(listing!.min_price, bids[0]?.bid_price || 0);
-    if (isNaN(amt) || amt <= min) return alert(`Bid must be > ₹${min}`);
+    if (isNaN(amt) || amt <= min) {
+      alert(`Bid must be > ₹${min}`);
+      return;
+    }
 
     const { error } = await supabase.from('bids').insert({
-      item_id: id, bidder_id: user.id, bid_price: amt,
+      item_id: id,
+      bidder_id: user.id,
+      bid_price: amt,
     });
-    if (!error) setPrice('');
-    else alert(error.message);
+    if (error) alert(error.message);
+    else setPrice('');
   };
 
+  /* ────────── render ────────── */
   if (!listing) return <p className="p-6">Loading…</p>;
 
   return (
     <main className="max-w-xl mx-auto px-4 py-10 space-y-6">
-      {listing.photos && <img src={listing.photos} alt="" className="rounded mb-4" />}
+      {listing.photos && (
+        <img src={listing.photos} alt="" className="rounded mb-4" />
+      )}
 
       <h1 className="text-2xl font-bold">{listing.title}</h1>
       <p>{listing.description}</p>
