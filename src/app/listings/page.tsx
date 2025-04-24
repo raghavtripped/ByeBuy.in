@@ -1,74 +1,132 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import AddListingForm from './add-form';
 
-type Listing = {
-  id: string;
-  title: string;
-  description: string;
-  min_price: number;
-  photos: string | null;
-};
+type BidRow = { bid_price: number; bidder_id: string; timestamp: string };
 
-export default function ListingsPage() {
-  const [session, setSession]   = useState<any>(null);
-  const [items, setItems]       = useState<Listing[]>([]);
+export default function ListingDetailsPage() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
 
+  const [listing, setListing] = useState<any>(null);
+  const [bids, setBids] = useState<BidRow[]>([]);
+  const [amount, setAmount] = useState('');
+  const [session, setSession] = useState<any>(null);
+  const [user, setUser] = useState<any>(null);
+
+  /* ───────────────────────────────────── fetch listing + bids ─── */
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
 
-    const fetchListings = async () => {
-      const { data } = await supabase.from('listings')
+    const getListing = async () => {
+      const { data } = await supabase
+        .from('listings')
         .select('*')
-        .order('created_at', { ascending: false });
-      setItems(data || []);
+        .eq('id', id)
+        .single();
+      setListing(data);
     };
-    fetchListings();
 
-    /* realtime insert listener */
-    const ch = supabase.channel('listings-rt')
-      .on('postgres_changes',
-        { event:'INSERT', schema:'public', table:'listings' },
-        () => fetchListings())
-      .subscribe();
+    const getBids = async () => {
+      const { data } = await supabase
+        .from('bids')
+        .select('bid_price,bidder_id,timestamp')
+        .eq('item_id', id)
+        .order('timestamp', { ascending: false });
+      setBids(data ?? []);
+    };
 
-    return () => supabase.removeChannel(ch);
-  }, []);
+    if (id) {
+      getListing();
+      getBids();
+
+      // realtime listener
+      const ch = supabase
+        .channel('bids-live')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` },
+          () => getBids()
+        )
+        .subscribe();
+
+        return () => {
+          // either version is fine – both are sync
+          ch.unsubscribe();          //   preferred – v2 API
+          // OR: void supabase.removeChannel(ch);
+        };
+    }
+  }, [id]);
+
+  /* ───────────────────────────────────── submit bid ─── */
+  const placeBid = async () => {
+    if (!session || !user) {
+      router.push('/auth');
+      return;
+    }
+    const bid_price = parseFloat(amount);
+    const highest = bids[0]?.bid_price ?? 0;
+    const minRequired = Math.max(listing.min_price, highest);
+
+    if (isNaN(bid_price) || bid_price <= minRequired) {
+      alert(`Bid must be higher than ₹${minRequired}`);
+      return;
+    }
+
+    const { error } = await supabase.from('bids').insert({
+      item_id: id,
+      bidder_id: user.id,
+      bid_price,
+    });
+
+    if (error) alert(error.message);
+    else setAmount('');
+  };
+
+  const topBid = bids[0]?.bid_price ?? null;
+
+  /* ───────────────────────────────────── render ─── */
+  if (!listing) return <p className="p-6">Loading…</p>;
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-10">
-      {session && <AddListingForm />}
-
-      <h1 className="text-2xl font-bold mb-6">🎯 Listings</h1>
-
-      {items.length === 0 ? (
-        <p>No listings yet.</p>
-      ) : (
-        <ul className="grid md:grid-cols-2 gap-6">
-          {items.map(l => (
-            <li key={l.id} className="border rounded-lg p-4 space-y-2">
-              {l.photos && (
-                <img src={l.photos}
-                     alt={l.title}
-                     className="h-40 w-full object-cover rounded" />
-              )}
-              <h2 className="text-lg font-semibold">{l.title}</h2>
-              <p className="text-sm text-gray-600 line-clamp-2">
-                {l.description}
-              </p>
-              <p className="text-sm">Min ₹{l.min_price}</p>
-
-              <Link href={`/listings/${l.id}`}
-                    className="inline-block mt-2 text-indigo-600 underline">
-                View / Bid →
-              </Link>
-            </li>
-          ))}
-        </ul>
+    <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <h1 className="text-2xl font-bold">{listing.title}</h1>
+      <p>{listing.description}</p>
+      <p className="font-semibold">Min Price : ₹{listing.min_price}</p>
+      {listing.photos && (
+        /* simple thumb */
+        <img src={listing.photos} alt="" className="max-w-xs rounded" />
       )}
-    </main>
+
+      {/* ── Bid form ── */}
+      <div className="space-x-2">
+        <input
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="Your bid (₹)"
+          className="border px-3 py-1 rounded w-40"
+        />
+        <button onClick={placeBid} className="px-4 py-1 bg-indigo-600 text-white rounded">
+          Place Bid
+        </button>
+      </div>
+
+      {topBid && (
+        <div className="p-3 bg-green-50 border border-green-200 rounded">
+          🔥 Highest bid so far: <strong>₹{topBid}</strong>
+        </div>
+      )}
+
+      <a
+        href={`/bid/${id}`}
+        className="text-sm text-indigo-600 underline inline-block mt-4"
+      >
+        View full bid history →
+      </a>
+    </div>
   );
 }
