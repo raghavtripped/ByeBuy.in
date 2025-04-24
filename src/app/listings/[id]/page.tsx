@@ -22,14 +22,14 @@ type Bid = {
 
 export default function ListingDetailsPage() {
   const { id } = useParams<{ id: string }>();
-  const router             = useRouter();
+  const router = useRouter();
 
   const [listing, setListing] = useState<Listing | null>(null);
-  const [bids,    setBids]    = useState<Bid[]>([]);
-  const [price,   setPrice]   = useState('');
-  const [user,    setUser]    = useState<User | null>(null);   // ← keep only user
+  const [bids, setBids] = useState<Bid[]>([]);
+  const [price, setPrice] = useState('');
+  const [user, setUser] = useState<User | null>(null);
 
-  /* ───────── fetch once + realtime ───────── */
+  /* ─ fetch once + realtime ─ */
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
 
@@ -59,16 +59,18 @@ export default function ListingDetailsPage() {
       )
       .subscribe();
 
-    return () => { ch.unsubscribe(); };          // sync cleanup → no TS 2345
+    return () => {
+      ch.unsubscribe(); // sync cleanup – keeps TS happy
+    };
   }, [id]);
 
-  /* ───────── submit bid ───────── */
+  /* ─ submit bid ─ */
   const placeBid = async () => {
     if (!user) {
       router.push('/auth');
       return;
     }
-    const amt   = parseFloat(price);
+    const amt = parseFloat(price);
     const floor = Math.max(listing!.min_price, bids[0]?.bid_price ?? 0);
     if (isNaN(amt) || amt <= floor) {
       alert(`Bid must be higher than ₹${floor}`);
@@ -88,9 +90,12 @@ export default function ListingDetailsPage() {
 
   return (
     <main className="max-w-xl mx-auto px-4 py-10 space-y-6">
+      {/* thumbnail – optional */}
       {listing.photos && (
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={listing.photos} alt="" className="rounded mb-4" />
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={listing.photos} alt="" className="rounded mb-4" />
+        </>
       )}
 
       <h1 className="text-2xl font-bold">{listing.title}</h1>
