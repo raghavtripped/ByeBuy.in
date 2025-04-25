@@ -3,13 +3,13 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-// FIX 1: Removed 'Session' as it was unused in this specific file's logic previously
+// Removed 'Session' as it was unused
 import { supabase, User } from '@/lib/supabaseClient';
 
 type Listing = { id: string; title: string; description: string; min_price: number; photos: string | null; /* add end_time if needed here */ };
 type Bid = { id: string; bid_price: number; bidder_id: string; timestamp: string };
 
-export default function ListingDetails() {
+export default function ListingDetails() { // Component name matches convention
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
@@ -50,15 +50,15 @@ export default function ListingDetails() {
         if (bError) throw bError;
         setBids(bData ?? []);
 
-      } catch (err) { // FIX 2: Use 'unknown' and type check for error message
+      } catch (err) {
          console.error("Error loading data:", err);
          let message = 'An unknown error occurred during loading';
          if (err instanceof Error) {
            message = err.message;
          } else if (typeof err === 'string') {
            message = err;
-         } else if (err && typeof err === 'object' && 'message' in err) {
-            message = String((err as any).message); // Fallback
+         } else if (err !== null && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
+           message = err.message;
          }
          setError(`Failed to load listing data: ${message}`);
          setListing(null);
@@ -90,15 +90,22 @@ export default function ListingDetails() {
           });
         }
       )
-      .subscribe((status, err) => {
+      .subscribe((status, err) => { // Error handler for subscribe itself
          if (status === 'SUBSCRIBED') {
             console.log(`Realtime channel subscribed for bids on listing ${id}`);
          }
          if (status === 'CHANNEL_ERROR') {
            console.error(`Realtime channel error for listing ${id}:`, err);
-           // FIX 3: Use 'unknown' and type check for error message
+           // FIX: Cast 'err' to 'unknown' before checking properties
            let message = 'An unknown channel error occurred';
-           if (err instanceof Error) message = err.message;
+           const unknownErr = err as unknown; // Cast err to unknown
+
+           if (unknownErr instanceof Error) {
+               message = unknownErr.message; // Access message after instanceof check
+           // Check if it's an object, has a message property, and that property is a string
+           } else if (unknownErr !== null && typeof unknownErr === 'object' && 'message' in unknownErr && typeof (unknownErr as { message: unknown }).message === 'string') {
+               message = (unknownErr as { message: string }).message; // Access message after checks
+           }
            setError(`Realtime connection error: ${message}. Please refresh.`);
          }
        });
@@ -111,7 +118,7 @@ export default function ListingDetails() {
   }, [id]);
 
   const placeBid = async () => {
-    // This function should be the one from the GOOD_COMMIT state
+    // Function logic remains the same
     if (!user) return router.push('/auth');
     if (!listing) return;
 
@@ -142,7 +149,6 @@ export default function ListingDetails() {
   };
 
   // --- Render Logic ---
-  // This JSX should be the one from the GOOD_COMMIT state that showed the UI correctly
   if (loading) return <p className="p-6 text-center">Loading listing details...</p>;
   if (error) return <p className="p-6 text-center text-red-600">{error}</p>;
   if (!listing) return <p className="p-6 text-center">Listing not found.</p>;
@@ -151,11 +157,14 @@ export default function ListingDetails() {
     <main className="max-w-xl mx-auto px-4 py-10 space-y-6">
       {/* Listing Image */}
       {listing.photos && (
+         <>
+         {/* eslint-disable-next-line @next/next/no-img-element */}
          <img
             src={listing.photos}
             alt={`Photo for ${listing.title}`}
             className="rounded mb-4 w-full h-auto object-cover"
          />
+         </>
       )}
 
       {/* Listing Details */}
