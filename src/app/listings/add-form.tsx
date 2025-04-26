@@ -46,7 +46,7 @@ export default function AddListingForm() {
     setIsSubmitting(true); // Indicate loading state
 
     let photoUrl: string | null = null;
-    let uploadError = null;
+    // Removed redundant 'uploadError = null;' initialization
 
     // 1. Upload Photo to Supabase Storage
     if (photo) {
@@ -65,10 +65,8 @@ export default function AddListingForm() {
 
       if (upErr) {
         console.error('Image upload failed:', upErr);
-        uploadError = `Image upload failed: ${upErr.message}`;
-        // Continue to attempt listing insert even if image fails? Or stop here?
-        // Let's stop here for now:
-        setSubmitMessage(uploadError);
+        // Correctly assign error message to submitMessage state
+        setSubmitMessage(`Image upload failed: ${upErr.message}`);
         setIsSubmitting(false);
         return; // Stop submission if image upload fails
       } else {
@@ -135,11 +133,16 @@ export default function AddListingForm() {
       const fileInput = document.getElementById('photo-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
 
-    } catch (error: any) {
+    } catch (error) { // <<<--- FIX 1: Applied safe error handling
         console.error('Listing insert failed:', error);
         let message = 'Failed to create listing.';
-        if (error && typeof error === 'object' && 'message' in error) {
+        if (error instanceof Error) {
             message += ` Error: ${error.message}`;
+        // Check if it's an object with a string message property
+        } else if (error !== null && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
+            message += ` Error: ${(error as { message: string }).message}`;
+        } else if (typeof error === 'string') {
+             message += ` Error: ${error}`;
         }
         setSubmitMessage(message);
         // Optionally attempt to delete the uploaded photo if insert fails? More complex cleanup.
@@ -264,7 +267,11 @@ export default function AddListingForm() {
             className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
           />
           {/* Optional: Show preview of selected image */}
-          {photo && <img src={URL.createObjectURL(photo)} alt="Preview" className="mt-2 h-20 w-auto rounded" /> }
+          {photo && (
+             // <<<--- FIX 2: Disable rule for image preview
+             // eslint-disable-next-line @next/next/no-img-element
+             <img src={URL.createObjectURL(photo)} alt="Preview" className="mt-2 h-20 w-auto rounded" />
+           )}
        </div>
 
 
