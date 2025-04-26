@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase, User } from '@/lib/supabaseClient';
+import { formatRelativeTime, isPast } from '@/lib/timeUtils'; // <<<--- IMPORT Helpers
 
-// --- Update Listing type to include seller_email ---
+// Listing type remains the same (includes seller_email, end_time etc.)
 type Listing = {
     id: string;
     title: string;
@@ -16,10 +17,7 @@ type Listing = {
     end_time?: string | null;
     upper_cap?: number | null;
     rules?: string | null;
-    // Add the seller's email (will come from the view)
     seller_email?: string | null;
-    // We might not need seller_id directly anymore if we have the email
-    // seller_id?: string;
 };
 
 type Bid = { id: string; bid_price: number; bidder_id: string; timestamp: string };
@@ -35,6 +33,7 @@ export default function ListingDetails() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
 
+  // Fetching logic remains the same - ensuring end_time is selected
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -45,21 +44,18 @@ export default function ListingDetails() {
 
     const load = async () => {
       try {
-        // --- Change query to use the VIEW and select seller_email ---
         const { data: lData, error: lError } = await supabase
-          .from('listings_with_seller_email') // <<<--- QUERY THE VIEW
+          .from('listings_with_seller_email') // Still use the view
           .select(`
               id, title, description, min_price, photos, end_time,
               upper_cap, rules, seller_email
-           `) // <<<--- SELECT specific columns including seller_email
+           `)
           .eq('id', id)
           .single();
 
         if (lError) throw lError;
-        // Cast the result to Listing type if needed, though it should match
         setListing(lData as Listing ?? null);
 
-        // Fetch bids data (no change needed here)
         const { data: bData, error: bError } = await supabase
           .from('bids')
           .select('*')
@@ -69,57 +65,39 @@ export default function ListingDetails() {
         if (bError) throw bError;
         setBids(bData ?? []);
 
-      } catch (err) {
+      } catch (err) { /* ... error handling ... */
          console.error("Error loading data:", err);
          let message = 'An unknown error occurred during loading';
          if (err instanceof Error) { message = err.message; }
          else if (typeof err === 'string') { message = err; }
-         else if (err !== null && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
-             message = err.message;
-         }
+         else if (err !== null && typeof err === 'object' && 'message' in err && typeof err.message === 'string') { message = err.message; }
          setError(`Failed to load listing data: ${message}`);
          setListing(null);
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     };
     load();
 
     // Realtime subscription for bids (no change needed here)
     const bidsChannel = supabase
       .channel(`bids-listing-${id}`)
-      .on('postgres_changes',{ event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` },
-        (payload) => {
-          console.log('New bid received!', payload);
-          setBids((currentBids) => {
-            if (currentBids.some(b => b.id === payload.new.id)) return currentBids;
-             const newBid: Bid = { /* ... map fields ... */ id: payload.new.id, bid_price: payload.new.bid_price, bidder_id: payload.new.bidder_id, timestamp: payload.new.timestamp };
-            return [newBid, ...currentBids];
-          });
-        }
-      )
+      .on('postgres_changes',{ event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` }, (payload) => { /* ... */ setBids((b) => [payload.new as Bid, ...b.filter(i=>i.id !== payload.new.id)]); })
       .subscribe((status, err) => { /* ... error handling ... */
-            if (status === 'SUBSCRIBED') { console.log(`Realtime channel subscribed for bids on listing ${id}`); }
-            if (status === 'CHANNEL_ERROR') {
-                console.error(`Realtime channel error for listing ${id}:`, err);
-                let message = 'An unknown channel error occurred';
-                const unknownErr = err as unknown;
-                if (unknownErr instanceof Error) { message = unknownErr.message; }
-                else if (unknownErr !== null && typeof unknownErr === 'object' && 'message' in unknownErr && typeof (unknownErr as { message: unknown }).message === 'string') { message = (unknownErr as { message: string }).message; }
-                setError(`Realtime connection error: ${message}. Please refresh.`);
-            }
+        if (status === 'SUBSCRIBED') { console.log(`RT subscribed: bids ${id}`); }
+        if (status === 'CHANNEL_ERROR') { console.error(`RT error: bids ${id}`, err); setError('Realtime connection error.'); }
        });
 
     // Cleanup
-    return () => {
-      console.log(`Unsubscribing from bids-listing-${id}`);
-      supabase.removeChannel(bidsChannel);
-    };
+    return () => { supabase.removeChannel(bidsChannel); };
   }, [id]);
 
   const placeBid = async () => { /* ... placeBid logic remains the same ... */
     if (!user) return router.push('/auth');
     if (!listing) return;
+    // --- Add check: Prevent bidding if auction has ended ---
+    if (listing.end_time && isPast(listing.end_time)) {
+        alert("This auction has already ended.");
+        return;
+    }
     const amt = parseFloat(price);
     const currentHighestBid = bids[0]?.bid_price || 0;
     const minBidRequired = Math.max(listing.min_price, currentHighestBid);
@@ -140,63 +118,47 @@ export default function ListingDetails() {
   if (error) return <p className="p-6 text-center text-red-600">{error}</p>;
   if (!listing) return <p className="p-6 text-center">Listing not found.</p>;
 
+  // Calculate relative time string
+  const timeString = formatRelativeTime(listing.end_time);
+  const auctionEnded = listing.end_time ? isPast(listing.end_time) : false;
+
   return (
     <main className="max-w-xl mx-auto px-4 py-10 space-y-6">
       {/* Listing Image */}
-      {listing.photos && (
-         <>
-         {/* eslint-disable-next-line @next/next/no-img-element */}
-         <img src={listing.photos} alt={`Photo for ${listing.title}`} className="rounded mb-4 w-full h-auto object-cover" />
-         </>
-      )}
+      {listing.photos && ( /* ... image jsx ... */ <> {/* eslint-disable-next-line @next/next/no-img-element */} <img src={listing.photos} alt={`Photo for ${listing.title}`} className="rounded mb-4 w-full h-auto object-cover" /> </> )}
 
       {/* Listing Details */}
       <section className="space-y-2 border-b pb-4">
           <h1 className="text-3xl font-bold text-gray-900">{listing.title}</h1>
-          {/* --- Display Seller Email --- */}
-          {listing.seller_email && (
-             <p className="text-sm text-gray-600">
-                Sold by: <span className="font-medium text-gray-800">{listing.seller_email}</span>
-             </p>
-           )}
+          {listing.seller_email && ( <p className="text-sm text-gray-600"> Sold by: <span className="font-medium text-gray-800">{listing.seller_email}</span> </p> )}
           <p className="text-gray-700 pt-2">{listing.description}</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm pt-2">
-              <p className="font-semibold">
-                 Minimum Price: <span className="text-indigo-700 font-bold">₹{listing.min_price.toFixed(2)}</span>
-              </p>
-              {listing.upper_cap && listing.upper_cap > 0 && (
-                   <p className="font-semibold">
-                     Buy Now Price: <span className="text-purple-700 font-bold">₹{listing.upper_cap.toFixed(2)}</span>
-                  </p>
-              )}
+              <p className="font-semibold"> Min Price: <span className="text-indigo-700 font-bold">₹{listing.min_price.toFixed(2)}</span> </p>
+              {listing.upper_cap && listing.upper_cap > 0 && ( <p className="font-semibold"> Buy Now Price: <span className="text-purple-700 font-bold">₹{listing.upper_cap.toFixed(2)}</span> </p> )}
           </div>
-          {listing.end_time && (
-              <p className="text-xs text-gray-500">
-                  Auction ends: {new Date(listing.end_time).toLocaleString()} {/* We'll improve this later */}
+          {/* --- Use Relative Time --- */}
+          {timeString && (
+              <p className={`text-sm font-medium ${auctionEnded ? 'text-red-600' : 'text-gray-600'}`}>
+                 {timeString} {/* Display relative time */}
+                 {/* Optionally show full time in tooltip or parentheses */}
+                 {/* <span className="text-xs text-gray-400 ml-1">({new Date(listing.end_time!).toLocaleString()})</span> */}
               </p>
           )}
       </section>
 
        {/* Rules Section */}
-       {listing.rules && (
-           <section className="p-4 border rounded-md bg-gray-50 space-y-1">
-                <h3 className="text-sm font-semibold text-gray-700">Auction Rules:</h3>
-                <p className="text-sm text-gray-600 whitespace-pre-wrap">{listing.rules}</p>
-           </section>
-       )}
+       {listing.rules && ( /* ... rules jsx ... */ <section className="p-4 border rounded-md bg-gray-50 space-y-1"> <h3 className="text-sm font-semibold text-gray-700">Auction Rules:</h3> <p className="text-sm text-gray-600 whitespace-pre-wrap">{listing.rules}</p> </section> )}
 
       {/* Current Highest Bid Display */}
        <section className="bg-green-50 p-4 rounded border border-green-200">
-            {/* ... highest bid display ... */}
+            {/* ... highest bid jsx ... */}
             <h2 className="text-xl font-semibold mb-1 text-green-800">Current Highest Bid:</h2>
-            {bids.length > 0 ? ( <p className="text-2xl font-bold text-green-700">₹{bids[0].bid_price.toFixed(2)}</p> )
-            : ( <p className="text-lg text-gray-600">No bids yet. Be the first!</p> )}
+            {bids.length > 0 ? ( <p className="text-2xl font-bold text-green-700">₹{bids[0].bid_price.toFixed(2)}</p> ) : ( <p className="text-lg text-gray-600">No bids yet. Be the first!</p> )}
        </section>
 
       {/* Bid Form */}
       <section>
-          {/* ... bid form ... */}
-          {user && (
+          {user && !auctionEnded && ( // <<<--- Only show bid form if user logged in AND auction NOT ended
             <div className="p-4 border rounded bg-white shadow-sm">
                 <h3 className="text-lg font-semibold mb-3 text-gray-800">Place Your Bid</h3>
                 <div className="flex items-center space-x-3">
@@ -205,15 +167,18 @@ export default function ListingDetails() {
                 </div>
             </div>
            )}
+          {user && auctionEnded && ( // <<<--- Show message if logged in but auction ended
+              <div className="p-4 border rounded bg-gray-100 text-gray-600 text-center">This auction has ended.</div>
+          )}
           {!user && ( <div className="p-4 border rounded bg-yellow-50 text-yellow-800 text-center"> Please <Link href="/auth" className="font-bold underline hover:text-yellow-900">log in</Link> to place a bid. </div> )}
       </section>
 
       {/* Bid History Section */}
       <section className="pt-6 border-t">
-         {/* ... bid history ... */}
-            <h2 className="text-2xl font-semibold mb-4 text-gray-800">Bid History</h2>
-            {bids.length === 0 ? ( <p className="text-gray-600">No bids have been placed yet.</p> )
-            : ( <ul className="space-y-3 max-h-96 overflow-y-auto pr-2"> {bids.map((bid) => ( <li key={bid.id} className="p-3 border rounded bg-gray-50 flex justify-between items-center text-sm"> <span className="font-semibold text-indigo-800"> ₹{bid.bid_price.toFixed(2)} </span> <span className="text-xs text-gray-500"> {new Date(bid.timestamp).toLocaleString()} </span> </li> ))} </ul> )}
+         {/* ... bid history jsx ... */}
+         <h2 className="text-2xl font-semibold mb-4 text-gray-800">Bid History</h2>
+         {bids.length === 0 ? ( <p className="text-gray-600">No bids have been placed yet.</p> )
+         : ( <ul className="space-y-3 max-h-96 overflow-y-auto pr-2"> {bids.map((bid) => ( <li key={bid.id} className="p-3 border rounded bg-gray-50 flex justify-between items-center text-sm"> <span className="font-semibold text-indigo-800"> ₹{bid.bid_price.toFixed(2)} </span> <span className="text-xs text-gray-500"> {new Date(bid.timestamp).toLocaleString()} </span> </li> ))} </ul> )}
       </section>
     </main>
   );
