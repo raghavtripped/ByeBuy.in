@@ -7,7 +7,6 @@ import Link from 'next/link';
 import { supabase, User } from '@/lib/supabaseClient'; // Import Supabase client and User type
 
 // Define the shape of the listing data we expect for this page
-// Include fields relevant to the seller's view
 type SellerListing = {
   id: string;
   title: string;
@@ -17,7 +16,6 @@ type SellerListing = {
   created_at: string;
   photos: string | null;
   // Add status later: status: 'active' | 'closed' | 'cancelled';
-  // Add highest bid later: current_highest_bid?: number;
 };
 
 export default function MyListingsPage() {
@@ -37,12 +35,10 @@ export default function MyListingsPage() {
 
       if (userError || !userData?.user) {
         console.error('User not logged in or error fetching user:', userError?.message);
-        // Redirect to login page if not authenticated
         router.push('/auth');
         return; // Stop execution if no user
       }
 
-      // Set the user state
       setUser(userData.user);
 
       // 2. Fetch listings created by this user
@@ -59,13 +55,16 @@ export default function MyListingsPage() {
 
         setListings(listingData ?? []); // Set listings or empty array
 
-      } catch (err) {
+      } catch (err) { // FIX 1: Apply refined error handling from previous fixes
         console.error('Error fetching listings:', err);
         let message = 'Failed to fetch your listings.';
         if (err instanceof Error) {
             message = err.message;
-        } else if (typeof err === 'object' && err !== null && 'message' in err) {
-            message = String((err as any).message);
+        // Check if it's an object, has a message property, and that property is a string
+        } else if (err !== null && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
+            message = (err as { message: string }).message; // Access message after checks
+        } else if (typeof err === 'string') {
+            message = err; // Handle plain string errors if they occur
         }
         setError(message);
         setListings([]); // Clear listings on error
@@ -76,10 +75,7 @@ export default function MyListingsPage() {
 
     fetchUserDataAndListings();
 
-    // No need for realtime updates here unless we want to see listings appear
-    // the instant they are created elsewhere (could add later if desired).
-
-  }, [router]); // Add router to dependency array as it's used in effect
+  }, [router]); // Add router to dependency array
 
   // ----- Render Logic -----
 
@@ -101,7 +97,6 @@ export default function MyListingsPage() {
     );
   }
 
-  // If loading is false and no user (shouldn't happen due to redirect, but safe check)
   if (!user) {
      return (
        <div className="max-w-4xl mx-auto p-4 sm:p-8">
@@ -120,9 +115,10 @@ export default function MyListingsPage() {
 
       {listings.length === 0 ? (
         <div className="text-center py-10 px-6 bg-white rounded-lg shadow-sm border border-gray-200">
+           {/* FIX 2: Replace ' with ' */}
            <p className="text-gray-600 mb-4">You haven't listed any items yet.</p>
            <Link
-             href="/listings#add-listing-form" // Assuming your form has an ID or is easily reachable on /listings
+             href="/listings#add-listing-form"
              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out"
            >
              List an Item
@@ -132,10 +128,8 @@ export default function MyListingsPage() {
         <ul className="space-y-6">
           {listings.map((listing) => (
             <li key={listing.id} className="border border-gray-200 p-4 rounded-lg shadow-sm flex flex-col sm:flex-row gap-4 items-start bg-white hover:shadow-md transition-shadow duration-200">
-              {/* Image */}
               {listing.photos && (
                 <div className="flex-shrink-0 w-full sm:w-[120px] h-[120px] sm:h-[80px] bg-gray-100 rounded overflow-hidden">
-                  {/* We might need the eslint disable here too if using <img> */}
                    {/* eslint-disable-next-line @next/next/no-img-element */}
                    <img
                      src={listing.photos}
@@ -144,7 +138,6 @@ export default function MyListingsPage() {
                    />
                 </div>
               )}
-              {/* Details */}
               <div className="flex-grow">
                 <Link href={`/listings/${listing.id}`} className="text-lg font-semibold text-indigo-600 hover:text-indigo-800 hover:underline block mb-1">
                   {listing.title}
@@ -155,13 +148,8 @@ export default function MyListingsPage() {
                    {listing.end_time && (
                      <span>Ends: <span className="font-medium">{new Date(listing.end_time).toLocaleString()}</span></span>
                    )}
-                   {/* Add Status and Highest Bid here later */}
-                   {/* <span className="font-medium text-green-700">Status: Active</span> */}
-                   {/* <span className="font-medium text-blue-700">Highest Bid: ₹XXX</span> */}
                 </div>
               </div>
-               {/* Actions (Optional - Edit/Delete could go here later) */}
-               {/* <div className="flex-shrink-0"> ... buttons ... </div> */}
             </li>
           ))}
         </ul>
