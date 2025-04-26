@@ -15,7 +15,6 @@ type SellerListing = {
   end_time: string | null; // Supabase timestamptz can be null
   created_at: string;
   photos: string | null;
-  // Add status later: status: 'active' | 'closed' | 'cancelled';
 };
 
 export default function MyListingsPage() {
@@ -55,16 +54,15 @@ export default function MyListingsPage() {
 
         setListings(listingData ?? []); // Set listings or empty array
 
-      } catch (err) { // FIX 1: Apply refined error handling from previous fixes
+      } catch (err) { // Apply refined error handling
         console.error('Error fetching listings:', err);
         let message = 'Failed to fetch your listings.';
         if (err instanceof Error) {
             message = err.message;
-        // Check if it's an object, has a message property, and that property is a string
         } else if (err !== null && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
-            message = (err as { message: string }).message; // Access message after checks
+            message = (err as { message: string }).message;
         } else if (typeof err === 'string') {
-            message = err; // Handle plain string errors if they occur
+            message = err;
         }
         setError(message);
         setListings([]); // Clear listings on error
@@ -115,7 +113,7 @@ export default function MyListingsPage() {
 
       {listings.length === 0 ? (
         <div className="text-center py-10 px-6 bg-white rounded-lg shadow-sm border border-gray-200">
-           {/* FIX 2: Replace ' with ' */}
+           {/* Ensuring this line is correct */}
            <p className="text-gray-600 mb-4">You haven't listed any items yet.</p>
            <Link
              href="/listings#add-listing-form"
