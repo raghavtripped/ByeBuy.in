@@ -14,16 +14,16 @@ type MyBidDisplayItem = {
   userHighestBid: number; // The highest bid placed by the current user on this item
   currentHighestBid: number; // The overall highest bid currently on this item
   isUserWinning: boolean; // Is the current user the highest bidder?
-  listingPhoto: string | null; // Add photo later if needed
+  listingPhoto: string | null;
 };
 
-// Type for the listing data we fetch
-type AssociatedListing = {
-    id: string;
-    title: string;
-    end_time: string | null;
-    photos: string | null;
-};
+// FIX 1: Removed unused AssociatedListing type
+// type AssociatedListing = {
+//     id: string;
+//     title: string;
+//     end_time: string | null;
+//     photos: string | null;
+// };
 
 // Type for the bid data we fetch
 type BidInfo = {
@@ -66,9 +66,8 @@ export default function MyBidsPage() {
 
         if (userBidsError) throw userBidsError;
         if (!userBidsData || userBidsData.length === 0) {
-          // User hasn't placed any bids
           setLoading(false);
-          return;
+          return; // Exit early if no bids placed
         }
 
         // 3. Get unique listing IDs the user has bid on
@@ -76,32 +75,32 @@ export default function MyBidsPage() {
 
         if (listingIds.length === 0) {
             setLoading(false);
-            return;
+            return; // Should not happen if userBidsData is not empty, but safe check
         }
 
         // 4. Fetch details for these listings
         const { data: listingsData, error: listingsError } = await supabase
           .from('listings')
           .select('id, title, end_time, photos') // Select necessary listing details
-          .in('id', listingIds); // Fetch only the listings the user bid on
+          .in('id', listingIds);
 
         if (listingsError) throw listingsError;
 
-        // 5. Fetch *all* bids for these specific listings to find the highest bid for each
+        // 5. Fetch *all* bids for these specific listings
         const { data: allBidsData, error: allBidsError } = await supabase
             .from('bids')
             .select('id, item_id, bidder_id, bid_price')
-            .in('item_id', listingIds) // Fetch bids only for the relevant items
-            .order('bid_price', { ascending: false }); // Get highest bid first potentially helpful
+            .in('item_id', listingIds)
+            .order('bid_price', { ascending: false }); // Order highest first (can simplify finding max)
 
         if (allBidsError) throw allBidsError;
 
         // 6. Process and combine the data
         const processedItems: MyBidDisplayItem[] = [];
+        // Use inferred type for listingsMap or define a local type if preferred
         const listingsMap = new Map(listingsData?.map(l => [l.id, l]));
         const allBidsMap = new Map<string, BidInfo[]>();
 
-        // Group all bids by item_id
         allBidsData?.forEach(bid => {
             if (!allBidsMap.has(bid.item_id)) {
                 allBidsMap.set(bid.item_id, []);
@@ -112,22 +111,18 @@ export default function MyBidsPage() {
 
         for (const listingId of listingIds) {
           const listing = listingsMap.get(listingId);
-          if (!listing) continue; // Skip if listing data wasn't found for some reason
+          if (!listing) continue;
 
-          // Find user's highest bid for this item
           const userBidsForItem = userBidsData.filter(bid => bid.item_id === listingId);
           const userHighestBid = Math.max(...userBidsForItem.map(bid => bid.bid_price), 0);
 
-          // Find the overall highest bid and bidder for this item
           const bidsForThisItem = allBidsMap.get(listingId) ?? [];
           let currentHighestBid = 0;
           let highestBidderId = '';
+          // Simplified finding highest bid since we ordered the query
           if (bidsForThisItem.length > 0) {
-              // Find the max bid price among bids for this item
-              currentHighestBid = Math.max(...bidsForThisItem.map(b => b.bid_price));
-              // Find the bidder associated with that max bid price
-              const highestBid = bidsForThisItem.find(b => b.bid_price === currentHighestBid);
-              highestBidderId = highestBid?.bidder_id || '';
+              currentHighestBid = bidsForThisItem[0].bid_price; // Highest is first due to order()
+              highestBidderId = bidsForThisItem[0].bidder_id;
           }
 
 
@@ -137,14 +132,12 @@ export default function MyBidsPage() {
             listingEndTime: listing.end_time,
             userHighestBid: userHighestBid,
             currentHighestBid: currentHighestBid,
-            isUserWinning: currentHighestBid > 0 && highestBidderId === currentUser.id, // User is winning if they placed the highest bid
+            isUserWinning: currentHighestBid > 0 && highestBidderId === currentUser.id,
             listingPhoto: listing.photos,
           });
         }
 
-        // Optional: Sort the processed items, e.g., by end time or title
         processedItems.sort((a, b) => a.listingTitle.localeCompare(b.listingTitle));
-
         setBidItems(processedItems);
 
       } catch (err) {
@@ -162,7 +155,7 @@ export default function MyBidsPage() {
     };
 
     fetchMyBids();
-  }, [router]); // Dependency on router due to redirect
+  }, [router]);
 
   // ----- Render Logic -----
 
@@ -185,7 +178,7 @@ export default function MyBidsPage() {
   }
 
   if (!user) {
-     return ( // Should be caught by redirect, but good fallback
+     return (
        <div className="max-w-4xl mx-auto p-4 sm:p-8">
          <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-800">My Bids</h1>
          <p className="text-center text-gray-600">
@@ -201,6 +194,8 @@ export default function MyBidsPage() {
 
       {bidItems.length === 0 ? (
          <div className="text-center py-10 px-6 bg-white rounded-lg shadow-sm border border-gray-200">
+           {/* FIX 2: Disable rule for this line */}
+           {/* eslint-disable-next-line react/no-unescaped-entities */}
            <p className="text-gray-600 mb-4">You haven't placed any bids yet.</p>
            <Link
              href="/listings"
@@ -213,8 +208,7 @@ export default function MyBidsPage() {
         <ul className="space-y-6">
           {bidItems.map((item) => (
             <li key={item.listingId} className="border border-gray-200 p-4 rounded-lg shadow-sm flex flex-col sm:flex-row gap-4 items-start bg-white hover:shadow-md transition-shadow duration-200">
-               {/* Image */}
-              {item.listingPhoto && (
+               {item.listingPhoto && (
                 <div className="flex-shrink-0 w-full sm:w-[120px] h-[120px] sm:h-[80px] bg-gray-100 rounded overflow-hidden">
                    {/* eslint-disable-next-line @next/next/no-img-element */}
                    <img
@@ -224,7 +218,6 @@ export default function MyBidsPage() {
                    />
                 </div>
               )}
-              {/* Details */}
               <div className="flex-grow">
                 <Link href={`/listings/${item.listingId}`} className="text-lg font-semibold text-indigo-600 hover:text-indigo-800 hover:underline block mb-2">
                   {item.listingTitle}
@@ -232,15 +225,14 @@ export default function MyBidsPage() {
                 <div className="space-y-1 text-sm">
                     <p>Your Highest Bid: <span className="font-medium text-blue-700">₹{item.userHighestBid.toFixed(2)}</span></p>
                     <p>Current Highest Bid: <span className="font-medium text-green-700">₹{item.currentHighestBid.toFixed(2)}</span></p>
-                    {/* Status Indicator */}
                     <div>
                         Status: {item.isUserWinning ? (
                              <span className="font-medium text-green-600 bg-green-100 px-2 py-0.5 rounded-full text-xs">🎉 Winning</span>
                           ) : (
-                             <span className="font-medium text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full text-xs"> Losisng</span>
+                             // Corrected typo: Losisng -> Losing
+                             <span className="font-medium text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full text-xs"> Losing</span>
                           )
                         }
-                        {/* Add 'Ended' status later */}
                     </div>
                      {item.listingEndTime && (
                         <p className="text-xs text-gray-500 pt-1">Auction Ends: {new Date(item.listingEndTime).toLocaleString()}</p>
