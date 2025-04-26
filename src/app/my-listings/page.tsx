@@ -5,6 +5,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase, User } from '@/lib/supabaseClient';
+// --- Import reusable components ---
+import LoadingSpinner from '@/components/LoadingSpinner';
+import EmptyState from '@/components/EmptyState';
 
 type SellerListing = {
   id: string;
@@ -40,7 +43,7 @@ export default function MyListingsPage() {
 
       try {
         const { data: listingData, error: listingError } = await supabase
-          .from('listings')
+          .from('listings') // Still query base table here, view not needed yet
           .select('id, title, description, min_price, end_time, created_at, photos')
           .eq('seller_id', userData.user.id)
           .order('created_at', { ascending: false });
@@ -50,15 +53,10 @@ export default function MyListingsPage() {
 
       } catch (err) {
         console.error('Error fetching listings:', err);
-        // Simplified error message extraction
         let message = 'Failed to fetch your listings.';
-        if (err instanceof Error) {
-            message = err.message;
-        } else if (typeof err === 'object' && err !== null && 'message' in err) {
-            message = String((err as { message: unknown }).message ?? message);
-        } else if (typeof err === 'string') {
-            message = err;
-        }
+        if (err instanceof Error) { message = err.message; }
+        else if (typeof err === 'object' && err !== null && 'message' in err) { message = String((err as { message: unknown }).message ?? message); }
+        else if (typeof err === 'string') { message = err; }
         setError(message);
         setListings([]);
       } finally {
@@ -70,15 +68,19 @@ export default function MyListingsPage() {
 
   }, [router]);
 
+  // --- Render Logic ---
+
+  // Loading state using component
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-4 sm:p-8">
         <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-800">My Listings</h1>
-        <p className="text-center text-gray-600">Loading your listings...</p>
+        <LoadingSpinner message="Loading your listings..." /> {/* Use component */}
       </div>
     );
   }
 
+  // Error state
   if (error) {
     return (
       <div className="max-w-4xl mx-auto p-4 sm:p-8">
@@ -88,6 +90,7 @@ export default function MyListingsPage() {
     );
   }
 
+  // Not logged in state
   if (!user) {
      return (
        <div className="max-w-4xl mx-auto p-4 sm:p-8">
@@ -99,28 +102,26 @@ export default function MyListingsPage() {
      );
   }
 
+  // Main content render
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-8">
       <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-800">My Listings</h1>
 
       {listings.length === 0 ? (
-        <div className="text-center py-10 px-6 bg-white rounded-lg shadow-sm border border-gray-200">
-           {/* FIX: Disable the ESLint rule for the next line */}
-           {/* eslint-disable-next-line react/no-unescaped-entities */}
-           <p className="text-gray-600 mb-4">You haven't listed any items yet.</p>
-           <Link
-             href="/listings#add-listing-form"
-             className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out"
-           >
-             List an Item
-           </Link>
-        </div>
+        // --- Use EmptyState component ---
+        <EmptyState
+            message="You haven't listed any items yet."
+            action={{ href: '/listings#add-listing-form', text: 'List an Item' }}
+            // Removed the explicit eslint-disable comment as it's handled within EmptyState if needed
+        />
       ) : (
+        // Display list of listings
         <ul className="space-y-6">
           {listings.map((listing) => (
             <li key={listing.id} className="border border-gray-200 p-4 rounded-lg shadow-sm flex flex-col sm:flex-row gap-4 items-start bg-white hover:shadow-md transition-shadow duration-200">
               {listing.photos && (
                 <div className="flex-shrink-0 w-full sm:w-[120px] h-[120px] sm:h-[80px] bg-gray-100 rounded overflow-hidden">
+                   {/* We will replace this with <Image> later */}
                    {/* eslint-disable-next-line @next/next/no-img-element */}
                    <img
                      src={listing.photos}
@@ -137,10 +138,15 @@ export default function MyListingsPage() {
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-800">
                    <span>Min Price: <span className="font-medium">₹{listing.min_price.toFixed(2)}</span></span>
                    {listing.end_time && (
+                     // Consider using formatRelativeTime here too eventually
                      <span>Ends: <span className="font-medium">{new Date(listing.end_time).toLocaleString()}</span></span>
                    )}
+                   {/* Placeholder for highest bid */}
+                   {/* <span>Highest Bid: ₹XXX</span> */}
                 </div>
               </div>
+              {/* Placeholder for Delete/Edit buttons */}
+              {/* <div className="flex-shrink-0 self-center sm:self-start"> ... </div> */}
             </li>
           ))}
         </ul>

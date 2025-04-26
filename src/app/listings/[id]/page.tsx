@@ -6,8 +6,9 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase, User } from '@/lib/supabaseClient';
 import { formatRelativeTime, isPast } from '@/lib/timeUtils';
+import LoadingSpinner from '@/components/LoadingSpinner'; // <<<--- IMPORT Spinner
 
-// Listing type remains the same
+// Listing type definition
 type Listing = {
     id: string;
     title: string;
@@ -20,13 +21,13 @@ type Listing = {
     seller_email?: string | null;
 };
 
-// --- Update Bid type to include bidder_email ---
+// Bid type definition
 type Bid = {
     id: string;
     bid_price: number;
-    bidder_id: string; // Still useful internally or if email is null
+    bidder_id: string;
     timestamp: string;
-    bidder_email?: string | null; // Add the bidder's email (optional)
+    bidder_email?: string | null;
 };
 
 export default function ListingDetails() {
@@ -34,7 +35,7 @@ export default function ListingDetails() {
   const router = useRouter();
 
   const [listing, setListing] = useState<Listing | null>(null);
-  const [bids,    setBids]    = useState<Bid[]>([]); // State now holds Bid objects with email
+  const [bids,    setBids]    = useState<Bid[]>([]);
   const [price,   setPrice]   = useState('');
   const [user,    setUser]    = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,25 +51,22 @@ export default function ListingDetails() {
 
     const load = async () => {
       try {
-        // Fetch listing data (uses listings_with_seller_email view)
+        // Fetch listing data from view
         const { data: lData, error: lError } = await supabase
           .from('listings_with_seller_email')
           .select(` id, title, description, min_price, photos, end_time, upper_cap, rules, seller_email `)
           .eq('id', id)
           .single();
-
         if (lError) throw lError;
         setListing(lData as Listing ?? null);
 
-        // --- Fetch bids data using the NEW VIEW ---
+        // Fetch bids data from view
         const { data: bData, error: bError } = await supabase
-          .from('bids_with_bidder_email') // <<<--- QUERY THE BIDS VIEW
-          .select(` id, bid_price, bidder_id, timestamp, bidder_email `) // <<<--- SELECT email
+          .from('bids_with_bidder_email')
+          .select(` id, bid_price, bidder_id, timestamp, bidder_email `)
           .eq('item_id', id)
-          .order('timestamp', { ascending: false }); // Keep latest bid first for display
-
+          .order('timestamp', { ascending: false });
         if (bError) throw bError;
-        // Cast result to Bid[] which now includes optional bidder_email
         setBids(bData as Bid[] ?? []);
 
       } catch (err) { /* ... error handling ... */
@@ -83,37 +81,24 @@ export default function ListingDetails() {
     };
     load();
 
-    // --- Realtime subscription needs to fetch from the VIEW now too ---
+    // Realtime subscription for bids
     const bidsChannel = supabase
-      .channel(`bids-listing-${id}`) // Keep channel name consistent
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` },
-        async (payload) => { // Make the callback async to fetch details
+      .channel(`bids-listing-${id}`)
+      .on('postgres_changes',{ event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` },
+        async (payload) => {
           console.log('New bid detected via RT!', payload.new.id);
-          // When a new bid comes in, we need its email. Fetch the full bid details from the view.
-          try {
+          try { // Fetch full details including email for new bid
               const { data: newBidDetails, error: fetchError } = await supabase
                   .from('bids_with_bidder_email')
                   .select('id, bid_price, bidder_id, timestamp, bidder_email')
                   .eq('id', payload.new.id)
                   .single();
-
-              if (fetchError) {
-                  console.error("RT: Error fetching new bid details:", fetchError);
-                  // Optionally refetch all bids as a fallback: load();
-                  return;
-              }
-
+              if (fetchError) throw fetchError;
               if (newBidDetails) {
                   console.log("RT: Adding new bid with email:", newBidDetails);
-                  // Add the new bid (with email) to the top of the list
                   setBids((currentBids) => [newBidDetails as Bid, ...currentBids.filter(b => b.id !== newBidDetails.id)]);
               }
-          } catch (e) {
-              console.error("RT: Exception fetching new bid details:", e);
-              // Optionally refetch all bids as a fallback: load();
-          }
+          } catch (e) { console.error("RT: Exception fetching new bid details:", e); }
         }
       )
       .subscribe((status, err) => { /* ... error handling ... */
@@ -121,11 +106,10 @@ export default function ListingDetails() {
         if (status === 'CHANNEL_ERROR') { console.error(`RT error: bids ${id}`, err); setError('Realtime connection error.'); }
        });
 
-    // Cleanup
     return () => { supabase.removeChannel(bidsChannel); };
   }, [id]);
 
-  const placeBid = async () => { /* ... placeBid logic remains the same ... */
+  const placeBid = async () => { /* ... placeBid logic ... */
     if (!user) return router.push('/auth');
     if (!listing) return;
     if (listing.end_time && isPast(listing.end_time)) { alert("This auction has already ended."); return; }
@@ -143,20 +127,30 @@ export default function ListingDetails() {
   };
 
   // Render Logic
-  if (loading) return <p className="p-6 text-center">Loading listing details...</p>;
+
+  // --- Use LoadingSpinner ---
+  if (loading) {
+      // Wrap spinner for consistent layout if needed, or return directly
+      return (
+          <div className="max-w-xl mx-auto px-4 py-10">
+              <LoadingSpinner message="Loading listing details..." />
+          </div>
+      );
+  }
+
+  // Error and Not Found states
   if (error) return <p className="p-6 text-center text-red-600">{error}</p>;
   if (!listing) return <p className="p-6 text-center">Listing not found.</p>;
 
+  // Prepare display variables
   const timeString = formatRelativeTime(listing.end_time);
   const auctionEnded = listing.end_time ? isPast(listing.end_time) : false;
-
-  // Find the highest bid object to get the bidder email for the top display
-  const highestBid = bids.length > 0 ? bids[0] : null; // Assumes bids are sorted descending by timestamp
+  const highestBid = bids.length > 0 ? bids[0] : null;
 
   return (
     <main className="max-w-xl mx-auto px-4 py-10 space-y-6">
       {/* Listing Image */}
-      {listing.photos && ( /* ... image jsx ... */ <> {/* eslint-disable-next-line @next/next/no-img-element */} <img src={listing.photos} alt={`Photo for ${listing.title}`} className="rounded mb-4 w-full h-auto object-cover" /> </> )}
+      {listing.photos && ( <> {/* eslint-disable-next-line @next/next/no-img-element */} <img src={listing.photos} alt={`Photo for ${listing.title}`} className="rounded mb-4 w-full h-auto object-cover" /> </> )}
 
       {/* Listing Details */}
       <section className="space-y-2 border-b pb-4">
@@ -171,53 +165,27 @@ export default function ListingDetails() {
       </section>
 
        {/* Rules Section */}
-       {listing.rules && ( /* ... rules jsx ... */ <section className="p-4 border rounded-md bg-gray-50 space-y-1"> <h3 className="text-sm font-semibold text-gray-700">Auction Rules:</h3> <p className="text-sm text-gray-600 whitespace-pre-wrap">{listing.rules}</p> </section> )}
+       {listing.rules && ( <section className="p-4 border rounded-md bg-gray-50 space-y-1"> <h3 className="text-sm font-semibold text-gray-700">Auction Rules:</h3> <p className="text-sm text-gray-600 whitespace-pre-wrap">{listing.rules}</p> </section> )}
 
-      {/* --- Current Highest Bid Display (with bidder email) --- */}
+      {/* Current Highest Bid Display */}
        <section className="bg-green-50 p-4 rounded border border-green-200">
             <h2 className="text-xl font-semibold mb-1 text-green-800">Current Highest Bid:</h2>
-            {highestBid ? (
-              <div>
-                 <p className="text-2xl font-bold text-green-700">₹{highestBid.bid_price.toFixed(2)}</p>
-                 {/* Display bidder email if available */}
-                 {highestBid.bidder_email && (
-                     <p className="text-xs text-gray-600 mt-1"> by <span className="font-medium">{highestBid.bidder_email}</span></p>
-                 )}
-              </div>
-            ) : (
-                 <p className="text-lg text-gray-600">No bids yet. Be the first!</p>
-            )}
+            {highestBid ? ( <div> <p className="text-2xl font-bold text-green-700">₹{highestBid.bid_price.toFixed(2)}</p> {highestBid.bidder_email && ( <p className="text-xs text-gray-600 mt-1"> by <span className="font-medium">{highestBid.bidder_email}</span></p> )} </div> )
+            : ( <p className="text-lg text-gray-600">No bids yet. Be the first!</p> )}
        </section>
 
       {/* Bid Form */}
       <section>
-          {user && !auctionEnded && ( /* ... bid form jsx ... */ <div className="p-4 border rounded bg-white shadow-sm"> <h3 className="text-lg font-semibold mb-3 text-gray-800">Place Your Bid</h3> <div className="flex items-center space-x-3"> <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder={`Your bid ( > ₹${Math.max(listing.min_price, bids[0]?.bid_price || 0).toFixed(2)} )`} className="border px-3 py-2 rounded w-full focus:ring-indigo-500 focus:border-indigo-500" step="any" min="0" /> <button onClick={placeBid} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded font-medium transition duration-150 ease-in-out whitespace-nowrap">Place Bid</button> </div> </div> )}
+          {user && !auctionEnded && ( <div className="p-4 border rounded bg-white shadow-sm"> <h3 className="text-lg font-semibold mb-3 text-gray-800">Place Your Bid</h3> <div className="flex items-center space-x-3"> <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder={`Your bid ( > ₹${Math.max(listing.min_price, bids[0]?.bid_price || 0).toFixed(2)} )`} className="border px-3 py-2 rounded w-full focus:ring-indigo-500 focus:border-indigo-500" step="any" min="0" /> <button onClick={placeBid} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded font-medium transition duration-150 ease-in-out whitespace-nowrap">Place Bid</button> </div> </div> )}
           {user && auctionEnded && ( <div className="p-4 border rounded bg-gray-100 text-gray-600 text-center">This auction has ended.</div> )}
           {!user && ( <div className="p-4 border rounded bg-yellow-50 text-yellow-800 text-center"> Please <Link href="/auth" className="font-bold underline hover:text-yellow-900">log in</Link> to place a bid. </div> )}
       </section>
 
-      {/* --- Bid History Section (with bidder email) --- */}
+      {/* Bid History Section */}
       <section className="pt-6 border-t">
             <h2 className="text-2xl font-semibold mb-4 text-gray-800">Bid History</h2>
             {bids.length === 0 ? ( <p className="text-gray-600">No bids have been placed yet.</p> )
-            : (
-                 <ul className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                  {bids.map((bid) => ( // Use the bid object which now contains bidder_email
-                     <li key={bid.id} className="p-3 border rounded bg-gray-50 flex justify-between items-center text-sm">
-                        <div>
-                           <span className="font-semibold text-indigo-800">₹{bid.bid_price.toFixed(2)}</span>
-                           {/* Display bidder email if available */}
-                           {bid.bidder_email && (
-                                <span className="text-xs text-gray-500 ml-2">by {bid.bidder_email}</span>
-                            )}
-                        </div>
-                        <span className="text-xs text-gray-500">
-                           {new Date(bid.timestamp).toLocaleString()}
-                        </span>
-                     </li>
-                  ))}
-                 </ul>
-             )}
+            : ( <ul className="space-y-3 max-h-96 overflow-y-auto pr-2"> {bids.map((bid) => ( <li key={bid.id} className="p-3 border rounded bg-gray-50 flex justify-between items-center text-sm"> <div> <span className="font-semibold text-indigo-800">₹{bid.bid_price.toFixed(2)}</span> {bid.bidder_email && ( <span className="text-xs text-gray-500 ml-2">by {bid.bidder_email}</span> )} </div> <span className="text-xs text-gray-500"> {new Date(bid.timestamp).toLocaleString()} </span> </li> ))} </ul> )}
       </section>
     </main>
   );

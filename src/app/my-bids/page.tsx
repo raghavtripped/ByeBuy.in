@@ -5,6 +5,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase, User } from '@/lib/supabaseClient';
+// --- Import reusable components ---
+import LoadingSpinner from '@/components/LoadingSpinner';
+import EmptyState from '@/components/EmptyState';
 
 // Type for the combined data we'll display
 type MyBidDisplayItem = {
@@ -16,14 +19,6 @@ type MyBidDisplayItem = {
   isUserWinning: boolean; // Is the current user the highest bidder?
   listingPhoto: string | null;
 };
-
-// FIX 1: Removed unused AssociatedListing type
-// type AssociatedListing = {
-//     id: string;
-//     title: string;
-//     end_time: string | null;
-//     photos: string | null;
-// };
 
 // Type for the bid data we fetch
 type BidInfo = {
@@ -70,44 +65,34 @@ export default function MyBidsPage() {
           return; // Exit early if no bids placed
         }
 
-        // 3. Get unique listing IDs the user has bid on
+        // 3. Get unique listing IDs
         const listingIds = [...new Set(userBidsData.map(bid => bid.item_id))];
-
-        if (listingIds.length === 0) {
-            setLoading(false);
-            return; // Should not happen if userBidsData is not empty, but safe check
-        }
+        if (listingIds.length === 0) { setLoading(false); return; }
 
         // 4. Fetch details for these listings
         const { data: listingsData, error: listingsError } = await supabase
           .from('listings')
-          .select('id, title, end_time, photos') // Select necessary listing details
+          .select('id, title, end_time, photos')
           .in('id', listingIds);
-
         if (listingsError) throw listingsError;
 
-        // 5. Fetch *all* bids for these specific listings
+        // 5. Fetch all bids for these listings
         const { data: allBidsData, error: allBidsError } = await supabase
             .from('bids')
             .select('id, item_id, bidder_id, bid_price')
             .in('item_id', listingIds)
-            .order('bid_price', { ascending: false }); // Order highest first (can simplify finding max)
-
+            .order('bid_price', { ascending: false }); // Order highest first
         if (allBidsError) throw allBidsError;
 
-        // 6. Process and combine the data
+        // 6. Process and combine data
         const processedItems: MyBidDisplayItem[] = [];
-        // Use inferred type for listingsMap or define a local type if preferred
         const listingsMap = new Map(listingsData?.map(l => [l.id, l]));
         const allBidsMap = new Map<string, BidInfo[]>();
 
         allBidsData?.forEach(bid => {
-            if (!allBidsMap.has(bid.item_id)) {
-                allBidsMap.set(bid.item_id, []);
-            }
+            if (!allBidsMap.has(bid.item_id)) { allBidsMap.set(bid.item_id, []); }
             allBidsMap.get(bid.item_id)?.push(bid);
         });
-
 
         for (const listingId of listingIds) {
           const listing = listingsMap.get(listingId);
@@ -119,18 +104,14 @@ export default function MyBidsPage() {
           const bidsForThisItem = allBidsMap.get(listingId) ?? [];
           let currentHighestBid = 0;
           let highestBidderId = '';
-          // Simplified finding highest bid since we ordered the query
           if (bidsForThisItem.length > 0) {
-              currentHighestBid = bidsForThisItem[0].bid_price; // Highest is first due to order()
+              currentHighestBid = bidsForThisItem[0].bid_price; // Highest is first
               highestBidderId = bidsForThisItem[0].bidder_id;
           }
 
-
           processedItems.push({
-            listingId: listing.id,
-            listingTitle: listing.title,
-            listingEndTime: listing.end_time,
-            userHighestBid: userHighestBid,
+            listingId: listing.id, listingTitle: listing.title,
+            listingEndTime: listing.end_time, userHighestBid: userHighestBid,
             currentHighestBid: currentHighestBid,
             isUserWinning: currentHighestBid > 0 && highestBidderId === currentUser.id,
             listingPhoto: listing.photos,
@@ -143,11 +124,8 @@ export default function MyBidsPage() {
       } catch (err) {
         console.error("Error fetching bid data:", err);
         let message = "Failed to load your bids.";
-        if (err instanceof Error) {
-          message = err.message;
-        } else if (typeof err === 'object' && err !== null && 'message' in err) {
-          message = String((err as { message: unknown }).message ?? message);
-        }
+        if (err instanceof Error) { message = err.message; }
+        else if (typeof err === 'object' && err !== null && 'message' in err) { message = String((err as { message: unknown }).message ?? message); }
         setError(message);
       } finally {
         setLoading(false);
@@ -159,15 +137,17 @@ export default function MyBidsPage() {
 
   // ----- Render Logic -----
 
+  // --- Use LoadingSpinner ---
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-4 sm:p-8">
         <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-800">My Bids</h1>
-        <p className="text-center text-gray-600">Loading your bid information...</p>
+        <LoadingSpinner message="Loading your bid information..." /> {/* Use component */}
       </div>
     );
   }
 
+  // Error state
   if (error) {
     return (
       <div className="max-w-4xl mx-auto p-4 sm:p-8">
@@ -177,6 +157,7 @@ export default function MyBidsPage() {
     );
   }
 
+  // Not logged in state
   if (!user) {
      return (
        <div className="max-w-4xl mx-auto p-4 sm:p-8">
@@ -188,23 +169,20 @@ export default function MyBidsPage() {
      );
   }
 
+  // Main content render
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-8">
       <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-800">My Bids</h1>
 
       {bidItems.length === 0 ? (
-         <div className="text-center py-10 px-6 bg-white rounded-lg shadow-sm border border-gray-200">
-           {/* FIX 2: Disable rule for this line */}
-           {/* eslint-disable-next-line react/no-unescaped-entities */}
-           <p className="text-gray-600 mb-4">You haven't placed any bids yet.</p>
-           <Link
-             href="/listings"
-             className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out"
-           >
-             Browse Listings
-           </Link>
-        </div>
+         // --- Use EmptyState ---
+         <EmptyState
+            message="You haven't placed any bids yet."
+            action={{ href: '/listings', text: 'Browse Listings' }}
+            // Removed the explicit eslint-disable comment
+         />
       ) : (
+        // Display list of bid items
         <ul className="space-y-6">
           {bidItems.map((item) => (
             <li key={item.listingId} className="border border-gray-200 p-4 rounded-lg shadow-sm flex flex-col sm:flex-row gap-4 items-start bg-white hover:shadow-md transition-shadow duration-200">
@@ -229,12 +207,13 @@ export default function MyBidsPage() {
                         Status: {item.isUserWinning ? (
                              <span className="font-medium text-green-600 bg-green-100 px-2 py-0.5 rounded-full text-xs">🎉 Winning</span>
                           ) : (
-                             // Corrected typo: Losisng -> Losing
                              <span className="font-medium text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full text-xs"> Losing</span>
                           )
                         }
+                         {/* Add "Ended" status later */}
                     </div>
                      {item.listingEndTime && (
+                         // Consider using formatRelativeTime here too
                         <p className="text-xs text-gray-500 pt-1">Auction Ends: {new Date(item.listingEndTime).toLocaleString()}</p>
                      )}
                 </div>
