@@ -1,65 +1,73 @@
 // src/lib/timeUtils.ts
 
 /**
- * Formats a date string or Date object into a relative time string.
- * e.g., "Ends in 5 hours", "Ended 2 days ago"
+ * Formats a date string or Date object into a detailed relative time string,
+ * showing up to two significant units (e.g., "1 day 5 hours", "3 hours 10 minutes").
  *
  * @param dateString The ISO date string or Date object to format.
  * @returns A user-friendly relative time string, or an empty string for invalid dates.
  */
 export function formatRelativeTime(dateString: string | Date | null | undefined): string {
     if (!dateString) {
-      return ''; // Return empty if no date provided
+      return '';
     }
   
     try {
       const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
-  
-      // Check if the date is valid
       if (isNaN(date.getTime())) {
         console.warn("Invalid date provided to formatRelativeTime:", dateString);
-        return ''; // Return empty for invalid dates
+        return '';
       }
   
       const now = new Date();
       const diffInSeconds = Math.round((date.getTime() - now.getTime()) / 1000);
   
-      const secondsAbs = Math.abs(diffInSeconds);
-      const minutes = Math.floor(secondsAbs / 60);
-      const hours = Math.floor(secondsAbs / 3600);
-      const days = Math.floor(secondsAbs / 86400);
+      const isFuture = diffInSeconds > 0;
+      const prefix = isFuture ? 'Ends in' : 'Ended';
+      const suffix = isFuture ? '' : ' ago';
+      const absSeconds = Math.abs(diffInSeconds);
   
-      if (diffInSeconds <= 0) {
-        // Time has passed
-        if (days > 1) return `Ended ${days} days ago`;
-        if (days === 1) return `Ended 1 day ago`;
-        if (hours > 1) return `Ended ${hours} hours ago`;
-        if (hours === 1) return `Ended 1 hour ago`;
-        if (minutes > 1) return `Ended ${minutes} minutes ago`;
-        if (minutes === 1) return `Ended 1 minute ago`;
-        return 'Ended just now';
-      } else {
-        // Time is in the future
-        if (days > 1) return `Ends in ${days} days`;
-        if (days === 1) return `Ends in 1 day`;
-        if (hours > 1) return `Ends in ${hours} hours`;
-        if (hours === 1) return `Ends in 1 hour`;
-        if (minutes > 1) return `Ends in ${minutes} minutes`;
-        if (minutes === 1) return `Ends in 1 minute`;
-        return 'Ends in < 1 minute';
+      // Handle edge case: less than a minute
+      if (absSeconds < 60) {
+        return isFuture ? 'Ends in < 1 minute' : 'Ended just now';
       }
+  
+      const days = Math.floor(absSeconds / 86400);
+      const remainingSecondsAfterDays = absSeconds % 86400;
+      const hours = Math.floor(remainingSecondsAfterDays / 3600);
+      const remainingSecondsAfterHours = remainingSecondsAfterDays % 3600;
+      const minutes = Math.floor(remainingSecondsAfterHours / 60);
+  
+      const parts: string[] = [];
+  
+      if (days > 0) {
+        parts.push(`${days} day${days > 1 ? 's' : ''}`);
+      }
+      if (hours > 0) {
+        parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
+      }
+      // Show minutes only if it's one of the top two units OR if it's the only unit > 0
+      if (minutes > 0 && parts.length < 2) {
+        parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+      }
+  
+      // We only want the two most significant parts
+      const relevantParts = parts.slice(0, 2);
+  
+      if (relevantParts.length === 0) {
+           // Fallback if somehow no parts were generated (shouldn't happen with current logic)
+           return isFuture ? 'Ends soon' : 'Ended recently';
+      }
+  
+      return `${prefix} ${relevantParts.join(' ')}${suffix}`;
+  
     } catch (error) {
       console.error("Error formatting relative time:", error);
-      return ''; // Return empty on unexpected errors
+      return '';
     }
   }
   
-  /**
-   * Checks if a given date string or Date object represents a time in the past.
-   *
-   * @param dateString The ISO date string or Date object to check.
-   * @returns True if the date is in the past, false otherwise or if invalid.
-   */
+  // isPast function remains the same
   export function isPast(dateString: string | Date | null | undefined): boolean {
       if (!dateString) return false;
       try {
