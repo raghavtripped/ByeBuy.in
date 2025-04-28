@@ -28,7 +28,10 @@ export default function Navbar() {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user ?? null); // Update user state based on the session
-        setLoading(false); // Ensure loading is false after auth state changes
+        // Ensure loading is false if state changes quickly after mount
+        if (loading) {
+            setLoading(false);
+        }
       }
     );
 
@@ -36,7 +39,7 @@ export default function Navbar() {
     return () => {
       authListener?.subscription?.unsubscribe();
     };
-  }, []); // Empty dependency array ensures this effect runs only once on mount
+  }, [loading]); // Added loading dependency to ensure setLoading(false) runs if state changes fast
 
   // Handler for the logout button
   const handleLogout = async () => {
@@ -47,19 +50,24 @@ export default function Navbar() {
     } else {
       setUser(null); // Immediately update local state
       router.refresh(); // Refresh server components and fetch new data reflecting logged-out state
-      router.push('/auth'); // Optionally redirect to auth page after logout
+      router.push('/auth'); // Redirect to auth page after logout
     }
   };
 
   // While initially checking auth state, show a minimal placeholder or nothing
   if (loading) {
     return (
-      <nav className="bg-gray-800 text-white shadow-md">
+      <nav className="bg-gray-800 text-white shadow-md sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link href="/listings" className="font-bold text-xl hover:text-indigo-300">
             Bidly
           </Link>
-          <div className="h-6 bg-gray-700 rounded w-24 animate-pulse"></div> {/* Loading Placeholder */}
+          {/* Loading Placeholder for right side */}
+          <div className="flex space-x-4 animate-pulse">
+                <div className="h-6 bg-gray-700 rounded w-20"></div>
+                <div className="h-6 bg-gray-700 rounded w-20"></div>
+                <div className="h-6 bg-gray-700 rounded w-16"></div>
+          </div>
         </div>
       </nav>
     );
@@ -80,10 +88,16 @@ export default function Navbar() {
         </div>
 
         {/* Right Side: Conditional Links based on Auth State */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4"> {/* Reverted spacing change, keep consistent */}
           {user ? (
             // Links shown when user is logged IN
             <>
+              {/* --- ADDED "+ List Item" Link --- */}
+              <Link href="/listings/new" className="text-gray-300 bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-md text-sm font-medium">
+                 + List Item
+              </Link>
+              {/* --- END OF ADDED LINK --- */}
+
               <Link href="/my-listings" className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                 My Listings
               </Link>
