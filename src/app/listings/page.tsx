@@ -59,7 +59,12 @@ export default function ListingsPage() {
             else if (newListingData) { setRows((currentRows) => [newListingData as Listing, ...currentRows.filter(r => r.id !== payload.new.id)]); }
         }
       )
-      .subscribe((status, err) => { /* ... subscribe logging ... */ });
+      // Use _ prefix for unused variables
+      .subscribe((_status, _err) => {
+         if (_status === 'SUBSCRIBED') console.log('RT subscribed: listings');
+         if (_status === 'CHANNEL_ERROR') console.error('RT error: listings:', _err);
+      });
+
     return () => { supabase.removeChannel(listingsChannel); };
   }, []);
 
@@ -98,7 +103,10 @@ export default function ListingsPage() {
             <li key={l.id} className="col-span-1 flex flex-col divide-y divide-gray-200 rounded-lg bg-white text-center shadow border border-gray-200 transition-shadow duration-200 hover:shadow-lg">
               <Link href={`/listings/${l.id}`} className="flex flex-1 flex-col p-4 pb-2 group">
                 {/* Image Area */}
-                {l.photos ? ( <div className="w-full h-40 bg-gray-100 rounded-md overflow-hidden mx-auto mb-3"> {/* eslint-disable-next-line @next/next/no-img-element */} <img className="w-full h-full flex-shrink-0 object-cover group-hover:opacity-90 transition-opacity" src={l.photos} alt={`Cover image for ${l.title}`} /> </div> )
+                {l.photos ? ( <div className="w-full h-40 bg-gray-100 rounded-md overflow-hidden mx-auto mb-3">
+                    {/* Removed unused eslint-disable comment */}
+                    <img className="w-full h-full flex-shrink-0 object-cover group-hover:opacity-90 transition-opacity" src={l.photos} alt={`Cover image for ${l.title}`} />
+                 </div> )
                 : ( <div className="w-full h-40 bg-gray-200 rounded-md flex items-center justify-center mx-auto mb-3"> <svg className="h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> </div> )}
                 {/* Text Content Area */}
                 <h3 className="mt-1 text-gray-900 text-md font-medium group-hover:text-indigo-600">{l.title}</h3>
