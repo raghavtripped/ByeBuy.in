@@ -78,3 +78,47 @@ export function formatRelativeTime(dateString: string | Date | null | undefined)
           return false;
       }
   }
+  /**
+ * Formats the time remaining until a future date string/object
+ * into a detailed DD:HH:MM:SS or HH:MM:SS countdown string.
+ * Returns null if the date is invalid or in the past.
+ *
+ * @param dateString The future ISO date string or Date object.
+ * @returns A formatted countdown string or null.
+ */
+export function formatCountdown(dateString: string | Date | null | undefined): string | null {
+  if (!dateString) return null;
+
+  try {
+    const targetDate = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    if (isNaN(targetDate.getTime())) return null; // Invalid date
+
+    const now = new Date();
+    const diffInSeconds = Math.round((targetDate.getTime() - now.getTime()) / 1000);
+
+    // If time has passed or is very close, return null (or "Ended")
+    if (diffInSeconds <= 0) {
+      return null;
+    }
+
+    const days = Math.floor(diffInSeconds / 86400);
+    const hours = Math.floor((diffInSeconds % 86400) / 3600);
+    const minutes = Math.floor((diffInSeconds % 3600) / 60);
+    const seconds = diffInSeconds % 60;
+
+    // Helper to pad numbers with leading zero
+    const pad = (num: number) => String(num).padStart(2, '0');
+
+    let countdownString = '';
+    if (days > 0) {
+      countdownString += `${days}d `;
+    }
+    countdownString += `${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s`;
+
+    return countdownString.trim(); // Remove trailing space if no days
+
+  } catch (error) {
+    console.error("Error formatting countdown:", error);
+    return null;
+  }
+}
