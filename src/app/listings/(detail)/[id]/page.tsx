@@ -1,11 +1,11 @@
 // src/app/listings/(detail)/[id]/page.tsx
 'use client';
 
-import { useEffect, useState, useCallback } from 'react'; // Add useCallback back if needed for future optimization, safe to keep
+// --- FIX: Remove unused useCallback import ---
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase, User } from '@/lib/supabaseClient';
-// --- FIX: Combine imports from timeUtils ---
 import { formatRelativeTime, isPast, formatCountdown } from '@/lib/timeUtils';
 import { formatCurrency } from '@/lib/formatUtils';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -31,9 +31,9 @@ export default function ListingDetails() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
   const [bidStatusMessage, setBidStatusMessage] = useState<string | null>(null);
-  const [countdown, setCountdown] = useState<string | null>(null); // State for live timer string
+  const [countdown, setCountdown] = useState<string | null>(null);
 
-  /* ----------------------------- data loading useEffect ---------------------------- */
+  /* Data loading useEffect */
   useEffect(() => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!id || !uuidRegex.test(id)) { setError("Listing not found."); setLoading(false); return; }
@@ -52,10 +52,10 @@ export default function ListingDetails() {
                 setBids(bData ?? []);
             } else { setError("Listing not found."); setBids([]); }
         } catch (err) { /* ... error handling ... */
-            console.error("Error loading data:", err);
-            let message = 'An unknown error occurred loading data';
-            if (err instanceof Error) { message = err.message; }
-            setError(`Failed to load listing: ${message}`); setListing(null);
+             console.error("Error loading data:", err);
+             let message = 'An unknown error occurred loading data';
+             if (err instanceof Error) { message = err.message; }
+             setError(`Failed to load listing: ${message}`); setListing(null);
         } finally { setLoading(false); }
     };
     load();
@@ -80,34 +80,24 @@ export default function ListingDetails() {
     return () => { supabase.removeChannel(bidsChannel); };
   }, [id]);
 
-  /* ----------------------------- Timer useEffect ---------------------------- */
+  /* Timer useEffect */
   useEffect(() => {
-    if (!listing || !listing.end_time || isPast(listing.end_time)) {
-        setCountdown(null); return;
-    }
+    if (!listing || !listing.end_time || isPast(listing.end_time)) { setCountdown(null); return; }
     let intervalId: number | undefined = undefined;
-    const updateTimer = () => {
+    const updateTimer = () => { /* ... same updateTimer logic ... */
         const remaining = formatCountdown(listing.end_time);
         setCountdown(remaining);
-        if (remaining === null && intervalId) { // Check intervalId exists before clearing
-            clearInterval(intervalId);
-            console.log(`Timer stopped for listing ${listing.id} as it ended.`);
-        }
+        if (remaining === null && intervalId) { clearInterval(intervalId); console.log(`Timer stopped for listing ${listing.id} as it ended.`); }
     };
-    updateTimer(); // Initial call
-    intervalId = window.setInterval(updateTimer, 1000); // Use window.setInterval for clarity on type
+    updateTimer();
+    intervalId = window.setInterval(updateTimer, 1000);
     console.log(`Timer started for listing ${listing.id}, interval ID: ${intervalId}`);
-    return () => {
-        if (intervalId) { // Check intervalId exists before clearing
-            console.log(`Clearing timer interval ID: ${intervalId} for listing ${listing.id}`);
-            clearInterval(intervalId);
-        }
-    };
-  }, [listing, listing?.end_time]); // Dependencies
+    return () => { if (intervalId) { console.log(`Clearing timer interval ID: ${intervalId} for listing ${listing.id}`); clearInterval(intervalId); } };
+  }, [listing, listing?.end_time]);
 
 
-  /* ------------------------------ placeBid Function ------------------------------ */
-  const placeBid = async () => {
+  /* placeBid Function */
+  const placeBid = async () => { /* ... same placeBid logic ... */
     setBidStatusMessage(null);
     if (!user) return router.push('/auth');
     if (!listing) { console.error("placeBid: listing is null"); return; }
@@ -131,35 +121,26 @@ export default function ListingDetails() {
     }
     setTimeout(() => { setBidStatusMessage(null); }, 3000);
   };
-  /* --------------------------------------------------------------------------------- */
 
-
-  /* ------------------------------ Render Logic ------------------------------------- */
+  /* Render Logic */
   if (loading) { return ( <div className="max-w-xl mx-auto px-4 py-10"><LoadingSpinner /></div> ); }
   if (error) return <p className="p-6 text-center text-red-600">{error}</p>;
   if (!listing) return <p className="p-6 text-center">Listing not found.</p>;
 
-  // --- FIX: Restore timeString calculation ---
-  const timeString = formatRelativeTime(listing.end_time); // Used as fallback
   const auctionEnded = listing.end_time ? isPast(listing.end_time) : false;
+  // Keep timeString calculation here as it's used as fallback
+  const timeString = formatRelativeTime(listing.end_time);
   const highestBid = bids[0] ?? null;
 
   return (
+    // --- Full JSX structure remains the same ---
     <main className="max-w-xl mx-auto px-4 py-10 space-y-6">
         {/* Image */}
         {listing.photos && ( <> {/* eslint-disable-next-line @next/next/no-img-element */} <img src={listing.photos} alt={`Photo for ${listing.title}`} className="rounded mb-4 w-full h-auto object-cover" /> </> )}
         {/* Details Section */}
-        <section className="space-y-2 border-b pb-4">
-             <h1 className="text-3xl font-bold text-gray-900">{listing.title}</h1>
-             {listing.seller_email && ( <p className="text-sm text-gray-600"> Sold by: <span className="font-medium text-gray-800">{listing.seller_email}</span> </p> )}
-             <p className="text-gray-700 pt-2">{listing.description}</p>
-             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm pt-2"> <p className="font-semibold"> Min Price: <span className="text-indigo-700 font-bold">{formatCurrency(listing.min_price)}</span> </p> {listing.upper_cap && listing.upper_cap > 0 && ( <p className="font-semibold"> Buy Now Price: <span className="text-purple-700 font-bold">{formatCurrency(listing.upper_cap)}</span> </p> )} </div>
-             {/* --- FIX: Use timeString as fallback --- */}
-             {listing.end_time && (
-                 <p className={`text-sm font-medium ${auctionEnded ? 'text-red-600' : 'text-gray-600'}`}>
-                     {countdown !== null ? `Ends in ${countdown}` : timeString} {/* Display countdown or static relative time */}
-                 </p>
-             )}
+        <section className="space-y-2 border-b pb-4"> <h1 className="text-3xl font-bold text-gray-900">{listing.title}</h1> {listing.seller_email && ( <p className="text-sm text-gray-600"> Sold by: <span className="font-medium text-gray-800">{listing.seller_email}</span> </p> )} <p className="text-gray-700 pt-2">{listing.description}</p> <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm pt-2"> <p className="font-semibold"> Min Price: <span className="text-indigo-700 font-bold">{formatCurrency(listing.min_price)}</span> </p> {listing.upper_cap && listing.upper_cap > 0 && ( <p className="font-semibold"> Buy Now Price: <span className="text-purple-700 font-bold">{formatCurrency(listing.upper_cap)}</span> </p> )} </div>
+            {/* Display Countdown or Fallback Relative Time */}
+            {listing.end_time && ( <p className={`text-sm font-medium ${auctionEnded ? 'text-red-600' : 'text-gray-600'}`}> {countdown !== null ? `Ends in ${countdown}` : timeString} </p> )}
         </section>
         {/* Rules Section */}
         {listing.rules && ( <section className="p-4 border rounded-md bg-gray-50 space-y-1"> <h3 className="text-sm font-semibold text-gray-700">Auction Rules:</h3> <p className="text-sm text-gray-600 whitespace-pre-wrap">{listing.rules}</p> </section> )}
