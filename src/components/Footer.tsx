@@ -5,12 +5,12 @@ export default function Footer() {
       <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
         <span>© {new Date().getFullYear()} Bidly • Campus Auctions</span>
         <a
-          href="https://github.com/raghavtripped/bidly"
+          href="https://www.instagram.com/raghavtripathiiii/#"
           target="_blank"
           rel="noopener noreferrer"
           className="hover:text-white underline"
         >
-          GitHub Repo
+          Raghav's Instagram
         </a>
       </div>
     </footer>
