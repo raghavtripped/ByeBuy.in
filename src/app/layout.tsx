@@ -1,28 +1,32 @@
 // src/app/layout.tsx
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css"; // Your global styles (includes Tailwind)
-import Navbar from "@/components/Navbar"; // <--- 1. IMPORT the Navbar component
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "Bidly - Campus Auctions", // Updated title
-  description: "Your campus marketplace for timed auctions.", // Updated description
+  title: 'Bidly – Campus Auctions',
+  description: 'Your campus marketplace for timed auctions.',
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} bg-gray-50`}> {/* Added a light background */}
-        <Navbar /> {/* <--- 2. RENDER the Navbar component here */}
-        <main className="pt-4"> {/* Optional: Add some padding top to main content */}
-          {children} {/* Page content will be rendered here */}
-        </main>
+    <html lang="en" className="h-full">
+      {/* body acts as a flex column so footer sticks to bottom */}
+      <body
+        className={`${inter.className} bg-gray-50 flex flex-col min-h-screen`}
+      >
+        <Navbar />
+        {/* main grows to fill, pushing footer down */}
+        <main className="pt-4 flex-grow">{children}</main>
+        <Footer />
       </body>
     </html>
   );
