@@ -139,10 +139,15 @@ export default function ListingsPage() {
             return (
               <li
                 key={l.id}
-                className={`col-span-1 flex flex-col divide-y divide-gray-200 rounded-lg bg-white text-center shadow border border-gray-200 transition-shadow duration-200 hover:shadow-lg ${
-                  hasEnded ? 'opacity-60 grayscale' : ''
-                }`}
+                className="relative col-span-1 flex flex-col divide-y divide-gray-200 rounded-lg bg-white text-center shadow border border-gray-200 transition-shadow duration-200 hover:shadow-lg"
               >
+                {/* ribbon */}
+                {hasEnded && (
+                  <span className="absolute top-2 right-2 inline-flex items-center rounded bg-red-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow">
+                    Ended
+                  </span>
+                )}
+
                 <Link
                   href={`/listings/${l.id}`}
                   className="flex flex-1 flex-col p-4 pb-2 group"
@@ -191,12 +196,6 @@ export default function ListingsPage() {
                     ) : (
                       <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
                         No Bids Yet
-                      </span>
-                    )}
-
-                    {hasEnded && (
-                      <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20 mt-1">
-                        Ended
                       </span>
                     )}
                   </dl>
