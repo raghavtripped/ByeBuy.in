@@ -1,4 +1,5 @@
 // src/app/layout.tsx
+import ThemeScript from '@/components/ThemeScript';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -19,12 +20,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="h-full">
-      {/* body acts as a flex column so footer sticks to bottom */}
+      <head>
+        {/* inject dark/light class before paint */}
+        <ThemeScript />
+      </head>
+
+      {/* light bg → gray-50 | dark bg → gray-900 */}
       <body
-        className={`${inter.className} bg-gray-50 flex flex-col min-h-screen`}
+        className={`${inter.className} bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen`}
       >
         <Navbar />
-        {/* main grows to fill, pushing footer down */}
         <main className="pt-4 flex-grow">{children}</main>
         <Footer />
       </body>

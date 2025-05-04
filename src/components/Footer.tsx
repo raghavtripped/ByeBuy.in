@@ -6,7 +6,6 @@ export default function Footer() {
                       justify-between items-center gap-2">
         <span>© {new Date().getFullYear()} Bidly • Campus Auctions</span>
 
-        {/* fix: escape the apostrophe ↓↓↓  */}
         <a
           href="https://www.linkedin.com/in/iraghavt/"
           target="_blank"
