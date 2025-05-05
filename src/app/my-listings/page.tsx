@@ -1,4 +1,3 @@
-// src/app/my-listings/page.tsx
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -37,13 +36,13 @@ const getStoragePathFromURL = (photoUrl: string): string | null => {
 export default function MyListingsPage() {
   const router = useRouter();
 
-  const [user, setUser]               = useState<User | null>(null);
-  const [listings, setListings]       = useState<SellerListing[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState<string | null>(null);
-  const [deletingId, setDeletingId]   = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [listings, setListings] = useState<SellerListing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [viewFilter, setViewFilter]   = useState<ViewFilter>('active');
+  const [viewFilter, setViewFilter] = useState<ViewFilter>('active');
 
   /* ---------- Fetch user + listings once --------------------------- */
   useEffect(() => {
