@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { supabase, User } from '@/lib/supabaseClient';
+import { supabase, type User } from '@/lib/supabaseClient';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import EmptyState from '@/components/EmptyState';
 import { formatCurrency } from '@/lib/formatUtils';
@@ -167,7 +167,9 @@ export default function MyListingsPage() {
   if (loading)
     return (
       <section className="max-w-4xl mx-auto p-4 sm:p-8">
-        <h1 className="text-3xl font-bold mb-6">My Listings</h1>
+        <h1 className="text-3xl font-bold mb-6 text-gray-800 dark:text-gray-100">
+          My Listings
+        </h1>
         <LoadingSpinner />
       </section>
     );
@@ -175,16 +177,20 @@ export default function MyListingsPage() {
   if (error)
     return (
       <section className="max-w-4xl mx-auto p-4 sm:p-8">
-        <h1 className="text-3xl font-bold mb-6">My Listings</h1>
-        <p className="text-center text-red-600">Error: {error}</p>
+        <h1 className="text-3xl font-bold mb-6 text-gray-800 dark:text-gray-100">
+          My Listings
+        </h1>
+        <p className="text-center text-red-600">{error}</p>
       </section>
     );
 
   if (!user)
     return (
       <section className="max-w-4xl mx-auto p-4 sm:p-8">
-        <h1 className="text-3xl font-bold mb-6">My Listings</h1>
-        <p className="text-center">
+        <h1 className="text-3xl font-bold mb-6 text-gray-800 dark:text-gray-100">
+          My Listings
+        </h1>
+        <p className="text-center text-gray-600 dark:text-gray-400">
           Please{' '}
           <Link href="/auth" className="text-indigo-600 underline">
             log in
@@ -199,7 +205,7 @@ export default function MyListingsPage() {
     <div className="max-w-4xl mx-auto p-4 sm:p-8">
       {/* header & tabs */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <h1 className="text-3xl font-bold">My Listings</h1>
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">My Listings</h1>
         <div className="flex space-x-2">
           <button className={tabClass('active')} onClick={() => setViewFilter('active')}>
             Active
@@ -232,12 +238,12 @@ export default function MyListingsPage() {
           {filteredListings.map(listing => (
             <li
               key={listing.id}
-              className="border border-gray-200 p-4 rounded-lg shadow-sm flex flex-col sm:flex-row gap-4 items-start bg-white"
+              className="border border-gray-200 dark:border-gray-700 p-4 rounded-lg shadow-sm flex flex-col sm:flex-row gap-4 items-start bg-white dark:bg-gray-800"
             >
               {/* image */}
               {listing.photos && (
                 <Link href={`/listings/${listing.id}`} className="flex-shrink-0 block">
-                  <div className="w-full sm:w-[120px] h-[120px] sm:h-[80px] bg-gray-100 rounded overflow-hidden group">
+                  <div className="w-full sm:w-[120px] h-[120px] sm:h-[80px] bg-gray-100 dark:bg-gray-700 rounded overflow-hidden group">
                     <img
                       src={listing.photos}
                       alt={`Cover for ${listing.title}`}
@@ -255,10 +261,10 @@ export default function MyListingsPage() {
                 >
                   {listing.title}
                 </Link>
-                <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-2 line-clamp-2">
                   {listing.description}
                 </p>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-800">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-800 dark:text-gray-400">
                   <span>
                     Min Price:{' '}
                     <span className="font-medium">
