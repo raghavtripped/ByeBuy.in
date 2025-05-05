@@ -1,25 +1,149 @@
+/* Import Tailwind directives */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* custom CSS starts here */
+/* Custom CSS starts here */
 
-
+/* Root variables for light and dark modes */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background-light: #ffffff; /* Light mode background */
+  --foreground-light: #111827; /* Light mode text color */
+
+  --background-dark: #111827; /* Dark mode background */
+  --foreground-dark: #F3F4F6; /* Dark mode text color */
+
+  --primary-button-bg: #4F46E5; /* Indigo color for primary buttons */
+  --primary-button-hover: #4338CA; /* Hover state for primary buttons */
+
+  --secondary-button-bg: #F3F4F6; /* Light gray for secondary buttons */
+  --secondary-button-text: #111827; /* Dark text for secondary buttons */
+
+  --danger-button-bg: #DC2626; /* Red color for danger buttons */
+  --danger-button-hover: #B91C1C; /* Hover state for danger buttons */
+
+  --link-color: #4F46E5; /* Indigo color for links */
+  --link-hover: #4338CA; /* Hover state for links */
+
+  --icon-color: #6B7280; /* Default gray for icons */
+  --icon-hover: #4F46E5; /* Hover state for icons */
 }
 
-
+/* Media query for dark mode */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: var(--background-dark); /* Set dark mode background */
+    --foreground: var(--foreground-dark); /* Set dark mode text */
   }
 }
 
+/* Global body styles */
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s, color 0.3s; /* Smooth transition for color schemes */
+}
+
+/* Button Styles */
+.button-primary {
+  @apply bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
+  background-color: var(--primary-button-bg);
+}
+.button-primary:hover {
+  background-color: var(--primary-button-hover);
+}
+
+.button-secondary {
+  @apply bg-gray-100 text-gray-900 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
+  background-color: var(--secondary-button-bg);
+  color: var(--secondary-button-text);
+}
+
+.button-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
+  background-color: var(--danger-button-bg);
+}
+.button-danger:hover {
+  background-color: var(--danger-button-hover);
+}
+
+/* Link Styles */
+.link {
+  @apply text-indigo-600 hover:text-indigo-700;
+  color: var(--link-color);
+}
+.link:hover {
+  color: var(--link-hover);
+}
+
+/* Icon Styles */
+.icon {
+  @apply text-gray-500 hover:text-indigo-600;
+  color: var(--icon-color);
+}
+.icon:hover {
+  color: var(--icon-hover);
+}
+
+/* Card Styles */
+.card {
+  @apply bg-gray-100 border-gray-200;
+  background-color: var(--background-light);
+  border-color: #E5E7EB;
+}
+
+/* Dark Mode Styles */
+.dark body {
+  background: var(--background-dark);
+  color: var(--foreground-dark);
+}
+
+.dark .card {
+  @apply bg-gray-800 border-gray-700;
+  background-color: var(--background-dark);
+  border-color: var(--foreground-dark);
+}
+
+.dark .button-primary {
+  @apply bg-indigo-600 text-white hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
+  background-color: var(--primary-button-bg);
+}
+.dark .button-primary:hover {
+  background-color: var(--primary-button-hover);
+}
+
+.dark .button-secondary {
+  @apply bg-gray-700 text-gray-100 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
+  background-color: #374151;
+  color: #F3F4F6;
+}
+
+.dark .button-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
+  background-color: var(--danger-button-bg);
+}
+.dark .button-danger:hover {
+  background-color: var(--danger-button-hover);
+}
+
+.dark .link {
+  @apply text-indigo-400 hover:text-indigo-500;
+  color: var(--link-color);
+}
+.dark .link:hover {
+  color: var(--link-hover);
+}
+
+.dark .icon {
+  @apply text-gray-400 hover:text-indigo-400;
+  color: var(--icon-color);
+}
+.dark .icon:hover {
+  color: var(--icon-hover);
+}
+
+/* Transition for smooth color changes between light and dark modes */
+body, .button-primary, .button-secondary, .button-danger, .link, .icon, .card {
+  transition: all 0.3s ease-in-out;
 }
