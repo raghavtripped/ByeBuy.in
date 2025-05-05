@@ -1,4 +1,3 @@
-// src/app/listings/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -39,19 +38,15 @@ export default function ListingsPage() {
         const { data, error: fetchError } = await supabase
           .from('listings_with_highest_bid')
           .select(
-            `
-              id, title, description, min_price, photos,
-              created_at, current_highest_bid, end_time
-            `,
+            `id, title, description, min_price, photos,
+            created_at, current_highest_bid, end_time`
           )
           .order('created_at', { ascending: false });
 
         if (fetchError) throw fetchError;
         setRows(data ?? []);
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to load listings.',
-        );
+        setError(err instanceof Error ? err.message : 'Failed to load listings.');
         setRows([]);
       } finally {
         setLoading(false);
@@ -69,7 +64,7 @@ export default function ListingsPage() {
           const { data, error } = await supabase
             .from('listings_with_highest_bid')
             .select(
-              'id, title, description, min_price, photos, created_at, current_highest_bid, end_time',
+              'id, title, description, min_price, photos, created_at, current_highest_bid, end_time'
             )
             .eq('id', payload.new.id)
             .single();
@@ -107,7 +102,7 @@ export default function ListingsPage() {
     <div className="max-w-3xl mx-auto p-4 sm:p-8 space-y-8">
       {/* header */}
       <div className="flex justify-between items-center border-b pb-4 mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">🎯 Current Listings</h1>
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">🎯 Current Listings</h1>
         {session && (
           <Link
             href="/listings/new"
@@ -139,7 +134,7 @@ export default function ListingsPage() {
             return (
               <li
                 key={l.id}
-                className="relative col-span-1 flex flex-col divide-y divide-gray-200 rounded-lg bg-white text-center shadow border border-gray-200 transition-shadow duration-200 hover:shadow-lg"
+                className="relative col-span-1 flex flex-col divide-y divide-gray-200 dark:divide-gray-700 rounded-lg bg-white dark:bg-gray-800 text-center shadow border border-gray-200 dark:border-gray-700 transition-shadow duration-200 hover:shadow-lg"
               >
                 {/* ribbon */}
                 {hasEnded && (
@@ -154,7 +149,7 @@ export default function ListingsPage() {
                 >
                   {/* image */}
                   {l.photos ? (
-                    <div className="w-full h-40 bg-gray-100 rounded-md overflow-hidden mx-auto mb-3">
+                    <div className="w-full h-40 bg-gray-100 dark:bg-gray-600 rounded-md overflow-hidden mx-auto mb-3">
                       <img
                         src={l.photos}
                         alt={`Cover image for ${l.title}`}
@@ -162,9 +157,9 @@ export default function ListingsPage() {
                       />
                     </div>
                   ) : (
-                    <div className="w-full h-40 bg-gray-200 rounded-md flex items-center justify-center mx-auto mb-3">
+                    <div className="w-full h-40 bg-gray-200 dark:bg-gray-700 rounded-md flex items-center justify-center mx-auto mb-3">
                       <svg
-                        className="h-16 w-16 text-gray-400"
+                        className="h-16 w-16 text-gray-400 dark:text-gray-500"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -181,20 +176,20 @@ export default function ListingsPage() {
                   )}
 
                   {/* text */}
-                  <h3 className="mt-1 text-gray-900 text-md font-medium group-hover:text-indigo-600">
+                  <h3 className="mt-1 text-gray-900 dark:text-gray-100 text-md font-medium group-hover:text-indigo-600">
                     {l.title}
                   </h3>
                   <dl className="mt-1 flex flex-grow flex-col items-center space-y-1">
-                    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                    <span className="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 ring-1 ring-inset ring-gray-500/10 dark:ring-gray-500/20">
                       Min: {formatCurrency(l.min_price)}
                     </span>
 
                     {l.current_highest_bid && l.current_highest_bid > 0 ? (
-                      <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                      <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-700 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-300 ring-1 ring-inset ring-green-600/20 dark:ring-green-500/20">
                         Top Bid: {formatCurrency(l.current_highest_bid)}
                       </span>
                     ) : (
-                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                      <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-700 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 ring-1 ring-inset ring-blue-700/10 dark:ring-blue-600/20">
                         No Bids Yet
                       </span>
                     )}
