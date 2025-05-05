@@ -1,4 +1,3 @@
-// src/app/listings/(detail)/[id]/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -8,7 +7,7 @@ import { supabase, type User } from '@/lib/supabaseClient';
 import {
   formatRelativeTime,
   isPast,
-  formatCountdown,       // <- actually used in the timer effect
+  formatCountdown,
 } from '@/lib/timeUtils';
 import { formatCurrency } from '@/lib/formatUtils';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -189,8 +188,8 @@ export default function ListingDetails() {
         <LoadingSpinner />
       </div>
     );
-  if (error) return <p className="p-6 text-center text-red-600">{error}</p>;
-  if (!listing) return <p className="p-6 text-center">Listing not found.</p>;
+  if (error) return <p className="p-6 text-center text-red-600 dark:text-red-400">{error}</p>;
+  if (!listing) return <p className="p-6 text-center text-gray-700 dark:text-gray-300">Listing not found.</p>;
 
   const auctionEnded = listing.end_time ? isPast(listing.end_time) : false;
   const timeLabel =
@@ -213,30 +212,30 @@ export default function ListingDetails() {
 
       {/* details */}
       <section className="space-y-2 border-b pb-4">
-        <h1 className="text-3xl font-bold text-gray-900">{listing.title}</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{listing.title}</h1>
 
         {listing.seller_email && (
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
             Sold by:{' '}
-            <span className="font-medium text-gray-800">
+            <span className="font-medium text-gray-800 dark:text-white">
               {listing.seller_email}
             </span>
           </p>
         )}
 
-        <p className="text-gray-700 pt-2">{listing.description}</p>
+        <p className="text-gray-700 dark:text-gray-300 pt-2">{listing.description}</p>
 
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm pt-2">
-          <p className="font-semibold">
+          <p className="font-semibold text-gray-900 dark:text-white">
             Min Price:{' '}
-            <span className="text-indigo-700 font-bold">
+            <span className="text-indigo-700 dark:text-indigo-500 font-bold">
               {formatCurrency(listing.min_price)}
             </span>
           </p>
           {listing.upper_cap && listing.upper_cap > 0 && (
-            <p className="font-semibold">
+            <p className="font-semibold text-gray-900 dark:text-white">
               Buy&nbsp;Now:{' '}
-              <span className="text-purple-700 font-bold">
+              <span className="text-purple-700 dark:text-purple-500 font-bold">
                 {formatCurrency(listing.upper_cap)}
               </span>
             </p>
@@ -246,7 +245,7 @@ export default function ListingDetails() {
         {listing.end_time && (
           <p
             className={`text-sm font-medium ${
-              auctionEnded ? 'text-red-600' : 'text-gray-600'
+              auctionEnded ? 'text-red-600' : 'text-gray-600 dark:text-gray-300'
             }`}
           >
             {timeLabel}
@@ -256,23 +255,23 @@ export default function ListingDetails() {
 
       {/* highest bid */}
       <section className="bg-green-50 p-4 rounded border border-green-200">
-        <h2 className="text-xl font-semibold mb-1 text-green-800">
+        <h2 className="text-xl font-semibold mb-1 text-green-800 dark:text-green-300">
           Current Highest Bid
         </h2>
 
         {highestBid ? (
           <>
-            <p className="text-2xl font-bold text-green-700">
+            <p className="text-2xl font-bold text-green-700 dark:text-green-400">
               {formatCurrency(highestBid.bid_price)}
             </p>
             {highestBid.bidder_email && (
-              <p className="text-xs text-gray-600 mt-1">
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                 by <span className="font-medium">{highestBid.bidder_email}</span>
               </p>
             )}
           </>
         ) : (
-          <p className="text-lg text-gray-600">
+          <p className="text-lg text-gray-600 dark:text-gray-400">
             No bids yet. Be the first!
           </p>
         )}
@@ -282,7 +281,7 @@ export default function ListingDetails() {
       <section>
         {user && !auctionEnded && (
           <div className="p-4 border rounded bg-white shadow-sm">
-            <h3 className="text-lg font-semibold mb-3 text-gray-800">
+            <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">
               Place Your Bid
             </h3>
 
@@ -307,7 +306,7 @@ export default function ListingDetails() {
             </div>
 
             {bidStatusMessage && (
-              <p className="mt-3 text-sm">
+              <p className="mt-3 text-sm text-red-600 dark:text-red-400">
                 {bidStatusMessage}
               </p>
             )}
@@ -315,13 +314,13 @@ export default function ListingDetails() {
         )}
 
         {user && auctionEnded && (
-          <div className="p-4 border rounded bg-gray-100 text-gray-600 text-center">
+          <div className="p-4 border rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-center">
             This auction has ended.
           </div>
         )}
 
         {!user && (
-          <div className="p-4 border rounded bg-yellow-50 text-yellow-800 text-center">
+          <div className="p-4 border rounded bg-yellow-50 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-400 text-center">
             Please{' '}
             <Link href="/auth" className="font-bold underline hover:text-yellow-900">
               log in
@@ -333,30 +332,30 @@ export default function ListingDetails() {
 
       {/* bid history */}
       <section className="pt-6 border-t">
-        <h2 className="text-2xl font-semibold mb-4 text-gray-800">
+        <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-white">
           Bid History
         </h2>
 
         {bids.length === 0 ? (
-          <p className="text-gray-600">No bids have been placed yet.</p>
+          <p className="text-gray-600 dark:text-gray-400">No bids have been placed yet.</p>
         ) : (
           <ul className="space-y-3 max-h-96 overflow-y-auto pr-2">
             {bids.map((bid) => (
               <li
                 key={bid.id}
-                className="p-3 border rounded bg-gray-50 flex justify-between items-center text-sm"
+                className="p-3 border rounded bg-gray-50 dark:bg-gray-800 flex justify-between items-center text-sm"
               >
                 <div>
-                  <span className="font-semibold text-indigo-800">
+                  <span className="font-semibold text-indigo-800 dark:text-indigo-400">
                     {formatCurrency(bid.bid_price)}
                   </span>
                   {bid.bidder_email && (
-                    <span className="text-xs text-gray-500 ml-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-300 ml-2">
                       by {bid.bidder_email}
                     </span>
                   )}
                 </div>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                   {new Date(bid.timestamp).toLocaleString()}
                 </span>
               </li>
