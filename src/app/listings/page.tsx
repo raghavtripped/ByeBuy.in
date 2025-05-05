@@ -92,7 +92,7 @@ export default function ListingsPage() {
 
   if (error)
     return (
-      <div className="p-8 text-center text-red-600">
+      <div className="p-8 text-center text-red-600 dark:text-red-400">
         Error loading listings: {error}
       </div>
     );
