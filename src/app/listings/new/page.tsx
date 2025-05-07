@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { supabase, User } from '@/lib/supabaseClient';
-import LoadingSpinner from '@/components/LoadingSpinner'; // Ensure this import is correct
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 // --- Constants ---
 const PREDEFINED_TAGS = [
@@ -21,11 +21,11 @@ const PREDEFINED_TAGS = [
 const MAX_TAGS = 10;
 const MAX_PHOTOS = 5;
 
-// Interface for associating filename with upload result
+// Corrected: Interface for associating filename with upload result
 interface UploadResult {
   status: 'fulfilled' | 'rejected';
   value?: string; // URL if fulfilled
-  reason?: any; // Error reason if rejected
+  reason?: unknown; // Use unknown instead of any for rejection reason
   filename: string;
 }
 
@@ -97,7 +97,7 @@ export default function NewListingPage() {
                 }
                 return combined;
             });
-             e.target.value = ''; // Allow re-selecting the same file
+             e.target.value = '';
         }
     };
     const handleRemovePhoto = (indexToRemove: number) => { setPhotos(prevPhotos => prevPhotos.filter((_, index) => index !== indexToRemove)); };
@@ -124,13 +124,11 @@ export default function NewListingPage() {
         // --- Step 1: Upload Photos ---
         console.log(`Starting upload for ${photos.length} photos...`);
         
-        // Map original files to promises that RESOLVE with our UploadResult structure
         const uploadPromises: Promise<UploadResult>[] = photos.map((photoFile) => {
             const fileExt = photoFile.name.split('.').pop()?.toLowerCase() || 'file';
             const safeTitle = title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
-            const filePath = `${user.id}/${safeTitle}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`; // Add randomness
+            const filePath = `${user.id}/${safeTitle}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
 
-            // Return a promise that resolves/rejects with the UploadResult shape
             return supabase.storage
                 .from('listing-images')
                 .upload(filePath, photoFile, { cacheControl: '3600', upsert: false })
@@ -143,31 +141,36 @@ export default function NewListingPage() {
                     if (!publicUrl) {
                         throw new Error(`GetPublicUrl failed.`);
                     }
-                    // FULFILLED: Return UploadResult for success
                     return { status: 'fulfilled' as const, value: publicUrl, filename: photoFile.name };
                 })
                 .catch(error => {
-                    // REJECTED: Return UploadResult for failure
                      console.error(`Error uploading ${photoFile.name}:`, error);
-                     return { status: 'rejected' as const, reason: error instanceof Error ? error.message : String(error), filename: photoFile.name };
+                     return { status: 'rejected' as const, reason: error, filename: photoFile.name }; // Pass raw error
                 });
         });
 
-        // Wait for all promises to complete (they always resolve now)
         const results: UploadResult[] = await Promise.all(uploadPromises);
 
-        // Process results: Separate successful URLs and errors
         const uploadedPhotoUrls: string[] = [];
         results.forEach(result => {
             if (result.status === 'fulfilled' && result.value) {
                 uploadedPhotoUrls.push(result.value);
             } else if (result.status === 'rejected') {
-                uploadErrors.push(`'${result.filename}': ${result.reason}`);
+                // CORRECTED: Type narrowing for reason
+                let reasonText = 'Unknown upload error';
+                if (result.reason instanceof Error) {
+                    reasonText = result.reason.message;
+                } else if (typeof result.reason === 'string') {
+                    reasonText = result.reason;
+                } else {
+                    // Fallback if reason is not Error or string (should be rare with current catch)
+                    reasonText = JSON.stringify(result.reason);
+                }
+                uploadErrors.push(`'${result.filename}': ${reasonText}`);
             }
         });
 
-        // --- Check Upload Success ---
-        if (uploadedPhotoUrls.length === 0) {
+        if (uploadedPhotoUrls.length === 0 && photos.length > 0) { // Check if any photos were attempted
             console.error("All photo uploads failed.");
             setSubmitMessage({ type: 'error', text: `Photo upload failed. Errors: ${uploadErrors.join('; ')}` });
             setIsSubmitting(false);
@@ -175,7 +178,6 @@ export default function NewListingPage() {
         }
         if (uploadErrors.length > 0) {
             console.warn("Some photos failed to upload:", uploadErrors);
-            // Optionally alert user or log, but proceed with successful uploads
         }
 
         // --- Step 2: Insert Listing Data ---
@@ -184,7 +186,7 @@ export default function NewListingPage() {
             const listingData = {
                 title: title.trim(), description: description.trim(),
                 min_price: minPriceFloat, end_time: new Date(endTime).toISOString(),
-                seller_id: user.id, photos: uploadedPhotoUrls, // Pass array here
+                seller_id: user.id, photos: uploadedPhotoUrls,
                 upper_cap: upperCapFloat, rules: rules.trim() || null,
                 status: 'active', tags: selectedTags.length > 0 ? selectedTags : null,
             };
@@ -192,30 +194,26 @@ export default function NewListingPage() {
             const { error: insertError } = await supabase.from('listings').insert(listingData);
             if (insertError) throw insertError;
 
-            // --- Success ---
             let successMsg = 'Listing created successfully!';
-            if (uploadErrors.length > 0) successMsg += ` (${uploadErrors.length} photo(s) failed). Redirecting...`;
+            if (uploadErrors.length > 0) successMsg += ` (${uploadErrors.length} photo(s) failed to upload). Redirecting...`;
             else successMsg += ' Redirecting...';
             setSubmitMessage({ type: 'success', text: successMsg });
 
-            // Reset Form
             setTitle(''); setDesc(''); setMinPrice(''); setUpperCap('');
             setEndTime(''); setRules(''); setPhotos([]); setPhotoPreviews([]);
             setSelectedTags([]); setTagInput('');
             const fileInput = document.getElementById('photo-upload') as HTMLInputElement;
             if (fileInput) fileInput.value = '';
 
-            setTimeout(() => { router.push('/listings'); }, 2000);
+            setTimeout(() => { router.push('/listings'); }, uploadErrors.length > 0 ? 3000 : 2000); // Longer delay if there were partial errors
 
         } catch (error) {
-            // --- DB Insert Error ---
             console.error('Listing insertion failed:', error);
             let message = 'Database error during listing creation.';
              if (error instanceof Error) message = `DB Error: ${error.message}`;
-             if (uploadErrors.length > 0) message += ` (${uploadErrors.length} photo(s) failed upload).`;
+             if (uploadErrors.length > 0) message += ` (${uploadErrors.length} photo(s) also failed upload).`;
             setSubmitMessage({ type: 'error', text: message });
             setIsSubmitting(false);
-             // Consider cleaning up successfully uploaded photos if DB insert fails? Complex.
         }
     };
 
@@ -308,14 +306,7 @@ export default function NewListingPage() {
                         placeholder={selectedTags.length < MAX_TAGS ? `Type a tag and press Enter (e.g., 'book')` : `Maximum ${MAX_TAGS} tags reached`}
                         value={tagInput} onChange={handleTagInputChange} onKeyDown={handleTagInputKeyDown}
                         disabled={selectedTags.length >= MAX_TAGS}
-                        className={`
-                            w-full border border-gray-300 dark:border-gray-600 
-                            px-3 py-2 rounded-md shadow-sm 
-                            focus:ring-indigo-500 focus:border-indigo-500 
-                            text-sm dark:bg-gray-700/80 dark:text-gray-100 
-                            dark:placeholder-gray-500 
-                            disabled:opacity-50 disabled:cursor-not-allowed
-                        `} // Added template literal for readability - resolves TS1109 if it was related to this line
+                        className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Or click to add common tags:</p>
                      <div className="flex flex-wrap gap-2 mt-1.5">
@@ -323,7 +314,7 @@ export default function NewListingPage() {
                      </div>
                 </div>
 
-                {/* --- UPDATED: Photo Upload Section --- */}
+                {/* --- Photo Upload Section --- */}
                 <div>
                     <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
                         Upload Photos <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
@@ -337,7 +328,7 @@ export default function NewListingPage() {
                     {photoPreviews.length > 0 && (
                         <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                             {photoPreviews.map((previewUrl, index) => (
-                                <div key={previewUrl} className="relative group aspect-square"> {/* Use URL as key if indices might shift */}
+                                <div key={previewUrl} className="relative group aspect-square">
                                     <Image src={previewUrl} alt={`Preview ${index + 1}`} fill sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, 20vw" style={{ objectFit: 'cover' }} className="rounded-md border border-gray-200 dark:border-gray-600" />
                                     <button type="button" onClick={() => handleRemovePhoto(index)} className="absolute top-1 right-1 p-0.5 bg-red-600 text-white rounded-full opacity-75 group-hover:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1" aria-label={`Remove image ${index + 1}`}>
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" /></svg>
