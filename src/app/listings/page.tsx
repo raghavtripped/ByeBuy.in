@@ -4,9 +4,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { supabase, type Session } from '@/lib/supabaseClient'; // Session from here
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'; // <<< --- CORRECTED IMPORT ---
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { supabase, type Session } from '@/lib/supabaseClient';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'; 
+import LoadingSpinner from '@/components/LoadingSpinner'; // Keep this import
 import EmptyState from '@/components/EmptyState';
 import { formatCurrency } from '@/lib/formatUtils';
 
@@ -29,45 +29,26 @@ export default function ListingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Using useCallback for the realtime handler to stabilize its reference
-  // unless its own dependencies (like 'rows' if it reads from it) change.
   const handleRealtimeChange = useCallback(async (payload: RealtimePostgresChangesPayload<Listing>) => {
     console.log('Active Listings Page: Realtime event received', payload.eventType);
 
-    const newRecord = payload.new as Listing | undefined; // Use 'as undefined' for clarity
+    const newRecord = payload.new as Listing | undefined;
     const oldRecord = payload.old as Partial<Listing> | undefined;
 
-    const fetchFullItemDetails = async (itemId: string) => {
-      const { data, error: fetchItemError } = await supabase
-        .from('listings_with_highest_bid')
-        .select('id, title, min_price, photos, current_highest_bid, end_time, status, created_at')
-        .eq('id', itemId)
-        .eq('status', 'active')
-        .single();
-      if (fetchItemError) {
-        console.error(`Error fetching details for item ${itemId} in realtime handler:`, fetchItemError);
-        return null;
-      }
-      return data as Listing | null;
-    };
-    
+    // Removed unused fetchFullItemDetails function definition from here
+
     const sortByCreatedAtDesc = (a: Listing, b: Listing) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
 
-    setRows((currentRows) => { // Use functional update for setRows
+    setRows((currentRows) => {
       let updatedList = [...currentRows];
       switch (payload.eventType) {
         case 'INSERT':
           if (newRecord && 'id' in newRecord && newRecord.status === 'active') {
-            // Fetch full details for the new item before adding
-            // This is an async operation inside a sync update, which is complex.
-            // Consider fetching outside and then setting, or simplify.
-            // For now, let's assume direct add, then potential update if needed.
-            // To avoid race conditions, it might be better to just add the basic newRecord
-            // and let another mechanism (or a subsequent UPDATE event) fill in details like current_highest_bid.
-            // Or, trigger a re-fetch of that specific item.
-            // For simplicity of this fix, we'll just add what we have.
+            // For INSERT, we assume payload.new has enough info from the 'listings' table trigger.
+            // If listings_with_highest_bid data is essential immediately, this might need a direct fetch.
+            // For now, adding directly to simplify and avoid too many fetches in realtime.
             if (!updatedList.some(r => r.id === newRecord.id)) {
-                 updatedList.unshift(newRecord); // Add new active item
+                 updatedList.unshift(newRecord);
             }
           }
           break;
@@ -76,16 +57,17 @@ export default function ListingsPage() {
           if (newRecord && 'id' in newRecord) {
             const existingItemIndex = updatedList.findIndex(r => r.id === newRecord.id);
             if (newRecord.status === 'active') {
-              // Item is or became active
+              // Item is or became active. Update or add.
+              // Again, using payload.new directly. If view data is needed, requires a fetch.
               if (existingItemIndex !== -1) {
-                updatedList[existingItemIndex] = newRecord; // Update existing active item
+                updatedList[existingItemIndex] = newRecord; 
               } else {
-                updatedList.unshift(newRecord); // Add newly active item
+                updatedList.unshift(newRecord); 
               }
             } else {
               // Item is no longer active
               if (existingItemIndex !== -1) {
-                updatedList.splice(existingItemIndex, 1); // Remove from active list
+                updatedList.splice(existingItemIndex, 1); 
               }
             }
           }
@@ -96,11 +78,12 @@ export default function ListingsPage() {
             updatedList = updatedList.filter((r) => r.id !== oldRecord.id);
           }
           break;
+        default:
+          break;
       }
       return updatedList.sort(sortByCreatedAtDesc);
     });
-  }, []); // Empty dependency array for useCallback: handleRealtimeChange is stable.
-            // It uses setRows functional update, so it doesn't need `rows` from closure.
+  }, []); 
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -126,8 +109,8 @@ export default function ListingsPage() {
     loadListings();
 
     const listingsChannel = supabase
-      .channel('public-listings-active-page-v3') // New channel name
-      .on<Listing>( // Specify the type for the payload
+      .channel('public-listings-active-page-v3')
+      .on<Listing>(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'listings' },
         handleRealtimeChange 
@@ -140,11 +123,25 @@ export default function ListingsPage() {
     return () => {
       supabase.removeChannel(listingsChannel).then(() => console.log('RT channel for active listings unsubscribed.'));
     };
-  }, [handleRealtimeChange]); // Depend on the memoized handler
+  }, [handleRealtimeChange]);
 
   // --- Render Guards ---
-  if (loading) { /* ... as before ... */ }
-  if (error) { /* ... as before ... */ }
+  if (loading) {
+    return ( // <<< --- ENSURE LoadingSpinner IS USED HERE ---
+      <div className="container mx-auto px-4 py-20 flex justify-center">
+        <LoadingSpinner message="Loading active auctions..." />
+      </div>
+    );
+  }
+
+  if (error) {
+    return ( // <<< --- ENSURE ERROR IS DISPLAYED ---
+      <div className="container mx-auto px-4 py-8 text-center text-red-600 dark:text-red-400">
+        <p className="font-medium">Error loading auctions:</p>
+        <p className="text-sm">{error}</p>
+      </div>
+    );
+  }
 
   // --- Main JSX ---
   return (
@@ -174,8 +171,7 @@ export default function ListingsPage() {
       ) : (
         <ul
           role="list"
-          // className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:gdrive-cols-4" // OLD TYPO
-          className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" // <<< --- CORRECTED TYPO ---
+          className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         >
           {rows.map((listing) => {
             return (
@@ -236,4 +232,3 @@ export default function ListingsPage() {
     </div>
   );
 }
-// Fill in loading/error JSX from your previous version.
