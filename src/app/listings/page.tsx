@@ -15,14 +15,15 @@ type Listing = {
   id: string;
   title: string;
   min_price: number;
-  photos: string[] | null;
+  photos: string[] | null; // Array of photo URLs
   current_highest_bid?: number | null;
   end_time?: string | null;
-  status: 'active' | 'closed' | 'cancelled' | string;
-  created_at?: string;
+  status: 'active' | 'closed' | 'cancelled' | string; // Status is required
+  created_at?: string; // Optional creation timestamp
 };
 
-type ListingTablePayload = Partial<{
+// Type for the payload coming from the 'listings' table realtime changes
+type ListingTablePayload = Partial<{ // Use Partial as UPDATE might only send changed fields
   id: string;
   title: string;
   min_price: number;
@@ -30,7 +31,9 @@ type ListingTablePayload = Partial<{
   end_time: string | null;
   status: 'active' | 'closed' | 'cancelled' | string;
   created_at: string;
-}> & { id: string };
+  // Include other fields that might come from the table trigger if needed
+}> & { id?: string }; // ID might be optional depending on RLS/payload specifics
+
 
 // ---------- Component ---------------------------------------------
 export default function ListingsPage() {
@@ -41,13 +44,21 @@ export default function ListingsPage() {
 
   // --- Realtime Handler ---
   const handleRealtimeChange = useCallback(async (payload: RealtimePostgresChangesPayload<ListingTablePayload>) => {
-    console.log('Active Listings Page: Realtime event received', payload.eventType);
+    // CORRECTED: Defensive checks for logging payload IDs
+    const logId = (payload.new && 'id' in payload.new && payload.new.id)
+                  ? payload.new.id
+                  : (payload.old && 'id' in payload.old && payload.old.id)
+                    ? payload.old.id
+                    : 'UNKNOWN_ID';
+    console.log('Active Listings Page: Realtime event received', payload.eventType, logId);
 
-    const newRecord = payload.new && 'id' in payload.new ? payload.new : undefined;
-    const oldRecord = payload.old && 'id' in payload.old ? payload.old : undefined;
+    // Use defensive checks when assigning records too
+    const newRecord = payload.new && 'id' in payload.new && payload.new.id ? payload.new : undefined;
+    const oldRecord = payload.old && 'id' in payload.old && payload.old.id ? payload.old : undefined;
 
     const sortByCreatedAtDesc = (a: Listing, b: Listing) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
 
+    // Fetches full item details from the view, ensuring active status
     const fetchFullItemDetails = async (itemId: string): Promise<Listing | null> => {
          const { data: itemData, error: itemError } = await supabase
             .from('listings_with_highest_bid')
@@ -56,73 +67,88 @@ export default function ListingsPage() {
             .eq('status', 'active')
             .maybeSingle();
          if (itemError || !itemData) {
-             console.error(`RT: Failed fetch full details ${itemId}`, itemError);
+             console.error(`RT: Failed fetch full details for active listing ${itemId}`, itemError);
              return null;
          }
+         // Ensure photos is cast correctly
          return { ...itemData, photos: itemData.photos as string[] | null } as Listing;
     }
 
+    // Update state using functional form to avoid stale closures
     setRows((currentRows) => {
       let updatedList = [...currentRows];
-      let requiresSort = false;
+      let requiresSort = false; // Flag to sort only when structure changes
 
       switch (payload.eventType) {
         case 'INSERT':
-          if (newRecord && newRecord.id && newRecord.status === 'active') {
+          // Check if the inserted record is active before processing
+          if (newRecord?.id && newRecord.status === 'active') {
+             // Fetch detailed view data asynchronously
              fetchFullItemDetails(newRecord.id).then(detailedItem => {
-                if(detailedItem && !currentRows.some(r => r.id === detailedItem.id)) {
-                    setRows(prev => [detailedItem, ...prev].sort(sortByCreatedAtDesc)); // Use functional update inside async
+                if(detailedItem) {
+                    // Use functional update inside async callback
+                    setRows(prev => {
+                         if (!prev.some(r => r.id === detailedItem.id)) {
+                            return [detailedItem, ...prev].sort(sortByCreatedAtDesc);
+                         }
+                         return prev; // Already exists (rare, but possible race condition)
+                    });
                 }
              });
-             // No immediate return needed, async handles it
+             // No synchronous return change here
           }
           break;
 
         case 'UPDATE':
-          if (newRecord && newRecord.id) {
+          if (newRecord?.id) {
             const existingItemIndex = updatedList.findIndex(r => r.id === newRecord.id);
+
             if (newRecord.status === 'active') {
+              // Item updated and is still active. Fetch full details asynchronously.
               fetchFullItemDetails(newRecord.id).then(detailedItem => {
                   if(detailedItem) {
-                      setRows(prev => { // Use functional update inside async
+                      setRows(prev => { // Use functional update
                           const currentIdx = prev.findIndex(r => r.id === detailedItem.id);
-                          if(currentIdx !== -1) {
+                          if(currentIdx !== -1) { // Update existing item
                               const newList = [...prev];
                               newList[currentIdx] = detailedItem;
-                              return newList;
-                          } else {
+                              return newList; // Keep order for updates
+                          } else { // Item wasn't in list but is active now, add and sort
                                return [detailedItem, ...prev].sort(sortByCreatedAtDesc);
                           }
                       });
                   } else {
-                      setRows(prev => prev.filter(r => r.id !== newRecord.id)); // Remove if fetch fails/inactive
+                      // If fetch fails or item is no longer active after fetching, remove it
+                      setRows(prev => prev.filter(r => r.id !== newRecord.id));
                   }
               });
-            } else {
+            } else { // Item became inactive (status changed from 'active' in DB)
               if (existingItemIndex !== -1) {
                 updatedList.splice(existingItemIndex, 1);
-                requiresSort = true;
+                requiresSort = true; // Need to return the modified list
               }
             }
           }
           break;
 
         case 'DELETE':
-          if (oldRecord && oldRecord.id) {
+          // oldRecord check ensures we have the ID of the deleted item
+          if (oldRecord?.id) {
             const initialLength = updatedList.length;
             updatedList = updatedList.filter((r) => r.id !== oldRecord.id);
             if(updatedList.length !== initialLength) requiresSort = true;
           }
           break;
         default:
+          // No action for other events
           break;
       }
-      // Return sorted list only if structural change happened synchronously
+      // Return the potentially modified list (sorting happens inside async for INSERT/UPDATE)
       return requiresSort ? updatedList.sort(sortByCreatedAtDesc) : updatedList;
     });
-  }, []);
+  }, []); // useCallback has no external dependencies
 
-  // --- Initial Load ---
+  // --- Initial Load & Realtime Subscription ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
 
@@ -147,24 +173,34 @@ export default function ListingsPage() {
     };
     loadListings();
 
-    // --- Realtime Subscription Setup ---
-    const listingsChannel = supabase
-      .channel('public-listings-active-page-v5') // Incremented version
+    // Setup realtime subscription
+    const listingsSubscription = supabase
+      .channel('public-listings-active-page-v7') // Incremented version
       .on<ListingTablePayload>(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'listings' },
         handleRealtimeChange
       )
-      .subscribe((status) => { /* ... logging ... */ });
+      .subscribe((status, err) => { // Use status and err parameters
+         if (status === 'SUBSCRIBED') { console.log('RT channel subscribed for active listings.'); }
+         else if (status === 'CHANNEL_ERROR') { console.error(`RT channel error:`, err); }
+         else if (status === 'TIMED_OUT') { console.warn(`RT channel timed out.`); }
+         else { console.log(`RT channel status: ${status}`); }
+       });
 
-    return () => { /* ... unsubscribe ... */ };
-  }, [handleRealtimeChange]);
+    return () => {
+      if (listingsSubscription) {
+          supabase.removeChannel(listingsSubscription).then(() => console.log('RT channel for active listings unsubscribed.'));
+      } else { console.log("No active RT channel to unsubscribe for listings page."); }
+    };
+  }, [handleRealtimeChange]); // Include handleRealtimeChange
+
 
   // --- Render Guards ---
   if (loading) return ( <div className="container mx-auto px-4 py-20 flex justify-center"><LoadingSpinner message="Loading active auctions..." /></div> );
   if (error) return ( <div className="container mx-auto px-4 py-8 text-center text-red-600 dark:text-red-400"><p className="font-medium">Error loading auctions:</p><p className="text-sm">{error}</p></div> );
 
-  // CORRECTED: Define action object before using it in EmptyState
+  // Define action object before using it in EmptyState
   const emptyStateAction = session
     ? { href: '/listings/new', text: 'List an Item' }
     : { href: '/auth', text: 'Login to List an Item' };
@@ -182,7 +218,7 @@ export default function ListingsPage() {
       {rows.length === 0 ? (
         <EmptyState
           message="No active auctions available right now. Check back soon or list your own item!"
-          action={emptyStateAction} // CORRECTED: Pass the variable here
+          action={emptyStateAction}
         />
       ) : (
         <ul
@@ -203,12 +239,10 @@ export default function ListingsPage() {
                             <Image
                                 src={thumbnailUrl}
                                 alt={`Image for ${listing.title}`}
-                                width={400}
-                                height={225}
+                                width={400} height={225}
                                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                 priority={false}
-                                // CORRECTED: Removed comment inside onError body
-                                onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-image.svg'; }}
+                                onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-image.svg'; }} // Fallback placeholder
                             />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
