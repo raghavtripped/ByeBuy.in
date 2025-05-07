@@ -1,7 +1,7 @@
 // src/components/Navbar.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react'; // Added useRef
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
@@ -10,11 +10,11 @@ import { supabase, type User } from '@/lib/supabaseClient';
 export default function Navbar() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // State for mobile menu
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const menuRef = useRef<HTMLDivElement>(null); // Ref for the mobile menu panel
-  const buttonRef = useRef<HTMLButtonElement>(null); // Ref for the hamburger button
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   // --- Auth State ---
   useEffect(() => {
@@ -25,7 +25,7 @@ export default function Navbar() {
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
-      if (!session) setIsMobileMenuOpen(false); // Close menu on logout
+      if (!session) setIsMobileMenuOpen(false);
     });
     return () => {
       authListener?.subscription?.unsubscribe();
@@ -33,15 +33,13 @@ export default function Navbar() {
   }, []);
 
   // --- Mobile Menu Logic ---
-  // Close menu when a link is clicked (pathname changes)
   useEffect(() => {
     if (isMobileMenuOpen) {
       setIsMobileMenuOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]); // Only trigger on pathname change
+  }, [pathname]);
 
-  // Close menu on Escape key press
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isMobileMenuOpen) {
@@ -54,22 +52,17 @@ export default function Navbar() {
     };
   }, [isMobileMenuOpen]);
 
-  // Close menu on click outside (optional, can be tricky with button toggle)
-  // For simplicity, we'll rely on Escape and link clicks for now.
-  // A more robust outside click would involve checking if the click target is outside menuRef and buttonRef.
-
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
 
   const handleLogout = async () => {
-    setIsMobileMenuOpen(false); // Close menu before logout
+    setIsMobileMenuOpen(false);
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Logout error:', error.message);
       return alert(`Logout failed: ${error.message}`);
     }
-    // setUser(null); // Auth listener will handle this
     router.push('/auth');
   };
 
@@ -77,13 +70,14 @@ export default function Navbar() {
   if (loading) {
     return (
       <nav className="bg-gray-800 h-14 shadow-md sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 h-full flex items-center justify-between">
-          {/* Left side skeleton */}
+        <div className="max-w-5xl mx-auto px-4 h-full flex items-center justify-between relative">
           <div className="flex items-center space-x-4">
             <div className="h-8 w-8 bg-gray-700 rounded-full animate-pulse" />
             <div className="h-6 w-20 bg-gray-700 rounded animate-pulse hidden sm:block" />
           </div>
-          {/* Right side skeleton (desktop links / mobile hamburger) */}
+           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
+            <div className="h-6 w-16 bg-gray-700 rounded animate-pulse"></div>
+          </div>
           <div className="hidden md:flex space-x-4 animate-pulse">
             <div className="h-6 bg-gray-700 w-24 rounded" />
             <div className="h-6 bg-gray-700 w-28 rounded" />
@@ -96,73 +90,73 @@ export default function Navbar() {
   }
 
   // --- Helper for Nav Link Styling ---
-  const navLinkClasses = (href: string, isButtonLike = false) => {
+  // CORRECTED: Added return statement
+  const navLinkClasses = (href: string): string => { 
     const isActive = pathname === href;
     let classes = `transition-colors duration-150 ease-in-out text-sm rounded-md `;
-    if (isButtonLike) {
-        classes += `block w-full text-left px-4 py-2.5 font-medium `;
-        classes += isActive 
-            ? 'bg-indigo-600 text-white' 
-            : 'text-gray-200 hover:bg-gray-700 hover:text-white';
-    } else { // Regular text link
-        classes += `px-3 py-2 font-medium `;
-        classes += isActive 
-            ? 'bg-gray-900 text-white' // Desktop active link
-            : 'text-gray-300 hover:bg-gray-700 hover:text-white'; // Desktop inactive link
-    }
-    return classes;
+    // Removed isButtonLike parameter as it wasn't used for desktop links as planned
+    classes += `px-3 py-2 font-medium `;
+    classes += isActive 
+        ? 'bg-gray-900 text-white' 
+        : 'text-gray-300 hover:bg-gray-700 hover:text-white';
+    return classes; // <<< --- ADDED RETURN ---
   };
   
-  const mobileNavLinkClasses = (href: string) => {
+  // CORRECTED: Added return statement
+  const mobileNavLinkClasses = (href: string): string => {
     const isActive = pathname === href;
+    // Directly return the constructed string
     return `block px-4 py-3 text-base font-medium rounded-md transition-colors
             ${isActive 
                 ? 'bg-indigo-500 text-white' 
-                : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`;
+                : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`; // <<< --- ADDED RETURN (implicitly via template literal) ---
   };
 
 
   // --- Main Navbar JSX ---
   return (
     <>
-      <nav className="bg-gray-800 text-white shadow-md sticky top-0 z-40"> {/* z-40 for navbar */}
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          {/* Left Section: Logo & Desktop Links */}
-          <div className="flex items-center space-x-3 sm:space-x-4">
-            <Link href="/listings" className="flex items-center space-x-2 group flex-shrink-0">
+      <nav className="bg-gray-800 text-white shadow-md sticky top-0 z-40">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between relative">
+          <div className="flex items-center flex-shrink-0">
+            <Link href="/listings" className="flex items-center space-x-2 group">
               <Image
                 src="/bidly-logo.svg" alt="Bidly logo" width={32} height={32} priority
                 className="h-8 w-auto group-hover:opacity-90 transition-opacity"
               />
-              <span className="text-lg font-semibold hidden sm:inline group-hover:text-indigo-300 transition-colors">
+              <span className="text-lg font-semibold hidden md:inline group-hover:text-indigo-300 transition-colors">
                 Bidly
               </span>
             </Link>
-
-            {/* Desktop Navigation Links - Hidden on mobile */}
-            <div className="hidden md:flex items-center space-x-1">
-              <Link href="/listings" className={navLinkClasses("/listings")}>
-                Active Auctions
-              </Link>
-              <Link href="/listings/archive" className={navLinkClasses("/listings/archive")}>
-                Auction Archive
-              </Link>
-              {user && (
-                <>
-                  <Link href="/my-listings" className={navLinkClasses("/my-listings")}>
-                    My Listings
-                  </Link>
-                  <Link href="/my-bids" className={navLinkClasses("/my-bids")}>
-                    My Bids
-                  </Link>
-                </>
-              )}
-            </div>
           </div>
 
-          {/* Right Section: Desktop Actions / Mobile Hamburger */}
-          <div className="flex items-center">
-            {/* Desktop Action Buttons - Hidden on mobile */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
+            <Link href="/listings" className="text-lg font-semibold text-white hover:text-indigo-300 transition-colors">
+              Bidly
+            </Link>
+          </div>
+          
+          <div className="hidden md:flex items-center space-x-1 flex-grow justify-start ml-4">
+            {/* CORRECTED: Ensure function call result is assigned */}
+            <Link href="/listings" className={navLinkClasses("/listings")}>
+              Active Auctions
+            </Link>
+            <Link href="/listings/archive" className={navLinkClasses("/listings/archive")}>
+              Auction Archive
+            </Link>
+            {user && (
+              <>
+                <Link href="/my-listings" className={navLinkClasses("/my-listings")}>
+                  My Listings
+                </Link>
+                <Link href="/my-bids" className={navLinkClasses("/my-bids")}>
+                  My Bids
+                </Link>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center flex-shrink-0">
             <div className="hidden md:flex items-center space-x-2 sm:space-x-3">
               {user ? (
                 <>
@@ -190,7 +184,6 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Mobile Hamburger Button - Hidden on desktop */}
             <div className="md:hidden">
               <button
                 ref={buttonRef}
@@ -211,8 +204,6 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* Mobile Menu Panel (Off-canvas, slides from right) */}
-      {/* Overlay */}
       {isMobileMenuOpen && (
           <div 
               className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden" 
@@ -239,42 +230,28 @@ export default function Navbar() {
                 <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
         </div>
-
         <nav className="space-y-2">
-          <Link href="/listings" className={mobileNavLinkClasses("/listings")}>
-            Active Auctions
-          </Link>
-          <Link href="/listings/archive" className={mobileNavLinkClasses("/listings/archive")}>
-            Auction Archive
-          </Link>
-          
+          {/* CORRECTED: Ensure function call result is assigned */}
+          <Link href="/listings" className={mobileNavLinkClasses("/listings")}>Active Auctions</Link>
+          <Link href="/listings/archive" className={mobileNavLinkClasses("/listings/archive")}>Auction Archive</Link>
           {user ? (
             <>
               <hr className="border-gray-700 my-3" />
+              {/* CORRECTED: Ensure function call result is assigned (though this one already had a good structure) */}
               <Link href="/listings/new" className={`${mobileNavLinkClasses("/listings/new")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>
                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-2"><path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" /></svg>
                 Create New Listing
               </Link>
-              <Link href="/my-listings" className={mobileNavLinkClasses("/my-listings")}>
-                My Listings
-              </Link>
-              <Link href="/my-bids" className={mobileNavLinkClasses("/my-bids")}>
-                My Bids
-              </Link>
+              <Link href="/my-listings" className={mobileNavLinkClasses("/my-listings")}>My Listings</Link>
+              <Link href="/my-bids" className={mobileNavLinkClasses("/my-bids")}>My Bids</Link>
               <hr className="border-gray-700 my-3" />
-              <button
-                onClick={handleLogout}
-                className="block w-full text-left px-4 py-3 text-base font-medium rounded-md text-red-300 hover:bg-red-700 hover:text-white transition-colors"
-              >
-                Logout
-              </button>
+              <button onClick={handleLogout} className="block w-full text-left px-4 py-3 text-base font-medium rounded-md text-red-300 hover:bg-red-700 hover:text-white transition-colors">Logout</button>
             </>
           ) : (
             <>
               <hr className="border-gray-700 my-3" />
-              <Link href="/auth" className={`${mobileNavLinkClasses("/auth")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>
-                Login / Sign Up
-              </Link>
+              {/* CORRECTED: Ensure function call result is assigned (though this one already had a good structure) */}
+              <Link href="/auth" className={`${mobileNavLinkClasses("/auth")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>Login / Sign Up</Link>
             </>
           )}
         </nav>
