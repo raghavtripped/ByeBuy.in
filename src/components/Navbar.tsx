@@ -1,141 +1,284 @@
 // src/components/Navbar.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react'; // Added useRef
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter, usePathname } from 'next/navigation'; // Ensure usePathname is imported
+import { useRouter, usePathname } from 'next/navigation';
 import { supabase, type User } from '@/lib/supabaseClient';
 
 export default function Navbar() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // State for mobile menu
   const router = useRouter();
-  const pathname = usePathname(); // Get current pathname
+  const pathname = usePathname();
+  const menuRef = useRef<HTMLDivElement>(null); // Ref for the mobile menu panel
+  const buttonRef = useRef<HTMLButtonElement>(null); // Ref for the hamburger button
 
+  // --- Auth State ---
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user ?? null);
       setLoading(false);
     });
-
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
+      if (!session) setIsMobileMenuOpen(false); // Close menu on logout
     });
-
     return () => {
       authListener?.subscription?.unsubscribe();
     };
   }, []);
 
+  // --- Mobile Menu Logic ---
+  // Close menu when a link is clicked (pathname changes)
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      setIsMobileMenuOpen(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]); // Only trigger on pathname change
+
+  // Close menu on Escape key press
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => {
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [isMobileMenuOpen]);
+
+  // Close menu on click outside (optional, can be tricky with button toggle)
+  // For simplicity, we'll rely on Escape and link clicks for now.
+  // A more robust outside click would involve checking if the click target is outside menuRef and buttonRef.
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
   const handleLogout = async () => {
+    setIsMobileMenuOpen(false); // Close menu before logout
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Logout error:', error.message);
       return alert(`Logout failed: ${error.message}`);
     }
-    setUser(null);
+    // setUser(null); // Auth listener will handle this
     router.push('/auth');
   };
 
+  // --- Loading Skeleton ---
   if (loading) {
     return (
       <nav className="bg-gray-800 h-14 shadow-md sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 h-full flex items-center justify-between">
+          {/* Left side skeleton */}
           <div className="flex items-center space-x-4">
             <div className="h-8 w-8 bg-gray-700 rounded-full animate-pulse" />
-            <div className="h-6 w-20 bg-gray-700 rounded animate-pulse sm:inline hidden" />
-            <div className="h-6 w-24 bg-gray-700 rounded animate-pulse" />
-            <div className="h-6 w-28 bg-gray-700 rounded animate-pulse" />
+            <div className="h-6 w-20 bg-gray-700 rounded animate-pulse hidden sm:block" />
           </div>
-          <div className="flex space-x-4 animate-pulse">
-            <div className="h-7 w-24 bg-gray-700 rounded-md" />
+          {/* Right side skeleton (desktop links / mobile hamburger) */}
+          <div className="hidden md:flex space-x-4 animate-pulse">
+            <div className="h-6 bg-gray-700 w-24 rounded" />
+            <div className="h-6 bg-gray-700 w-28 rounded" />
+            <div className="h-7 bg-gray-700 w-24 rounded-md" />
           </div>
+          <div className="md:hidden h-7 w-7 bg-gray-700 rounded animate-pulse" />
         </div>
       </nav>
     );
   }
 
+  // --- Helper for Nav Link Styling ---
+  const navLinkClasses = (href: string, isButtonLike = false) => {
+    const isActive = pathname === href;
+    let classes = `transition-colors duration-150 ease-in-out text-sm rounded-md `;
+    if (isButtonLike) {
+        classes += `block w-full text-left px-4 py-2.5 font-medium `;
+        classes += isActive 
+            ? 'bg-indigo-600 text-white' 
+            : 'text-gray-200 hover:bg-gray-700 hover:text-white';
+    } else { // Regular text link
+        classes += `px-3 py-2 font-medium `;
+        classes += isActive 
+            ? 'bg-gray-900 text-white' // Desktop active link
+            : 'text-gray-300 hover:bg-gray-700 hover:text-white'; // Desktop inactive link
+    }
+    return classes;
+  };
+  
+  const mobileNavLinkClasses = (href: string) => {
+    const isActive = pathname === href;
+    return `block px-4 py-3 text-base font-medium rounded-md transition-colors
+            ${isActive 
+                ? 'bg-indigo-500 text-white' 
+                : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`;
+  };
+
+
+  // --- Main Navbar JSX ---
   return (
-    <nav className="bg-gray-800 text-white shadow-md sticky top-0 z-50">
-      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-        <div className="flex items-center space-x-3 sm:space-x-4">
-          <Link href="/listings" className="flex items-center space-x-2 group">
-            <Image
-              src="/bidly-logo.svg"
-              alt="Bidly logo"
-              width={32}
-              height={32}
-              priority
-              className="h-8 w-auto group-hover:opacity-90 transition-opacity"
-            />
-            <span className="text-lg font-semibold hidden sm:inline group-hover:text-indigo-300 transition-colors">
-              Bidly
-            </span>
-          </Link>
+    <>
+      <nav className="bg-gray-800 text-white shadow-md sticky top-0 z-40"> {/* z-40 for navbar */}
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+          {/* Left Section: Logo & Desktop Links */}
+          <div className="flex items-center space-x-3 sm:space-x-4">
+            <Link href="/listings" className="flex items-center space-x-2 group flex-shrink-0">
+              <Image
+                src="/bidly-logo.svg" alt="Bidly logo" width={32} height={32} priority
+                className="h-8 w-auto group-hover:opacity-90 transition-opacity"
+              />
+              <span className="text-lg font-semibold hidden sm:inline group-hover:text-indigo-300 transition-colors">
+                Bidly
+              </span>
+            </Link>
 
-          <Link
-            href="/listings"
-            className="text-gray-300 hover:text-white px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            aria-current={pathname === "/listings" ? "page" : undefined}
-          >
-            Active Auctions
-          </Link>
+            {/* Desktop Navigation Links - Hidden on mobile */}
+            <div className="hidden md:flex items-center space-x-1">
+              <Link href="/listings" className={navLinkClasses("/listings")}>
+                Active Auctions
+              </Link>
+              <Link href="/listings/archive" className={navLinkClasses("/listings/archive")}>
+                Auction Archive
+              </Link>
+              {user && (
+                <>
+                  <Link href="/my-listings" className={navLinkClasses("/my-listings")}>
+                    My Listings
+                  </Link>
+                  <Link href="/my-bids" className={navLinkClasses("/my-bids")}>
+                    My Bids
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
 
-          <Link
-            href="/listings/archive"
-            className="text-gray-300 hover:text-white px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            aria-current={pathname === "/listings/archive" ? "page" : undefined}
-          >
-            Auction Archive
-          </Link>
+          {/* Right Section: Desktop Actions / Mobile Hamburger */}
+          <div className="flex items-center">
+            {/* Desktop Action Buttons - Hidden on mobile */}
+            <div className="hidden md:flex items-center space-x-2 sm:space-x-3">
+              {user ? (
+                <>
+                  <Link
+                    href="/listings/new"
+                    className="text-gray-200 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-1.5"><path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" /></svg>
+                    List Item
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <Link
+                  href="/auth"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+                >
+                  Login / Sign Up
+                </Link>
+              )}
+            </div>
+
+            {/* Mobile Hamburger Button - Hidden on desktop */}
+            <div className="md:hidden">
+              <button
+                ref={buttonRef}
+                onClick={toggleMobileMenu}
+                aria-label="Toggle menu"
+                aria-expanded={isMobileMenuOpen}
+                aria-controls="mobile-menu-panel"
+                className="inline-flex items-center justify-center p-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+              >
+                {isMobileMenuOpen ? (
+                  <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                ) : (
+                  <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Mobile Menu Panel (Off-canvas, slides from right) */}
+      {/* Overlay */}
+      {isMobileMenuOpen && (
+          <div 
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden" 
+              onClick={() => setIsMobileMenuOpen(false)}
+              aria-hidden="true"
+          ></div>
+      )}
+      <div
+        id="mobile-menu-panel"
+        ref={menuRef}
+        className={`fixed top-0 right-0 h-full w-64 sm:w-72 bg-gray-800 shadow-xl p-5 transform transition-transform duration-300 ease-in-out z-50 md:hidden
+                    ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-menu-heading"
+      >
+        <div className="flex justify-between items-center mb-6">
+            <h2 id="mobile-menu-heading" className="text-lg font-semibold text-white">Menu</h2>
+            <button 
+                onClick={() => setIsMobileMenuOpen(false)} 
+                className="p-1 text-gray-300 hover:text-white rounded-md hover:bg-gray-700"
+                aria-label="Close menu"
+            >
+                <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
         </div>
 
-        <div className="flex items-center space-x-2 sm:space-x-3">
+        <nav className="space-y-2">
+          <Link href="/listings" className={mobileNavLinkClasses("/listings")}>
+            Active Auctions
+          </Link>
+          <Link href="/listings/archive" className={mobileNavLinkClasses("/listings/archive")}>
+            Auction Archive
+          </Link>
+          
           {user ? (
             <>
-              <Link
-                href="/listings/new"
-                className="text-gray-200 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-1.5">
-                    <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
-                </svg>
-                List Item
+              <hr className="border-gray-700 my-3" />
+              <Link href="/listings/new" className={`${mobileNavLinkClasses("/listings/new")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>
+                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-2"><path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" /></svg>
+                Create New Listing
               </Link>
-              <Link
-                href="/my-listings"
-                className="text-gray-300 hover:text-white px-2 sm:px-3 py-2 rounded-md text-sm hidden md:inline-block transition-colors"
-                aria-current={pathname === "/my-listings" ? "page" : undefined}
-              >
+              <Link href="/my-listings" className={mobileNavLinkClasses("/my-listings")}>
                 My Listings
               </Link>
-              <Link
-                href="/my-bids"
-                className="text-gray-300 hover:text-white px-2 sm:px-3 py-2 rounded-md text-sm hidden md:inline-block transition-colors"
-                aria-current={pathname === "/my-bids" ? "page" : undefined}
-              >
+              <Link href="/my-bids" className={mobileNavLinkClasses("/my-bids")}>
                 My Bids
               </Link>
+              <hr className="border-gray-700 my-3" />
               <button
                 onClick={handleLogout}
-                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
-                aria-label="Logout"
+                className="block w-full text-left px-4 py-3 text-base font-medium rounded-md text-red-300 hover:bg-red-700 hover:text-white transition-colors"
               >
                 Logout
               </button>
             </>
           ) : (
-            <Link
-              href="/auth"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
-            >
-              Login / Sign Up
-            </Link>
+            <>
+              <hr className="border-gray-700 my-3" />
+              <Link href="/auth" className={`${mobileNavLinkClasses("/auth")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>
+                Login / Sign Up
+              </Link>
+            </>
           )}
-        </div>
+        </nav>
       </div>
-    </nav>
+    </>
   );
 }
