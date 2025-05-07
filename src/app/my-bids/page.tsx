@@ -7,7 +7,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { supabase, type User } from '@/lib/supabaseClient';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import EmptyState from '@/components/EmptyState'; // Re-using the improved EmptyState
+import EmptyState from '@/components/EmptyState';
 import { formatCurrency } from '@/lib/formatUtils';
 import { formatRelativeTime, formatCountdown, isPast } from '@/lib/timeUtils';
 
@@ -15,20 +15,20 @@ import { formatRelativeTime, formatCountdown, isPast } from '@/lib/timeUtils';
 type MyBidDisplayItem = {
   listingId: string;
   listingTitle: string;
-  listingPhoto: string | null;
+  listingPhotos: string[] | null; // MODIFIED: Was listingPhoto: string | null
   listingEndTime: string | null;
-  listingStatus: 'active' | 'closed' | 'cancelled'; // From listings table
-  listingWinningBidderId: string | null; // From listings table
+  listingStatus: 'active' | 'closed' | 'cancelled';
+  listingWinningBidderId: string | null;
   userHighestBidOnItem: number | null;
   currentOverallHighestBid: number | null;
   currentOverallHighestBidderId: string | null;
-  isEffectivelyEnded: boolean; // Derived client-side
+  isEffectivelyEnded: boolean;
 };
 
 type RawListing = {
     id: string;
     title: string;
-    photos: string | null;
+    photos: string[] | null; // MODIFIED: Was string | null
     end_time: string | null;
     status: 'active' | 'closed' | 'cancelled';
     winning_bidder_id: string | null;
@@ -48,50 +48,46 @@ export default function MyBidsPage() {
 
   // --- State ---
   const [user, setUser] = useState<User | null>(null);
-  const [allBidItems, setAllBidItems] = useState<MyBidDisplayItem[]>([]); // All items user has bid on
+  const [allBidItems, setAllBidItems] = useState<MyBidDisplayItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeCountdownTimers, setActiveCountdownTimers] = useState<Record<string, string | null>>({});
-  const [viewFilter, setViewFilter] = useState<ViewFilter>('active'); // For 'Active'/'Past' tabs
+  const [viewFilter, setViewFilter] = useState<ViewFilter>('active');
 
-  // --- Data Fetching (memoized with useCallback) ---
+  // --- Data Fetching ---
   const fetchMyBidData = useCallback(async (currentUser: User) => {
     setLoading(true);
     setError(null);
-    setAllBidItems([]); // Clear previous items
+    setAllBidItems([]);
 
     try {
-      // Step 1: Get distinct listing IDs the user has bid on
       const { data: distinctListingIdsData, error: rpcError } = await supabase.rpc(
         'get_distinct_listing_ids_for_bidder',
         { p_bidder_id: currentUser.id }
       );
       if (rpcError) throw new Error(`RPC Error: ${rpcError.message}`);
       if (!distinctListingIdsData || distinctListingIdsData.length === 0) {
-        setLoading(false); // No bid activity
+        setLoading(false);
         return;
       }
       const listingIds: string[] = distinctListingIdsData.map((row: {item_id: string}) => row.item_id);
 
-      // Step 2: Fetch details for these listings
       const { data: listingsData, error: listingsError } = await supabase
         .from('listings')
-        .select('id, title, photos, end_time, status, winning_bidder_id')
+        .select('id, title, photos, end_time, status, winning_bidder_id') // photos is already string[]
         .in('id', listingIds)
-        .returns<RawListing[]>();
+        .returns<RawListing[]>(); // Supabase should correctly infer photos as string[]
       if (listingsError) throw new Error(`Listings Fetch Error: ${listingsError.message}`);
-      if (!listingsData) { setLoading(false); return; } // Should not happen if IDs exist
+      if (!listingsData) { setLoading(false); return; }
 
-      // Step 3: Fetch all bids related to these listings
       const { data: allBidsForListings, error: allBidsError } = await supabase
         .from('bids')
         .select('item_id, bidder_id, bid_price')
         .in('item_id', listingIds)
-        .order('bid_price', { ascending: false }) // Highest bids first per item
+        .order('bid_price', { ascending: false })
         .returns<RawBid[]>();
       if (allBidsError) throw new Error(`Bids Fetch Error: ${allBidsError.message}`);
 
-      // Step 4: Process and combine data
       const processedItems: MyBidDisplayItem[] = [];
       const listingsMap = new Map(listingsData.map(l => [l.id, l]));
 
@@ -104,9 +100,9 @@ export default function MyBidsPage() {
         
         const userHighestBid = userBidsOnThisItem.length > 0
           ? Math.max(...userBidsOnThisItem.map(b => b.bid_price))
-          : null; // User might have bid but data is inconsistent, or no bids by user
+          : null;
 
-        const overallHighestBidObject = bidsOnThisItem[0]; // Highest bid overall for this item
+        const overallHighestBidObject = bidsOnThisItem[0];
         const overallHighestBid = overallHighestBidObject?.bid_price || null;
         const overallHighestBidderId = overallHighestBidObject?.bidder_id || null;
         
@@ -117,7 +113,7 @@ export default function MyBidsPage() {
         processedItems.push({
           listingId: listing.id,
           listingTitle: listing.title,
-          listingPhoto: listing.photos,
+          listingPhotos: listing.photos, // MODIFIED: Was listingPhoto, now listingPhotos
           listingEndTime: listing.end_time,
           listingStatus: listing.status,
           listingWinningBidderId: listing.winning_bidder_id,
@@ -137,24 +133,23 @@ export default function MyBidsPage() {
     } finally {
       setLoading(false);
     }
-  }, []); // Empty dependency array as router is stable and user is passed
+  }, []);
 
   // --- Initial User Check & Data Load ---
   useEffect(() => {
     supabase.auth.getUser().then(({ data: userData, error: userError }) => {
       if (userError || !userData?.user) {
-        router.push('/auth?redirect=/my-bids'); // Redirect if not logged in
+        router.push('/auth?redirect=/my-bids');
         return;
       }
       setUser(userData.user);
-      fetchMyBidData(userData.user); // Fetch data once user is confirmed
+      fetchMyBidData(userData.user);
     });
-  }, [router, fetchMyBidData]); // Dependencies
+  }, [router, fetchMyBidData]);
 
   // --- Countdown Timer Logic ---
   useEffect(() => {
     const intervalIds: NodeJS.Timeout[] = [];
-    // Filter for active auctions that have an end time and haven't passed
     const itemsNeedingTimers = allBidItems.filter(
       item => item.listingStatus === 'active' && item.listingEndTime && !isPast(item.listingEndTime)
     );
@@ -164,21 +159,19 @@ export default function MyBidsPage() {
         const updateTimer = () => {
           const countdownStr = formatCountdown(item.listingEndTime);
           setActiveCountdownTimers(prev => ({ ...prev, [item.listingId]: countdownStr }));
-          if (countdownStr === null) { // Auction ended
-            // Optionally, re-fetch data or update item status locally
-            // For now, the timer just stops updating for this item
+          if (countdownStr === null) {
+            // Optionally re-fetch or update status. For now, timer stops updating.
           }
         };
-        updateTimer(); // Initial call
-        const intervalId = setInterval(updateTimer, 1000); // Update every second
+        updateTimer();
+        const intervalId = setInterval(updateTimer, 1000);
         intervalIds.push(intervalId);
       });
     }
-    // Cleanup: clear all intervals when component unmounts or allBidItems changes
     return () => {
       intervalIds.forEach(clearInterval);
     };
-  }, [allBidItems]); // Re-run if bid items change (e.g., new data fetched)
+  }, [allBidItems]);
 
   // --- Memoized Filtered & Sorted Item Lists ---
   const { activeWinningItems, activeLosingItems, pastWonItems, pastLostItems } = useMemo(() => {
@@ -187,16 +180,13 @@ export default function MyBidsPage() {
     const active = allBidItems.filter(item => !item.isEffectivelyEnded);
     const past = allBidItems.filter(item => item.isEffectivelyEnded);
 
-    // Sort active items by end time (soonest first)
     const sortActive = (a: MyBidDisplayItem, b: MyBidDisplayItem) => 
         (a.listingEndTime ? new Date(a.listingEndTime).getTime() : Infinity) -
         (b.listingEndTime ? new Date(b.listingEndTime).getTime() : Infinity);
 
-    // Sort past items by end time (most recent first)
     const sortPast = (a: MyBidDisplayItem, b: MyBidDisplayItem) =>
-        (b.listingEndTime ? new Date(b.listingEndTime).getTime() : 0) - // Handle nulls by pushing to end
+        (b.listingEndTime ? new Date(b.listingEndTime).getTime() : 0) -
         (a.listingEndTime ? new Date(a.listingEndTime).getTime() : 0);
-
 
     const activeWinning = active
         .filter(item => item.currentOverallHighestBidderId === user.id && item.listingStatus === 'active')
@@ -220,7 +210,6 @@ export default function MyBidsPage() {
     };
   }, [allBidItems, user]);
 
-
   // --- UI Helper Functions ---
   const tabClass = (tab: ViewFilter): string => {
       const baseClasses = 'px-4 py-2 rounded-md text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900';
@@ -231,7 +220,7 @@ export default function MyBidsPage() {
 
   const renderBidItemCard = (item: MyBidDisplayItem, cardType: 'active-winning' | 'active-losing' | 'past-won' | 'past-lost') => {
       let statusText = '';
-      let statusColorClasses = ''; // Tailwind classes for badge styling
+      let statusColorClasses = '';
 
       if (cardType === 'active-winning') {
           statusText = '🎉 Winning';
@@ -249,28 +238,37 @@ export default function MyBidsPage() {
               : 'bg-red-100 dark:bg-red-800/50 text-red-700 dark:text-red-200 ring-red-600/20 dark:ring-red-500/30';
       }
       
-      // Determine time display: countdown for active, relative for past/ended
       const timeToDisplay = !item.isEffectivelyEnded && item.listingStatus === 'active'
           ? activeCountdownTimers[item.listingId] || (item.listingEndTime ? `Ends ${formatRelativeTime(item.listingEndTime)}` : 'No end time')
           : item.listingEndTime ? `Ended ${formatRelativeTime(item.listingEndTime)}` : 'Ended (No specific time)';
+
+      // MODIFIED: Get thumbnail from listingPhotos array
+      const thumbnailUrl = (item.listingPhotos && item.listingPhotos.length > 0) ? item.listingPhotos[0] : null;
 
       return (
           <li
             key={item.listingId}
             className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col sm:flex-row gap-4 items-start"
           >
-            {item.listingPhoto && (
+            {/* MODIFIED: Image rendering block */}
+            {thumbnailUrl ? (
               <Link href={`/listings/${item.listingId}`} className="flex-shrink-0 block w-full sm:w-auto" aria-label={`View details for ${item.listingTitle}`}>
                 <div className="relative w-full h-32 sm:w-[120px] sm:h-[90px] bg-gray-100 dark:bg-gray-700 rounded-md overflow-hidden group">
                   <Image
-                    src={item.listingPhoto}
+                    src={thumbnailUrl}
                     alt={`Cover image for ${item.listingTitle}`}
                     width={120} height={90}
                     style={{ objectFit: 'cover' }}
                     className="w-full h-full transition-transform duration-300 group-hover:scale-105"
+                    onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-image.svg'; }} // Fallback
                   />
                 </div>
               </Link>
+            ) : (
+                // Placeholder if no image
+                <div className="flex-shrink-0 w-full sm:w-[120px] sm:h-[90px] bg-gray-200 dark:bg-gray-700 rounded-md flex items-center justify-center text-gray-400 dark:text-gray-500" aria-label="No image available">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10"> <path d="M1.5 6.375c0-1.036.84-1.875 1.875-1.875h17.25c1.035 0 1.875.84 1.875 1.875v11.25c0 1.035-.84 1.875-1.875 1.875H3.375A1.875 1.875 0 011.5 17.625V6.375zM3 16.125c0 .207.168.375.375.375h17.25a.375.375 0 00.375-.375V6.375a.375.375 0 00-.375-.375H3.375a.375.375 0 00-.375.375v9.75zM8.25 8.625a1.125 1.125 0 100 2.25 1.125 1.125 0 000-2.25zM10.5 12a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zM12 9.75a.75.75 0 000 1.5h6a.75.75 0 000-1.5h-6zM12 12.75a.75.75 0 000 1.5h6a.75.75 0 000-1.5h-6z" /> </svg>
+                </div>
             )}
             <div className="flex-grow">
               <Link
@@ -341,7 +339,7 @@ export default function MyBidsPage() {
     );
   }
 
-   if (!user && !loading) { // Should be caught by initial redirect, but good fallback
+   if (!user && !loading) {
     return (
       <div className="max-w-4xl mx-auto p-4 sm:p-8">
         <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100 tracking-tight">
@@ -360,8 +358,7 @@ export default function MyBidsPage() {
 
   // --- Main JSX ---
   return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8"> {/* Wider max-width for two columns */}
-      {/* Header: Title and Tabs */}
+    <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4 pb-4 border-b border-gray-200 dark:border-gray-700">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
           My Bids
@@ -376,10 +373,8 @@ export default function MyBidsPage() {
         </div>
       </header>
 
-      {/* Tab Content Area */}
       {viewFilter === 'active' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 lg:gap-x-8 gap-y-8">
-          {/* Active Winning Column */}
           <section>
             <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200 pb-2 border-b border-gray-200 dark:border-gray-700">
               Currently Winning
@@ -391,7 +386,6 @@ export default function MyBidsPage() {
             )}
           </section>
 
-          {/* Active Losing Column */}
           <section>
             <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200 pb-2 border-b border-gray-200 dark:border-gray-700">
               Currently Losing
@@ -407,7 +401,6 @@ export default function MyBidsPage() {
 
       {viewFilter === 'past' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 lg:gap-x-8 gap-y-8">
-          {/* Past Won Column */}
           <section>
             <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200 pb-2 border-b border-gray-200 dark:border-gray-700">
               Auctions Won
@@ -419,7 +412,6 @@ export default function MyBidsPage() {
             )}
           </section>
 
-          {/* Past Lost Column */}
           <section>
             <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200 pb-2 border-b border-gray-200 dark:border-gray-700">
               Auctions Lost or Cancelled
@@ -433,7 +425,6 @@ export default function MyBidsPage() {
         </div>
       )}
 
-       {/* General Empty State if no bids at all */}
        {allBidItems.length === 0 && !loading && (
            <EmptyState
              message="You haven't placed any bids yet. Time to find some treasures!"
@@ -441,7 +432,6 @@ export default function MyBidsPage() {
              className="mt-8"
            />
        )}
-
     </div>
   );
 }
