@@ -1,15 +1,13 @@
 // src/app/listings/new/page.tsx
 'use client';
 
-// Removed 'useMemo' import as it's no longer used
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image'; // Use Next.js Image for preview
+import Image from 'next/image';
 import { supabase, User } from '@/lib/supabaseClient';
-import LoadingSpinner from '@/components/LoadingSpinner'; // Reuse existing spinner
+import LoadingSpinner from '@/components/LoadingSpinner'; // Ensure this import is correct
 
 // --- Constants ---
-// Predefined tags relevant to a campus marketplace
 const PREDEFINED_TAGS = [
     'Electronics', 'Laptop', 'Mobile', 'Charger', 'Speaker', 'Headphones',
     'Furniture', 'Chair', 'Table', 'Lamp', 'Mattress', 'Storage',
@@ -20,7 +18,16 @@ const PREDEFINED_TAGS = [
     'Vehicle', 'Bicycle', 'Scooter',
     'Other', 'Home Goods', 'Decor',
 ];
-const MAX_TAGS = 10; // Maximum number of tags allowed
+const MAX_TAGS = 10;
+const MAX_PHOTOS = 5;
+
+// Interface for associating filename with upload result
+interface UploadResult {
+  status: 'fulfilled' | 'rejected';
+  value?: string; // URL if fulfilled
+  reason?: any; // Error reason if rejected
+  filename: string;
+}
 
 // --- Component ---
 export default function NewListingPage() {
@@ -28,35 +35,26 @@ export default function NewListingPage() {
 
     // --- State ---
     const [user, setUser] = useState<User | null>(null);
-    const [loadingUser, setLoadingUser] = useState(true); // State for initial user check
-
-    // Form Fields
+    const [loadingUser, setLoadingUser] = useState(true);
     const [title, setTitle] = useState('');
     const [description, setDesc] = useState('');
     const [minPrice, setMinPrice] = useState('');
-    const [upperCap, setUpperCap] = useState(''); // Optional "Buy Now" price
+    const [upperCap, setUpperCap] = useState('');
     const [endTime, setEndTime] = useState('');
-    const [rules, setRules] = useState(''); // Optional rules
-    const [photo, setPhoto] = useState<File | null>(null);
-    const [photoPreview, setPhotoPreview] = useState<string | null>(null); // For preview URL
-
-    // Tags State
+    const [rules, setRules] = useState('');
+    const [photos, setPhotos] = useState<File[]>([]);
+    const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState('');
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
-
-    // Submission State
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitMessage, setSubmitMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     // --- Effects ---
-    // 1. Check user authentication on mount
     useEffect(() => {
         const checkUser = async () => {
             const { data, error } = await supabase.auth.getUser();
-            setLoadingUser(false); // Mark user check as complete
+            setLoadingUser(false);
             if (error || !data?.user) {
-                console.log("User not logged in, redirecting from new listing page.");
-                // Redirect to login, pass current path to redirect back after login
                 router.push('/auth?redirect=/listings/new');
             } else {
                 setUser(data.user);
@@ -65,283 +63,195 @@ export default function NewListingPage() {
         checkUser();
     }, [router]);
 
-    // 2. Generate photo preview URL when photo changes
     useEffect(() => {
-        let objectUrl: string | null = null;
-        if (photo) {
-            // Create a temporary URL for the selected file
-            objectUrl = URL.createObjectURL(photo);
-            setPhotoPreview(objectUrl);
-        } else {
-            setPhotoPreview(null); // Clear preview if photo is removed
-        }
-        // Cleanup function to revoke the object URL when component unmounts or photo changes
+        const newObjectUrls = photos.map(file => URL.createObjectURL(file));
+        setPhotoPreviews(newObjectUrls);
         return () => {
-            if (objectUrl) {
-                URL.revokeObjectURL(objectUrl);
-                console.log("Revoked photo preview URL:", objectUrl);
-            }
+            newObjectUrls.forEach(url => URL.revokeObjectURL(url));
         };
-    }, [photo]); // Dependency on 'photo' state
+    }, [photos]);
 
     // --- Tag Management Callbacks ---
-    // Handle changes in the tag input field
-    const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setTagInput(e.target.value);
-    };
-
-    // Add a tag to the selected tags list
+    const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => { setTagInput(e.target.value); };
     const addTag = useCallback((tagToAdd: string) => {
-        // Clean the tag: trim whitespace, convert to lowercase
         const cleanedTag = tagToAdd.trim().toLowerCase();
-        // Add only if tag has content, isn't already selected, and limit not reached
         if (cleanedTag && !selectedTags.includes(cleanedTag) && selectedTags.length < MAX_TAGS) {
             setSelectedTags((prevTags) => [...prevTags, cleanedTag]);
         }
-        // Always clear the input field after attempting to add
         setTagInput('');
-    }, [selectedTags]); // Recreate this function only if selectedTags changes
+    }, [selectedTags]);
+    const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(tagInput); } };
+    const removeTag = (tagToRemove: string) => { setSelectedTags((prevTags) => prevTags.filter((tag) => tag !== tagToRemove)); };
 
-    // Handle key presses in the tag input (Enter or Comma to add tag)
-    const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter' || e.key === ',') {
-            e.preventDefault(); // Prevent default behavior (form submission / comma insertion)
-            addTag(tagInput);
+    // --- Photo Management Callbacks ---
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSubmitMessage(null);
+        if (e.target.files) {
+            const filesArray = Array.from(e.target.files);
+            const imageFiles = filesArray.filter(file => file.type.startsWith('image/'));
+            setPhotos(prevPhotos => {
+                const combined = [...prevPhotos, ...imageFiles];
+                if (combined.length > MAX_PHOTOS) {
+                    setSubmitMessage({ type: 'error', text: `You can upload a maximum of ${MAX_PHOTOS} photos.` });
+                    return combined.slice(0, MAX_PHOTOS);
+                }
+                return combined;
+            });
+             e.target.value = ''; // Allow re-selecting the same file
         }
     };
-
-    // Remove a tag from the selected tags list
-    const removeTag = (tagToRemove: string) => {
-        setSelectedTags((prevTags) => prevTags.filter((tag) => tag !== tagToRemove));
-    };
-
-    // NOTE: The unused 'filteredPredefinedTags' variable and useMemo hook have been removed.
-    // Filtering of predefined tags now happens directly in the JSX map function.
+    const handleRemovePhoto = (indexToRemove: number) => { setPhotos(prevPhotos => prevPhotos.filter((_, index) => index !== indexToRemove)); };
 
     // --- Form Submission Logic ---
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault(); // Prevent default browser form submission
-        setSubmitMessage(null); // Clear previous feedback messages
+        e.preventDefault();
+        setSubmitMessage(null);
 
-        // --- Client-Side Validation ---
-        // 1. Authentication & Required Fields Check
-        if (!user) {
-            setSubmitMessage({ type: 'error', text: 'Authentication error. Please log in again.' });
-            return; // Stop submission
-        }
-        if (!photo) {
-            setSubmitMessage({ type: 'error', text: 'Please upload a photo for the listing.' });
-            // Optionally focus the photo input or scroll to it here
-            return;
-        }
-        // Check essential text fields
-        if (!title.trim() || !description.trim() || !minPrice || !endTime) {
-             setSubmitMessage({ type: 'error', text: 'Please fill in all required fields (*).' });
-             return;
-        }
-
-        // 2. Price Logic Validation
+        // --- Validation ---
+        if (!user) { setSubmitMessage({ type: 'error', text: 'Authentication error.' }); return; }
+        if (photos.length === 0) { setSubmitMessage({ type: 'error', text: 'Please upload at least one photo.' }); return; }
+        if (!title.trim() || !description.trim() || !minPrice || !endTime) { setSubmitMessage({ type: 'error', text: 'Please fill all required fields (*).' }); return; }
         const minPriceFloat = parseFloat(minPrice);
-        // Parse upperCap only if it's not empty/whitespace
         const upperCapFloat = upperCap.trim() ? parseFloat(upperCap) : null;
+        if (isNaN(minPriceFloat) || minPriceFloat < 0) { setSubmitMessage({ type: 'error', text: 'Minimum Bid must be a non-negative number.' }); return; }
+        if (upperCapFloat !== null && (isNaN(upperCapFloat) || upperCapFloat <= minPriceFloat)) { setSubmitMessage({ type: 'error', text: 'Buy Now price must be a valid number greater than Minimum Bid.' }); return; }
+        if (new Date(endTime) <= new Date()) { setSubmitMessage({ type: 'error', text: 'End Time must be in the future.' }); return; }
+        // --- End Validation ---
 
-        if (isNaN(minPriceFloat) || minPriceFloat < 0) {
-             setSubmitMessage({ type: 'error', text: 'Minimum Bid Price must be a valid non-negative number.' });
-             return;
-        }
-         // Validate Buy Now price only if provided
-         if (upperCapFloat !== null) {
-             if (isNaN(upperCapFloat)) {
-                 setSubmitMessage({ type: 'error', text: 'Buy Now price must be a valid number.' });
-                 return;
-             }
-             if (upperCapFloat <= minPriceFloat) {
-                 setSubmitMessage({ type: 'error', text: 'Buy Now price must be greater than the Minimum Bid Price.' });
-                 return;
-             }
-         }
-
-         // 3. End Time Validation
-         // Ensure selected end time is in the future
-         if (new Date(endTime) <= new Date()) {
-            setSubmitMessage({ type: 'error', text: 'Auction End Time must be set to a future date and time.' });
-            return;
-         }
-         // --- End Validation ---
-
-        // If validations pass, proceed with submission
         setIsSubmitting(true);
-        let photoUrl: string | null = null;
+        const uploadErrors: string[] = [];
 
-        // --- Step 1: Upload Photo to Supabase Storage ---
-        try {
-            console.log("Starting photo upload...");
-            const fileExt = photo.name.split('.').pop();
-            // Sanitize title for safe use in file path, limit length
+        // --- Step 1: Upload Photos ---
+        console.log(`Starting upload for ${photos.length} photos...`);
+        
+        // Map original files to promises that RESOLVE with our UploadResult structure
+        const uploadPromises: Promise<UploadResult>[] = photos.map((photoFile) => {
+            const fileExt = photoFile.name.split('.').pop()?.toLowerCase() || 'file';
             const safeTitle = title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
-            // Construct a unique file path using user ID, sanitized title, and timestamp
-            const filePath = `${user.id}/${safeTitle}_${Date.now()}.${fileExt}`;
+            const filePath = `${user.id}/${safeTitle}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`; // Add randomness
 
-            // Perform the upload
-            const { error: uploadError } = await supabase.storage
-                .from('listing-images') // Target the correct bucket
-                .upload(filePath, photo, {
-                    cacheControl: '3600', // Cache image for 1 hour
-                    upsert: false // Prevent overwriting existing files with the same name
-                 });
+            // Return a promise that resolves/rejects with the UploadResult shape
+            return supabase.storage
+                .from('listing-images')
+                .upload(filePath, photoFile, { cacheControl: '3600', upsert: false })
+                .then(({ error: uploadError }) => {
+                    if (uploadError) {
+                        throw new Error(`Upload failed: ${uploadError.message}`);
+                    }
+                    const { data: urlData } = supabase.storage.from('listing-images').getPublicUrl(filePath);
+                    const publicUrl = urlData?.publicUrl;
+                    if (!publicUrl) {
+                        throw new Error(`GetPublicUrl failed.`);
+                    }
+                    // FULFILLED: Return UploadResult for success
+                    return { status: 'fulfilled' as const, value: publicUrl, filename: photoFile.name };
+                })
+                .catch(error => {
+                    // REJECTED: Return UploadResult for failure
+                     console.error(`Error uploading ${photoFile.name}:`, error);
+                     return { status: 'rejected' as const, reason: error instanceof Error ? error.message : String(error), filename: photoFile.name };
+                });
+        });
 
-            // Handle upload errors
-            if (uploadError) {
-                // Re-throw specific error for the catch block
-                throw new Error(`Image upload failed: ${uploadError.message}`);
+        // Wait for all promises to complete (they always resolve now)
+        const results: UploadResult[] = await Promise.all(uploadPromises);
+
+        // Process results: Separate successful URLs and errors
+        const uploadedPhotoUrls: string[] = [];
+        results.forEach(result => {
+            if (result.status === 'fulfilled' && result.value) {
+                uploadedPhotoUrls.push(result.value);
+            } else if (result.status === 'rejected') {
+                uploadErrors.push(`'${result.filename}': ${result.reason}`);
             }
-            console.log("Photo uploaded successfully, path:", filePath);
+        });
 
-            // Get the public URL of the uploaded image
-            const { data: urlData } = supabase.storage.from('listing-images').getPublicUrl(filePath);
-            photoUrl = urlData?.publicUrl ?? null;
-
-            // Ensure URL was obtained
-            if (!photoUrl) {
-                throw new Error("Failed to get public URL for the uploaded image. Upload might have partially failed.");
-            }
-            console.log("Photo public URL obtained:", photoUrl);
-
-        } catch (error) {
-            // Catch errors from the upload process
-            console.error("Photo upload step failed:", error);
-            // Display user-friendly error message
-            setSubmitMessage({ type: 'error', text: error instanceof Error ? error.message : 'An unexpected error occurred during photo upload.' });
-            setIsSubmitting(false); // Allow user to try again
-            return; // Stop the submission process here
+        // --- Check Upload Success ---
+        if (uploadedPhotoUrls.length === 0) {
+            console.error("All photo uploads failed.");
+            setSubmitMessage({ type: 'error', text: `Photo upload failed. Errors: ${uploadErrors.join('; ')}` });
+            setIsSubmitting(false);
+            return;
+        }
+        if (uploadErrors.length > 0) {
+            console.warn("Some photos failed to upload:", uploadErrors);
+            // Optionally alert user or log, but proceed with successful uploads
         }
 
-        // --- Step 2: Insert Listing Data into Supabase Database ---
+        // --- Step 2: Insert Listing Data ---
         try {
-            console.log("Preparing listing data for insertion...");
-            // Prepare the data object matching the 'listings' table schema
+            console.log("Inserting listing with photo URLs:", uploadedPhotoUrls);
             const listingData = {
-                title: title.trim(),
-                description: description.trim(),
-                min_price: minPriceFloat,
-                end_time: new Date(endTime).toISOString(), // Store as ISO string (TIMESTAMPTZ)
-                seller_id: user.id, // Link to the authenticated user
-                photos: photoUrl, // Store the public URL obtained from storage
-                upper_cap: upperCapFloat, // Store null if not provided
-                rules: rules.trim() || null, // Store null if rules field is empty/whitespace
-                status: 'active', // Set initial status
-                tags: selectedTags.length > 0 ? selectedTags : null, // Store tags array or null
+                title: title.trim(), description: description.trim(),
+                min_price: minPriceFloat, end_time: new Date(endTime).toISOString(),
+                seller_id: user.id, photos: uploadedPhotoUrls, // Pass array here
+                upper_cap: upperCapFloat, rules: rules.trim() || null,
+                status: 'active', tags: selectedTags.length > 0 ? selectedTags : null,
             };
 
-            console.log("Inserting listing data:", listingData);
-            // Perform the database insert operation
             const { error: insertError } = await supabase.from('listings').insert(listingData);
+            if (insertError) throw insertError;
 
-            // Handle database insert errors
-            if (insertError) {
-                // Re-throw specific error for the catch block
-                // Could be due to RLS, constraints, network issues, etc.
-                throw insertError;
-            }
+            // --- Success ---
+            let successMsg = 'Listing created successfully!';
+            if (uploadErrors.length > 0) successMsg += ` (${uploadErrors.length} photo(s) failed). Redirecting...`;
+            else successMsg += ' Redirecting...';
+            setSubmitMessage({ type: 'success', text: successMsg });
 
-            // --- Success Scenario ---
-            console.log("Listing inserted successfully!");
-            // Provide success feedback to the user
-            setSubmitMessage({ type: 'success', text: 'Listing created successfully! Redirecting...' });
-
-            // Reset form fields to clear the form
+            // Reset Form
             setTitle(''); setDesc(''); setMinPrice(''); setUpperCap('');
-            setEndTime(''); setRules(''); setPhoto(null); // Clears file selection
-            setPhotoPreview(null); // Clears the preview image
-            setSelectedTags([]); setTagInput(''); // Clear tags state
-            // Attempt to visually reset the file input element
+            setEndTime(''); setRules(''); setPhotos([]); setPhotoPreviews([]);
+            setSelectedTags([]); setTagInput('');
             const fileInput = document.getElementById('photo-upload') as HTMLInputElement;
             if (fileInput) fileInput.value = '';
 
-            // Redirect user to the main listings page after a brief delay
-            setTimeout(() => {
-                router.push('/listings');
-            }, 1500); // 1.5 seconds delay
-
-            // Keep isSubmitting true until the redirect occurs
-            // setIsSubmitting(false); // Don't set to false here on success
+            setTimeout(() => { router.push('/listings'); }, 2000);
 
         } catch (error) {
-            // Catch errors from the database insert operation
-            console.error('Listing insertion step failed:', error);
-            let message = 'Failed to create listing in the database.';
-             if (error instanceof Error) {
-                 // Provide more specific error details if available
-                message = `Listing creation failed: ${error.message}`;
-            }
-            // Display user-friendly error message
+            // --- DB Insert Error ---
+            console.error('Listing insertion failed:', error);
+            let message = 'Database error during listing creation.';
+             if (error instanceof Error) message = `DB Error: ${error.message}`;
+             if (uploadErrors.length > 0) message += ` (${uploadErrors.length} photo(s) failed upload).`;
             setSubmitMessage({ type: 'error', text: message });
-            setIsSubmitting(false); // Allow user to correct issues and retry
+            setIsSubmitting(false);
+             // Consider cleaning up successfully uploaded photos if DB insert fails? Complex.
         }
-         // Note: The finally block is intentionally omitted for the success path
-         // to keep the button disabled until the redirect completes.
     };
 
     // --- Render Guards ---
-    // Show loading spinner while verifying user authentication
-    if (loadingUser) {
-        return <div className="flex justify-center py-20"><LoadingSpinner message="Checking authentication..." /></div>;
-    }
-
-    // User check is complete, proceed to render the form
-    // (User object might still be null if redirection is happening)
-    // The submit button's disabled state handles the case where user is null but form is rendered momentarily
+    if (loadingUser) return <div className="flex justify-center py-20"><LoadingSpinner message="Checking authentication..." /></div>;
 
     // --- JSX ---
     return (
-        // Page container with max-width and padding
         <div className="max-w-3xl mx-auto p-4 sm:p-6 lg:p-8">
-            {/* Page Title */}
             <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100 tracking-tight">
                 Create New Listing
             </h1>
-
-            {/* Form Component: wrapped in a styled card */}
             <form
                 onSubmit={handleSubmit}
-                noValidate // Disable default HTML validation, rely on JS checks
-                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md p-6 sm:p-8 space-y-6" // Card styling with padding and vertical spacing between elements
+                noValidate
+                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md p-6 sm:p-8 space-y-6"
             >
-                 {/* Submission Feedback Area: Displays success or error messages */}
+                {/* Submission Feedback Area */}
                  {submitMessage && (
                     <div
                         className={`p-4 rounded-md border text-sm flex items-start gap-3 ${submitMessage.type === 'error' ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-600/50 text-red-800 dark:text-red-200' : 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-600/50 text-green-800 dark:text-green-200'}`}
-                        role="alert" // Accessibility attribute for alert messages
+                        role="alert"
                     >
-                        {/* Icon indicating message type */}
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5 flex-shrink-0 mt-0.5">
-                            {submitMessage.type === 'error' ? (
-                                <path fillRule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm-.85-5.65a.75.75 0 0 1 1.06-1.06L10.94 11l2.75-2.75a.75.75 0 1 1 1.06 1.06L11.5 12.56l2.75 2.75a.75.75 0 1 1-1.06 1.06L10.44 13l-2.75 2.75a.75.75 0 1 1-1.06-1.06l2.75-2.75-2.75-2.75Z" clipRule="evenodd" /> // Error Icon
-                            ) : (
-                                <path fillRule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm3.84-8.41a.75.75 0 1 1-1.06-1.06L7.94 8.37 6.72 7.15a.75.75 0 0 0-1.06 1.06l1.75 1.75a.75.75 0 0 0 1.06 0l4.37-4.37Z" clipRule="evenodd" /> // Success Icon
-                             )}
+                            {submitMessage.type === 'error' ? ( <path fillRule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm0-8.75a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 .75-.75ZM8 12a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" /> ) : ( <path fillRule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm3.84-8.41a.75.75 0 1 1-1.06-1.06L7.94 8.37 6.72 7.15a.75.75 0 0 0-1.06 1.06l1.75 1.75a.75.75 0 0 0 1.06 0l4.37-4.37Z" clipRule="evenodd" /> )}
                         </svg>
-                         {/* The feedback message text */}
                          <span>{submitMessage.text}</span>
                     </div>
                 )}
 
-                {/* --- Field: Listing Title --- */}
-                <div>
-                    {/* Label associated with the input */}
+                 {/* --- Field: Title --- */}
+                 <div>
                     <label htmlFor="title" className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                        Listing Title <span className="text-red-500 dark:text-red-400 ml-0.5">*</span> {/* Required field indicator */}
+                        Listing Title <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
                     </label>
-                    <input
-                        id="title"
-                        type="text"
-                        placeholder="e.g., Slightly Used Noise Cancelling Headphones" // Helpful placeholder
-                        value={title}
-                        onChange={e => setTitle(e.target.value)}
-                        required // HTML5 required attribute (basic check)
-                        maxLength={100} // Limit title length
-                        className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500" // Consistent styling for inputs
-                    />
+                    <input id="title" type="text" placeholder="e.g., Slightly Used Noise Cancelling Headphones" value={title} onChange={e => setTitle(e.target.value)} required maxLength={100} className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500" />
                 </div>
 
                 {/* --- Field: Description --- */}
@@ -349,77 +259,31 @@ export default function NewListingPage() {
                     <label htmlFor="description" className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
                         Description <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
                     </label>
-                    <textarea
-                        id="description"
-                        placeholder="Describe the item, its condition, reason for selling, etc."
-                        value={description}
-                        onChange={e => setDesc(e.target.value)}
-                        required
-                        rows={4} // Suggests a multi-line input
-                        className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500" // Consistent styling for textareas
-                    />
+                    <textarea id="description" placeholder="Describe the item, its condition, reason for selling, etc." value={description} onChange={e => setDesc(e.target.value)} required rows={4} className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500" />
                 </div>
 
-                 {/* --- Row: Prices (Using Grid for Alignment) --- */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-6"> {/* Responsive grid */}
-                    {/* Field: Minimum Bid Price */}
+                 {/* --- Row: Prices --- */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-6">
                     <div>
                          <label htmlFor="minPrice" className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
                             Minimum Bid Price (₹) <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
                         </label>
-                        <div className="relative"> {/* Container for positioning the currency symbol */}
-                             <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-gray-400 pointer-events-none">₹</span> {/* Currency symbol */}
-                            <input
-                                id="minPrice"
-                                type="number"
-                                placeholder="e.g., 500"
-                                value={minPrice}
-                                onChange={e => setMinPrice(e.target.value)}
-                                required
-                                min="0" // Cannot be negative
-                                step="any" // Allows decimal prices (e.g., 50.50). Use "1" for integers.
-                                className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500" // Left padding for symbol
-                             />
-                        </div>
+                        <div className="relative"><span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-gray-400 pointer-events-none">₹</span><input id="minPrice" type="number" placeholder="e.g., 500" value={minPrice} onChange={e => setMinPrice(e.target.value)} required min="0" step="any" className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500" /></div>
                     </div>
-                     {/* Field: Upper Cap / Buy Now Price */}
                     <div>
                         <label htmlFor="upperCap" className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                            Buy Now Price (₹) <span className="text-gray-500 text-xs">(Optional)</span> {/* Indicate optional field */}
+                            Buy Now Price (₹) <span className="text-gray-500 text-xs">(Optional)</span>
                         </label>
-                        <div className="relative">
-                            <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-gray-400 pointer-events-none">₹</span>
-                            <input
-                                id="upperCap"
-                                type="number"
-                                placeholder="Instant buy price (optional)"
-                                value={upperCap}
-                                onChange={e => setUpperCap(e.target.value)}
-                                min="0" // Basic validation, stricter check in handleSubmit
-                                step="any"
-                                className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500" // Left padding for symbol
-                            />
-                        </div>
+                        <div className="relative"><span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-gray-400 pointer-events-none">₹</span><input id="upperCap" type="number" placeholder="Instant buy price (optional)" value={upperCap} onChange={e => setUpperCap(e.target.value)} min="0" step="any" className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500" /></div>
                     </div>
                 </div>
-
 
                 {/* --- Field: Auction End Time --- */}
                 <div>
                     <label htmlFor="endTime" className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
                         Auction End Time <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
                     </label>
-                    <input
-                        id="endTime"
-                        type="datetime-local" // Use standard browser date/time picker
-                        value={endTime}
-                        onChange={e => setEndTime(e.target.value)}
-                        required
-                        // Set minimum selectable time to avoid past dates (e.g., 1 minute from now)
-                        min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
-                        className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500"
-                    />
-                    {/* Helper text */}
+                    <input id="endTime" type="datetime-local" value={endTime} onChange={e => setEndTime(e.target.value)} required min={new Date(Date.now() + 60000).toISOString().slice(0, 16)} className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500" />
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Select the date and time when the auction should automatically end.</p>
                 </div>
 
@@ -428,14 +292,7 @@ export default function NewListingPage() {
                     <label htmlFor="rules" className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
                         Auction Rules <span className="text-gray-500 text-xs">(Optional)</span>
                     </label>
-                    <textarea
-                        id="rules"
-                        placeholder="e.g., Pickup only from campus hostel X, Payment via UPI within 24 hours of winning."
-                        value={rules}
-                        onChange={e => setRules(e.target.value)}
-                        rows={3}
-                        className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500"
-                    />
+                    <textarea id="rules" placeholder="e.g., Pickup only from campus hostel X, Payment via UPI within 24 hours of winning." value={rules} onChange={e => setRules(e.target.value)} rows={3} className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500" />
                 </div>
 
                 {/* --- Field: Tags --- */}
@@ -443,125 +300,61 @@ export default function NewListingPage() {
                      <label htmlFor="tag-input" className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
                         Tags <span className="text-gray-500 text-xs">(Optional, helps discovery, max {MAX_TAGS})</span>
                     </label>
-                    {/* Display selected tags as dismissible badges */}
-                     <div className="flex flex-wrap gap-2 mb-2 min-h-[28px]"> {/* Min height prevents layout shift */}
-                        {selectedTags.map(tag => (
-                            <span key={tag} className="inline-flex items-center gap-x-1.5 rounded-full bg-blue-100 dark:bg-blue-800/60 px-2.5 py-1 text-xs font-medium text-blue-800 dark:text-blue-200 ring-1 ring-inset ring-blue-200 dark:ring-blue-700">
-                                {tag} {/* Display the tag */}
-                                {/* Button to remove the tag */}
-                                <button
-                                    type="button" // Prevent form submission
-                                    onClick={() => removeTag(tag)}
-                                    className="-mr-0.5 p-0.5 rounded-full inline-flex items-center justify-center text-blue-500 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    aria-label={`Remove ${tag}`} // Accessibility label
-                                >
-                                    {/* Close (X) icon */}
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3"><path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" /></svg>
-                                </button>
-                            </span>
-                         ))}
+                     <div className="flex flex-wrap gap-2 mb-2 min-h-[28px]">
+                        {selectedTags.map(tag => ( <span key={tag} className="inline-flex items-center gap-x-1.5 rounded-full bg-blue-100 dark:bg-blue-800/60 px-2.5 py-1 text-xs font-medium text-blue-800 dark:text-blue-200 ring-1 ring-inset ring-blue-200 dark:ring-blue-700">{tag}<button type="button" onClick={() => removeTag(tag)} className="-mr-0.5 p-0.5 rounded-full inline-flex items-center justify-center text-blue-500 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label={`Remove ${tag}`}><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3"><path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" /></svg></button></span> ))}
                     </div>
-                    {/* Input field for typing new tags */}
                     <input
-                        id="tag-input"
-                        type="text"
+                        id="tag-input" type="text"
                         placeholder={selectedTags.length < MAX_TAGS ? `Type a tag and press Enter (e.g., 'book')` : `Maximum ${MAX_TAGS} tags reached`}
-                        value={tagInput}
-                        onChange={handleTagInputChange}
-                        onKeyDown={handleTagInputKeyDown} // Handle Enter/Comma keys
-                        disabled={selectedTags.length >= MAX_TAGS} // Disable input when limit is reached
-                        className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed" // Disabled styling
+                        value={tagInput} onChange={handleTagInputChange} onKeyDown={handleTagInputKeyDown}
+                        disabled={selectedTags.length >= MAX_TAGS}
+                        className={`
+                            w-full border border-gray-300 dark:border-gray-600 
+                            px-3 py-2 rounded-md shadow-sm 
+                            focus:ring-indigo-500 focus:border-indigo-500 
+                            text-sm dark:bg-gray-700/80 dark:text-gray-100 
+                            dark:placeholder-gray-500 
+                            disabled:opacity-50 disabled:cursor-not-allowed
+                        `} // Added template literal for readability - resolves TS1109 if it was related to this line
                     />
-                    {/* Predefined tag suggestions (clickable buttons) */}
                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Or click to add common tags:</p>
                      <div className="flex flex-wrap gap-2 mt-1.5">
-                         {/* Map over predefined tags, filter out already selected ones, limit suggestions */}
-                         {PREDEFINED_TAGS
-                             .filter(t => !selectedTags.includes(t.toLowerCase())) // Show only tags not yet selected
-                             .slice(0, 15) // Limit number of suggestions shown for UI cleanliness
-                             .map(tag => (
-                             <button
-                                type="button" // Prevent form submission
-                                key={tag}
-                                onClick={() => addTag(tag)} // Add tag when button is clicked
-                                disabled={selectedTags.length >= MAX_TAGS} // Disable if max tags reached
-                                className="px-2.5 py-1 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed" // Styling for suggestion buttons
-                            >
-                                {tag} {/* Tag text */}
-                            </button>
-                         ))}
+                         {PREDEFINED_TAGS.filter(t => !selectedTags.includes(t.toLowerCase())).slice(0, 15).map(tag => ( <button type="button" key={tag} onClick={() => addTag(tag)} disabled={selectedTags.length >= MAX_TAGS} className="px-2.5 py-1 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">{tag}</button> ))}
                      </div>
                 </div>
 
-
-                {/* --- Field: Photo Upload --- */}
+                {/* --- UPDATED: Photo Upload Section --- */}
                 <div>
                     <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                        Upload Photo <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
+                        Upload Photos <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
+                        <span className="text-gray-500 dark:text-gray-400 text-xs ml-2">(Up to {MAX_PHOTOS} images)</span>
                     </label>
-                     {/* Styled label acting as a button to trigger the hidden file input */}
-                    <label
-                        htmlFor="photo-upload"
-                        className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 dark:focus-within:ring-offset-gray-800" // Apply focus styles when hidden input is focused
-                    >
-                         {/* Icon for visual cue */}
-                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400">
-                            <path fillRule="evenodd" d="M1.5 3A1.5 1.5 0 0 1 3 1.5h10A1.5 1.5 0 0 1 14.5 3v10a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13V3ZM3 3h10v10H3V3Zm3.857 1.9a.5.5 0 0 1 .686.01l1.6 1.76a.5.5 0 0 1-.01.686l-3.28 3.2a.5.5 0 0 1-.663-.026L4 9.5l-.01-.012a.5.5 0 0 1 .66-.72l.91.82 1.5-1.5a.5.5 0 0 1 .698-.002Z" clipRule="evenodd" />
-                            <path d="M10.25 5.5a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z" />
-                        </svg>
-                        {/* Button text changes based on whether a photo is selected */}
-                        <span>{photo ? 'Change Photo' : 'Choose Photo'}</span>
-                         {/* The actual file input, visually hidden */}
-                        <input
-                            id="photo-upload"
-                            type="file"
-                            accept="image/png, image/jpeg, image/webp" // Restrict file types
-                            onChange={e => setPhoto(e.target.files?.[0] || null)}
-                            required // Mark as required for browser checks
-                            className="sr-only" // Tailwind class to hide element visually but keep accessible
-                         />
+                    <label htmlFor="photo-upload" className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 dark:focus-within:ring-offset-gray-800">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-400"><path d="M1.5 2A1.5 1.5 0 0 1 3 0.5h10A1.5 1.5 0 0 1 14.5 2v12a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 14V2ZM3 2v12h10V2H3Z" /> <path d="M3.857 9.5a.5.5 0 0 1 .686-.01l1.6 1.76a.5.5 0 0 1-.01.686l-3.28 3.2a.5.5 0 0 1-.663-.026L2 13.74l-.01-.012a.5.5 0 0 1 .66-.72l1.087.98L5.46 12.1a.5.5 0 0 1 .698-.002Z" /> <path d="M12.5 6.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0Z" /></svg>
+                        <span>{photos.length > 0 ? `Add More / Change Photos (${photos.length}/${MAX_PHOTOS})` : 'Choose Photos'}</span>
+                        <input id="photo-upload" type="file" accept="image/png, image/jpeg, image/webp" multiple onChange={handleFileChange} required={photos.length === 0} className="sr-only" />
                     </label>
-                    {/* Preview area for the selected image */}
-                    {photoPreview && (
-                        <div className="mt-3 p-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-md inline-block"> {/* Dashed border for preview container */}
-                            <Image
-                                src={photoPreview} // Use the temporary object URL
-                                alt="Selected photo preview"
-                                width={150} // Define preview dimensions
-                                height={150}
-                                style={{ objectFit: 'contain' }} // Use style prop for objectFit with next/image v13+
-                                className="h-32 w-auto rounded-md" // Max height, auto width
-                            />
+                    {photoPreviews.length > 0 && (
+                        <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                            {photoPreviews.map((previewUrl, index) => (
+                                <div key={previewUrl} className="relative group aspect-square"> {/* Use URL as key if indices might shift */}
+                                    <Image src={previewUrl} alt={`Preview ${index + 1}`} fill sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, 20vw" style={{ objectFit: 'cover' }} className="rounded-md border border-gray-200 dark:border-gray-600" />
+                                    <button type="button" onClick={() => handleRemovePhoto(index)} className="absolute top-1 right-1 p-0.5 bg-red-600 text-white rounded-full opacity-75 group-hover:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1" aria-label={`Remove image ${index + 1}`}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" /></svg>
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     )}
-                     {/* Helper text providing guidance on file types/size */}
-                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">PNG, JPG, or WEBP. Max 5MB recommended.</p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">First image will be the cover photo. PNG, JPG, WEBP accepted.</p>
                 </div>
 
                 {/* --- Submit Button Area --- */}
-                {/* Visually separated by a top border */}
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button
-                        type="submit"
-                        // Disable button during submission, or if user isn't loaded/logged in
-                        disabled={isSubmitting || !user || loadingUser}
-                        className="w-full sm:w-auto inline-flex justify-center items-center px-6 py-2.5 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200" // Primary button styling with disabled state
-                    >
-                        {isSubmitting ? (
-                            <>
-                                {/* Loading indicator: SVG spinner */}
-                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Submitting... {/* Text indicating loading state */}
-                            </>
-                        ) : (
-                            'Save Listing' // Default button text
-                        )}
-                    </button>
+                     <button type="submit" disabled={isSubmitting || !user || loadingUser} className="w-full sm:w-auto inline-flex justify-center items-center px-6 py-2.5 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200">
+                        {isSubmitting ? ( <> <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Submitting... </> ) : ( 'Save Listing' )}
+                     </button>
                 </div>
-
             </form>
         </div>
     );
