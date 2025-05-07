@@ -11,6 +11,22 @@ import EmptyState from '@/components/EmptyState';
 import { formatCurrency } from '@/lib/formatUtils';
 import { formatRelativeTime } from '@/lib/timeUtils';
 
+// Type for raw data items directly from the 'archived_listings_details' view
+type ArchivedViewItem = {
+  id: string;
+  title: string;
+  min_price: number;
+  photos: string | null;
+  end_time: string | null;
+  created_at?: string;
+  status: string; // Status from the view, could be 'closed' or 'cancelled' but typed as string initially
+  seller_email?: string | null;
+  winning_bidder_id?: string | null;
+  winner_email?: string | null;
+  final_sale_price?: number | null;
+};
+
+// Final display type for items in the state, with narrowed status
 type ArchivedListingDisplay = {
   id: string;
   title: string;
@@ -18,13 +34,14 @@ type ArchivedListingDisplay = {
   photos: string | null;
   end_time: string | null;
   created_at?: string;
-  status: 'closed' | 'cancelled';
+  status: 'closed' | 'cancelled'; // Status is strictly one of these for display items
   seller_email?: string | null;
   winning_bidder_id?: string | null;
   winner_email?: string | null;
   final_sale_price?: number | null;
 };
 
+// Type for the raw payload from realtime, which comes from the base 'listings' table
 type ListingTableRecord = {
   id: string;
   title: string;
@@ -32,7 +49,7 @@ type ListingTableRecord = {
   photos: string | null;
   end_time: string | null;
   created_at?: string;
-  status: 'active' | 'closed' | 'cancelled' | string;
+  status: 'active' | 'closed' | 'cancelled' | string; // Status from 'listings' table
   seller_id?: string;
   winning_bid_id?: string | null;
   winning_bidder_id?: string | null;
@@ -54,17 +71,21 @@ export default function ArchivedListingsPage() {
           .select(
             `id, title, min_price, photos, end_time, created_at, status, seller_email, winning_bidder_id, winner_email, final_sale_price`
           )
-          // Corrected: Removed nullsLast. Default for `ascending: false` puts NULLs at the end for TIMESTAMPTZ.
           .order('end_time', { ascending: false }); 
 
         if (fetchError) throw fetchError;
         
-        const validArchived = (data as any[] ?? [])
-            .filter(item => item.status === 'closed' || item.status === 'cancelled')
-            .map(item => ({ 
-                ...item, 
-                status: item.status as 'closed' | 'cancelled' 
-            })) as ArchivedListingDisplay[];
+        // Apply stricter typing and filtering
+        const rawDataFromView: ArchivedViewItem[] = (data || []) as ArchivedViewItem[]; 
+        
+        const validArchived = rawDataFromView
+            .filter((item): item is ArchivedViewItem & { status: 'closed' | 'cancelled' } => // Type guard
+                item.status === 'closed' || item.status === 'cancelled'
+            )
+            .map((item): ArchivedListingDisplay => ({ // Explicit return type for map
+                ...item,
+                // item.status is now correctly typed as 'closed' | 'cancelled' due to the filter
+            }));
 
         setArchivedRows(validArchived);
 
@@ -79,19 +100,16 @@ export default function ArchivedListingsPage() {
     loadArchivedListings();
 
     const archiveChannel = supabase
-      .channel('public-listings-archive-page-v9') // Increment channel version for safety
+      .channel('public-listings-archive-page-v10') // Increment channel version
       .on<ListingTableRecord>( 
         'postgres_changes',
         { event: '*', schema: 'public', table: 'listings' },
         async (payload: RealtimePostgresChangesPayload<ListingTableRecord>) => {
           
-          // Corrected: Defensive property access
           const newRecord = payload.new && 'id' in payload.new ? payload.new as ListingTableRecord : undefined;
           const oldRecord = payload.old && 'id' in payload.old ? payload.old as Partial<ListingTableRecord> : undefined;
           
-          // Log after potential undefined assignment
           console.log('Archive Page RT:', payload.eventType, newRecord?.id || oldRecord?.id, newRecord?.status);
-
 
           const fetchArchivedItemDetails = async (itemId: string): Promise<ArchivedListingDisplay | null> => {
             const { data: itemData, error: itemError } = await supabase
@@ -103,6 +121,7 @@ export default function ArchivedListingsPage() {
                 console.error(`RT: Failed to fetch details for archived item ${itemId}`, itemError);
                 return null;
             }
+            // Type guard for status from view data
             if (itemData.status === 'closed' || itemData.status === 'cancelled') {
                 return { ...itemData, status: itemData.status as 'closed' | 'cancelled' };
             }
@@ -116,67 +135,55 @@ export default function ArchivedListingsPage() {
             );
           };
           
-          setArchivedRows(prevRows => {
-            let currentList = [...prevRows];
-            let itemChanged = false; // Flag to trigger sort only if needed
+          // For realtime, we will always use functional updates to setArchivedRows
+          // to ensure we're working with the latest state, especially inside async operations.
+          switch (payload.eventType) {
+            case 'INSERT':
+              if (newRecord?.id && (newRecord.status === 'closed' || newRecord.status === 'cancelled')) {
+                fetchArchivedItemDetails(newRecord.id).then(detailedItem => {
+                  if (detailedItem) {
+                    setArchivedRows(prev => {
+                        if (!prev.some(item => item.id === detailedItem.id)) {
+                           return sortArchived([detailedItem, ...prev]);
+                        }
+                        return prev; // Already exists, no change
+                    });
+                  }
+                });
+              }
+              break;
 
-            switch (payload.eventType) {
-              case 'INSERT':
-                // Corrected: Ensure newRecord and its properties are defined before use
-                if (newRecord && newRecord.id && (newRecord.status === 'closed' || newRecord.status === 'cancelled')) {
+            case 'UPDATE':
+              if (newRecord?.id) {
+                const isNowArchived = newRecord.status === 'closed' || newRecord.status === 'cancelled';
+                
+                if (isNowArchived) {
                   fetchArchivedItemDetails(newRecord.id).then(detailedItem => {
-                    if (detailedItem && !currentList.some(item => item.id === detailedItem.id)) {
-                      // Use functional update for setArchivedRows when inside an async callback
-                      setArchivedRows(prev => sortArchived([detailedItem, ...prev.filter(i => i.id !== detailedItem.id)]));
+                    if (detailedItem) {
+                      setArchivedRows(prev => {
+                        const existingIdx = prev.findIndex(i => i.id === detailedItem.id);
+                        if (existingIdx !== -1) {
+                          const updated = [...prev];
+                          updated[existingIdx] = detailedItem;
+                          return sortArchived(updated);
+                        } else {
+                          return sortArchived([detailedItem, ...prev]);
+                        }
+                      });
                     }
                   });
+                } else { // No longer archived
+                  setArchivedRows(prev => sortArchived(prev.filter(item => item.id !== newRecord.id)));
                 }
-                break;
-
-              case 'UPDATE':
-                // Corrected: Ensure newRecord and its properties are defined
-                if (newRecord && newRecord.id) {
-                  const isNowArchived = newRecord.status === 'closed' || newRecord.status === 'cancelled';
-                  const wasPreviouslyArchivedInState = currentList.some(item => item.id === newRecord.id);
-
-                  if (isNowArchived) {
-                    fetchArchivedItemDetails(newRecord.id).then(detailedItem => {
-                      if (detailedItem) {
-                        // Use functional update
-                        setArchivedRows(prev => {
-                          const existingIdx = prev.findIndex(i => i.id === detailedItem.id);
-                          if (existingIdx !== -1) {
-                            const updated = [...prev];
-                            updated[existingIdx] = detailedItem;
-                            return sortArchived(updated);
-                          } else {
-                            return sortArchived([detailedItem, ...prev.filter(i => i.id !== detailedItem.id)]);
-                          }
-                        });
-                      }
-                    });
-                  } else if (wasPreviouslyArchivedInState) {
-                    currentList = currentList.filter(item => item.id !== newRecord.id);
-                    itemChanged = true;
-                  }
-                }
-                break;
-              
-              case 'DELETE':
-                // Corrected: Ensure oldRecord and its properties are defined
-                if (oldRecord && oldRecord.id) {
-                    const existingIdx = currentList.findIndex(item => item.id === oldRecord.id);
-                    if (existingIdx !== -1) {
-                        currentList.splice(existingIdx, 1);
-                        itemChanged = true;
-                    }
-                }
-                break;
-            }
-            // Only return sorted list if a structural change happened outside async calls
-            // Async calls within fetchArchivedItemDetails now handle their own setArchivedRows
-            return itemChanged ? sortArchived(currentList) : currentList; 
-          });
+              }
+              break;
+            
+            case 'DELETE':
+              if (oldRecord?.id) {
+                  setArchivedRows(prev => sortArchived(prev.filter(item => item.id !== oldRecord.id)));
+              }
+              break;
+          }
         }
       )
       .subscribe(status => { 
@@ -198,6 +205,7 @@ export default function ArchivedListingsPage() {
     return (<div className="p-6 text-center text-red-600 dark:text-red-400">{error}</div>);
   }
 
+  // ... (rest of the JSX remains the same as your last correct version) ...
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
       <header className="mb-6 sm:mb-8 pb-4 border-b border-gray-200 dark:border-gray-700">
