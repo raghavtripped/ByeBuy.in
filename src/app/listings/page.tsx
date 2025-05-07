@@ -1,116 +1,164 @@
+// src/app/listings/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image'; // Import Next.js Image component
+import Image from 'next/image';
 import { supabase, type Session } from '@/lib/supabaseClient';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import EmptyState from '@/components/EmptyState';
 import { formatCurrency } from '@/lib/formatUtils';
-import { isPast } from '@/lib/timeUtils';
+// isPast is no longer directly needed for the "Ended" badge on this page
 
 // ---------- Types --------------------------------------------------
 type Listing = {
   id: string;
   title: string;
-  description?: string; // <--- MADE OPTIONAL: Not used on this page, prevents TS error
   min_price: number;
   photos: string | null;
-  created_at?: string; // Kept for type consistency
   current_highest_bid?: number | null;
-  end_time?: string | null;
+  end_time?: string | null; 
+  status: 'active' | 'closed' | 'cancelled' | string; // Crucial for filtering, allow string for general Supabase payloads
+  created_at?: string; // For sorting realtime updates
 };
 
 // ---------- Component ---------------------------------------------
 export default function ListingsPage() {
-  // --- State ---
   const [session, setSession] = useState<Session | null>(null);
   const [rows, setRows] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- Fetch initial data + Realtime Subscription ---
   useEffect(() => {
-    // Check user session
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
 
-    // Function to load listings
     const loadListings = async () => {
       setLoading(true);
       setError(null);
       try {
-        // Fetch listings with highest bid using the view
+        // Fetch only listings with status = 'active'
         const { data, error: fetchError } = await supabase
-          .from('listings_with_highest_bid') // Use the view
+          .from('listings_with_highest_bid') // Assumes this view correctly provides necessary fields including 'status'
           .select(
-            `id, title, min_price, photos, current_highest_bid, end_time` // Select only needed fields
+            `id, title, min_price, photos, current_highest_bid, end_time, status, created_at` // Ensure 'status' and 'created_at' are selected
           )
-          .order('created_at', { ascending: false }); // Order by creation time
+          .eq('status', 'active') // <<< --- CRITICAL: Only fetch active listings ---
+          .order('created_at', { ascending: false });
 
         if (fetchError) throw fetchError;
-        setRows(data ?? []);
+        setRows((data as Listing[]) ?? []); // Ensure type assertion
       } catch (err) {
-        console.error("Error loading listings:", err);
-        setError(err instanceof Error ? err.message : 'Failed to load listings.');
+        console.error("Error loading active listings:", err);
+        setError(err instanceof Error ? err.message : 'Failed to load active listings.');
         setRows([]);
       } finally {
         setLoading(false);
       }
     };
-
-    // Initial load
     loadListings();
 
-    // --- Realtime channel for new listings ---
+    // --- Realtime Subscription for the listings table ---
     const listingsChannel = supabase
-      .channel('public:listings')
+      .channel('public-listings-active-page') // Use a unique channel name for this page
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'listings' },
+        { event: '*', schema: 'public', table: 'listings' }, // Listen to INSERT, UPDATE, DELETE
         async (payload) => {
-          console.log('New listing detected:', payload.new);
-          if (!payload?.new?.id) return;
+          console.log('Active Listings Page: Realtime event received', payload);
 
-          // Fetch the newly inserted listing with its highest bid info
-          const { data, error } = await supabase
-            .from('listings_with_highest_bid')
-            .select('id, title, min_price, photos, current_highest_bid, end_time')
-            .eq('id', payload.new.id)
-            .single();
+          const newRecord = payload.new as Listing;
+          const oldRecord = payload.old as Listing;
 
-          if (error) {
-            console.error("Error fetching new listing details:", error);
-            return;
-          }
-          // Prepend the new listing to the list
-          if (data) {
-            setRows((currentRows) => [
-              data as Listing,
-              ...currentRows.filter((r) => r.id !== data.id), // Avoid potential duplicates
-            ]);
+          switch (payload.eventType) {
+            case 'INSERT':
+              // If a new 'active' listing is inserted, fetch its full details and add it
+              if (newRecord?.status === 'active') {
+                const { data: newItemData, error: newItemError } = await supabase
+                  .from('listings_with_highest_bid')
+                  .select('id, title, min_price, photos, current_highest_bid, end_time, status, created_at')
+                  .eq('id', newRecord.id)
+                  .eq('status', 'active') // Ensure it's still active
+                  .single();
+                if (!newItemError && newItemData) {
+                  setRows((currentRows) => 
+                    [newItemData as Listing, ...currentRows.filter((r) => r.id !== newItemData.id)]
+                    .sort((a,b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()) // Re-sort
+                  );
+                }
+              }
+              break;
+
+            case 'UPDATE':
+              // If an existing listing on this page (was 'active') is updated...
+              if (oldRecord?.id) {
+                const wasActive = rows.some(r => r.id === oldRecord.id); // Check if it was in our current 'active' list
+
+                if (wasActive && newRecord?.status !== 'active') {
+                  // Item is no longer active, remove it from this page
+                  setRows((currentRows) => currentRows.filter((r) => r.id !== newRecord.id));
+                } else if (!wasActive && newRecord?.status === 'active') {
+                  // Item became active (e.g., admin re-opened), fetch details and add it
+                  const { data: reactivatedItemData, error: itemError } = await supabase
+                    .from('listings_with_highest_bid')
+                    .select('id, title, min_price, photos, current_highest_bid, end_time, status, created_at')
+                    .eq('id', newRecord.id)
+                    .eq('status', 'active')
+                    .single();
+                  if (!itemError && reactivatedItemData) {
+                     setRows((currentRows) => 
+                        [reactivatedItemData as Listing, ...currentRows.filter((r) => r.id !== reactivatedItemData.id)]
+                        .sort((a,b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+                    );
+                  }
+                } else if (wasActive && newRecord?.status === 'active') {
+                  // Item was active and is still active, but other details might have changed (e.g. highest bid)
+                  // Re-fetch and update the specific item to get latest bid info etc.
+                  const { data: updatedItemData, error: updatedItemError } = await supabase
+                    .from('listings_with_highest_bid')
+                    .select('id, title, min_price, photos, current_highest_bid, end_time, status, created_at')
+                    .eq('id', newRecord.id)
+                    .eq('status', 'active')
+                    .single();
+                  if (!updatedItemError && updatedItemData) {
+                    setRows(currentRows => currentRows.map(r => r.id === updatedItemData.id ? updatedItemData as Listing : r)
+                                                      .sort((a,b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+                    );
+                  }
+                }
+              }
+              break;
+
+            case 'DELETE':
+              // If an item is deleted, remove it if it was on this page
+              if (oldRecord?.id) {
+                setRows((currentRows) => currentRows.filter((r) => r.id !== oldRecord.id));
+              }
+              break;
+            default:
+              // console.log('Unhandled realtime event type:', payload.eventType);
+              break;
           }
         }
       )
       .subscribe((status) => {
          if (status === 'SUBSCRIBED') {
-           console.log('Realtime channel subscribed for new listings.');
+           console.log('Realtime channel subscribed for active listings page.');
          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-           console.error(`Realtime channel error/timeout for listings: ${status}`);
-           // Optionally handle reconnection or notify user
+           console.error(`Realtime channel error/timeout for active listings: ${status}`);
          }
        });
-
+      
     // Cleanup function
     return () => {
-      supabase.removeChannel(listingsChannel).then(() => console.log('Realtime channel for listings unsubscribed.'));
+      supabase.removeChannel(listingsChannel).then(() => console.log('Realtime channel for active listings unsubscribed.'));
     };
-  }, []); // Run only once on mount
+  }, [rows]); // Add `rows` to dependency array if setRows uses currentRows for updates, to avoid stale closures. Better yet, use functional updates for setRows if complex logic is needed. For this case, it's mostly direct sets.
 
   // --- Render Guards ---
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-20 flex justify-center">
-        <LoadingSpinner message="Loading listings..." />
+        <LoadingSpinner message="Loading active auctions..." />
       </div>
     );
   }
@@ -118,7 +166,7 @@ export default function ListingsPage() {
   if (error) {
     return (
       <div className="container mx-auto px-4 py-8 text-center text-red-600 dark:text-red-400">
-        <p className="font-medium">Error loading listings:</p>
+        <p className="font-medium">Error loading auctions:</p>
         <p className="text-sm">{error}</p>
       </div>
     );
@@ -130,7 +178,7 @@ export default function ListingsPage() {
       {/* Header Section */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 pb-4 border-b border-gray-200 dark:border-gray-700 gap-4">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
-          🎯 Current Listings
+          🎯 Active Auctions {/* Updated Title */}
         </h1>
         {/* Show 'Create Listing' button only if logged in */}
         {session && (
@@ -149,51 +197,38 @@ export default function ListingsPage() {
       {/* Listings Grid or Empty State */}
       {rows.length === 0 ? (
         <EmptyState
-          message="No listings available right now."
+          message="No active auctions available right now. Check back soon or list your own item!"
           action={
             session
-              ? { href: '/listings/new', text: 'Be the first to list an item!' }
+              ? { href: '/listings/new', text: 'List an Item' }
               : { href: '/auth', text: 'Login to List an Item' }
           }
         />
       ) : (
         <ul
           role="list"
-          className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" // Added xl:grid-cols-4
+          className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         >
-          {/* Map over listings and render a card for each */}
           {rows.map((listing) => {
-            const hasEnded = listing.end_time ? isPast(listing.end_time) : false;
-
+            // No 'hasEnded' check or "Ended" badge needed here, as all listings are 'active'.
             return (
               <li
                 key={listing.id}
-                // Apply subtle visual changes if the listing has ended
-                data-ended={hasEnded} // Use data attribute for group styling
-                className="group relative flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1 group-data-[ended=true]:opacity-80 group-data-[ended=true]:hover:opacity-90"
+                className="group relative flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1"
               >
-                 {/* "Ended" Badge - positioned absolutely */}
-                 {hasEnded && (
-                  <span className="absolute top-2.5 right-2.5 z-10 inline-flex items-center rounded-full bg-red-100 dark:bg-red-800/80 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-200 shadow-sm ring-1 ring-inset ring-red-600/20 dark:ring-red-500/30">
-                    Ended
-                  </span>
-                )}
-
-                {/* Link wraps the entire card content */}
                 <Link href={`/listings/${listing.id}`} className="flex flex-col flex-grow">
                     {/* Image Section */}
                     <div className="aspect-video w-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                         {listing.photos ? (
-                            <Image // Use Next.js Image for optimization
+                            <Image 
                                 src={listing.photos}
                                 alt={`Image for ${listing.title}`}
-                                width={400} // Provide base width hint
-                                height={225} // Provide base height hint (16:9)
+                                width={400} 
+                                height={225} 
                                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                priority={false} // Only prioritize above-the-fold images if needed
+                                priority={false} 
                             />
                         ) : (
-                            // Placeholder SVG if no image
                             <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
                                 <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -204,21 +239,16 @@ export default function ListingsPage() {
 
                     {/* Content Section */}
                     <div className="p-4 flex flex-col flex-grow">
-                        {/* Title */}
                         <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 line-clamp-2 leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                             {listing.title}
                         </h3>
-
-                        {/* Price & Bid Info (Pushed to bottom) */}
                         <div className="mt-auto pt-3 space-y-1 text-sm border-t border-gray-200 dark:border-gray-700">
-                            {/* Minimum Price */}
                             <p className="text-gray-600 dark:text-gray-400">
-                                Min:{' '}
+                                Min Bid:{' '}
                                 <span className="font-semibold text-indigo-700 dark:text-indigo-400">
                                     {formatCurrency(listing.min_price)}
                                 </span>
                             </p>
-                            {/* Current Highest Bid or No Bids */}
                             {listing.current_highest_bid && listing.current_highest_bid > 0 ? (
                                 <p className="text-gray-600 dark:text-gray-400">
                                     Top Bid:{' '}
@@ -231,6 +261,12 @@ export default function ListingsPage() {
                                     No bids yet
                                 </p>
                             )}
+                            {/* Optionally display end time for active items */}
+                            {/* {listing.end_time && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 pt-1">
+                                    Ends: {new Date(listing.end_time).toLocaleDateString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                </p>
+                            )} */}
                         </div>
                     </div>
                 </Link>
