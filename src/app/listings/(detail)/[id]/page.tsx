@@ -45,12 +45,33 @@ type Bid = {
   bidder_email?: string | null;
 };
 
-type ListingTablePayload = {
-    [key: string]: any;
+// Type for the payload coming from the 'listings' table realtime changes
+type ListingTablePayload = Partial<{ // Use Partial as UPDATE might only send changed fields
+  id: string;
+  title: string;
+  description: string;
+  min_price: number;
+  photos: string[] | null; // Type after migration
+  end_time: string | null;
+  upper_cap: number | null;
+  rules: string | null;
+  seller_id: string;
+  status: 'active' | 'closed' | 'cancelled' | string; // Still allow broader string
+  winning_bid_id: string | null;
+  winning_bidder_id: string | null;
+  created_at: string;
+  tags: string[] | null;
+}> & { id: string }; // Ensure ID is always present if payload exists
+
+// Type for payload from 'bids' table
+type BidTablePayload = Partial<{
     id: string;
-    status?: 'active' | 'closed' | 'cancelled' | string;
-    winning_bidder_id?: string | null;
-};
+    item_id: string;
+    bidder_id: string;
+    bid_price: number;
+    timestamp: string;
+}> & { id?: string }; // ID might be missing in some edge cases, handle defensively
+
 
 // --- Component ---
 export default function ListingDetails() {
@@ -108,7 +129,7 @@ export default function ListingDetails() {
 
         if (fetchedListing.status === 'closed' && fetchedListing.winning_bidder_id) {
           const { data: winnerData, error: winnerError } = await supabase
-             .from('users')
+             .from('users') // Check RLS/Permissions
              .select('email')
              .eq('id', fetchedListing.winning_bidder_id)
              .single();
@@ -128,17 +149,22 @@ export default function ListingDetails() {
     // --- Realtime Bids Channel ---
     const bidsChannel = supabase.channel(`listing-bids-${id}`);
     bidsChannel
-      .on<Bid>(
+      .on<BidTablePayload>( // Use corrected payload type
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` },
         async (payload) => {
-          if (!payload.new?.id) return;
-          const { data: newBid, error } = await supabase
-            .from('bids_with_bidder_email')
-            .select('*').eq('id', payload.new.id).single();
-          if (!error && newBid) {
-            setBids((currentBids) => [newBid as Bid, ...currentBids.filter((b) => b.id !== newBid.id)]);
-          } else if (error) { console.error("Error fetching new bid details:", error); }
+          // Defensive check
+          if (payload.new && 'id' in payload.new && payload.new.id) {
+            console.log('New bid received via realtime:', payload.new.id);
+            const { data: newBid, error } = await supabase
+              .from('bids_with_bidder_email')
+              .select('*').eq('id', payload.new.id).single();
+            if (!error && newBid) {
+              setBids((currentBids) => [newBid as Bid, ...currentBids.filter((b) => b.id !== newBid.id)]);
+            } else if (error) { console.error("Error fetching new bid details:", error); }
+          } else {
+              console.warn("Received bid INSERT payload without an ID:", payload.new);
+          }
         }
       )
       .subscribe(status => console.log(`Bids channel status for ${id}: ${status}`));
@@ -149,7 +175,7 @@ export default function ListingDetails() {
         .on(
             'postgres_changes',
             { event: 'UPDATE', schema: 'public', table: 'listings', filter: `id=eq.${id}` },
-            (payload: RealtimePostgresChangesPayload<ListingTablePayload>) => {
+            (payload: RealtimePostgresChangesPayload<ListingTablePayload>) => { // Callback uses specific payload type
                 const updatedListingData = payload.new && 'id' in payload.new ? payload.new : null;
                 if (!updatedListingData) return;
                 console.log("Listing update received:", updatedListingData.status);
@@ -378,7 +404,7 @@ export default function ListingDetails() {
          )}
       </section>
 
-      {/* Global Styles for Slider - FINAL VERSION */}
+      {/* Global Styles for Slider - FINAL VERSION (No Dots, Centered Arrows) */}
       <style jsx global>{`
         /* Arrow Styling - Positioned Inside */
         .slick-prev, .slick-next {
@@ -396,8 +422,8 @@ export default function ListingDetails() {
            display: flex !important;
            align-items: center !important;
            justify-content: center !important;
-           padding: 0 !important; /* Reset padding */
-           border: none !important; /* Reset border */
+           padding: 0 !important;
+           border: none !important;
         }
         .slick-prev:hover, .slick-next:hover {
             background-color: rgba(0, 0, 0, 0.5) !important;
@@ -407,7 +433,6 @@ export default function ListingDetails() {
         .slick-next { right: 10px !important; }
 
         /* The actual arrow character/icon */
-        /* Target the ::before pseudo-element directly */
         .slick-prev::before, .slick-next::before {
             font-family: 'slick' !important; /* Ensure slick font is used */
             font-size: 18px !important;
@@ -415,12 +440,11 @@ export default function ListingDetails() {
             opacity: 1 !important;
             line-height: normal !important; /* Reset line-height */
             display: block !important; /* Ensure it's treated as block */
-            /* Centering is handled by flex on parent button */
         }
 
-        /* Remove Dot Styling */
+        /* Hide Dots */
         .slick-dots {
-            display: none !important; /* Hide dots completely */
+            display: none !important;
         }
 
         /* Responsive Arrow Adjustments */
