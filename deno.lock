@@ -1,0 +1,35 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts": "https://esm.sh/@supabase/functions-js@2.4.4/src/edge-runtime.d.ts"
+  },
+  "remote": {
+    "https://esm.sh/@supabase/functions-js@2.0.0": "149135d74a82ef32cf83d86339ae897ae9eec580646f4e666380f6262e257e8c",
+    "https://esm.sh/@supabase/functions-js@2.0.0/denonext/functions-js.mjs": "941a33f44872bc8558376551c606baf6a1bcf02ee9cdcea9d36f399cd8a959d6"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@eslint/eslintrc@3",
+        "npm:@supabase/auth-ui-react@~0.4.7",
+        "npm:@supabase/auth-ui-shared@~0.1.8",
+        "npm:@supabase/supabase-js@^2.49.4",
+        "npm:@types/node@20",
+        "npm:@types/react-dom@19",
+        "npm:@types/react-slick@~0.23.13",
+        "npm:@types/react@19",
+        "npm:autoprefixer@^10.4.21",
+        "npm:eslint-config-next@15.3.1",
+        "npm:eslint@9",
+        "npm:next@15.3.1",
+        "npm:postcss@^8.5.3",
+        "npm:react-dom@19",
+        "npm:react-slick@~0.30.3",
+        "npm:react@19",
+        "npm:slick-carousel@^1.8.1",
+        "npm:tailwindcss@^3.4.17",
+        "npm:typescript@5"
+      ]
+    }
+  }
+}

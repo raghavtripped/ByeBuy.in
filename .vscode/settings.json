@@ -1,7 +1,9 @@
+// .vscode/settings.json
 {
-    "deno.enablePaths": [
-      "supabase/functions"
-    ],
-    "deno.lint": true
-    // "deno.unstable": true // Commented out or remove this line
-  }
+  "deno.enable": true,
+  "deno.lint": true,
+  "deno.unstable": true,
+  "deno.enablePaths": [
+    "./supabase/functions" // <-- REMOVED the leading dot
+  ]
+}
