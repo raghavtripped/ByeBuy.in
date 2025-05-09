@@ -10,29 +10,64 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import EmptyState from '@/components/EmptyState';
 import { formatCurrency } from '@/lib/formatUtils';
 
+// ---------- Helper Functions ---------------------------------------
+/**
+ * Safely parses a JSON string (expected to be an array of photo URLs)
+ * into a string array or returns null if input is invalid, null, or already an array.
+ * @param photosInput - The input which can be a JSON string, an array of strings, null, or undefined.
+ * @returns A string array of photo URLs or null.
+ */
+const parsePhotosJson = (photosInput: string | string[] | null | undefined): string[] | null => {
+  if (photosInput === null || photosInput === undefined) {
+    return null;
+  }
+  if (Array.isArray(photosInput)) {
+    // Already an array, ensure it's string[]
+    if (photosInput.every(item => typeof item === 'string')) {
+      return photosInput as string[];
+    }
+    console.warn('Photos input is an array but not uniformly strings:', photosInput);
+    return null; // Or handle as an error appropriately
+  }
+  if (typeof photosInput === 'string') {
+    try {
+      const parsed = JSON.parse(photosInput);
+      if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) {
+        return parsed as string[];
+      }
+      console.warn('Parsed photos JSON string is not an array of strings:', parsed);
+      return null;
+    } catch (error) {
+      console.error('Failed to parse photos JSON string:', photosInput, error);
+      return null;
+    }
+  }
+  console.warn('Unexpected type for photosInput, cannot parse:', typeof photosInput, photosInput);
+  return null;
+};
+
+
 // ---------- Types --------------------------------------------------
 type Listing = {
   id: string;
   title: string;
   min_price: number;
-  photos: string[] | null; // Array of photo URLs
+  photos: string[] | null; // Array of photo URLs (ensured by parsing)
   current_highest_bid?: number | null;
   end_time?: string | null;
-  status: 'active' | 'closed' | 'cancelled' | string; // Status is required
-  created_at?: string; // Optional creation timestamp
+  status: 'active' | 'closed' | 'cancelled' | string;
+  created_at?: string;
 };
 
-// Type for the payload coming from the 'listings' table realtime changes
-type ListingTablePayload = Partial<{ // Use Partial as UPDATE might only send changed fields
+type ListingTablePayload = Partial<{
   id: string;
   title: string;
   min_price: number;
-  photos: string[] | null;
+  photos: string | string[] | null; // Raw photos from DB can be string or already array
   end_time: string | null;
   status: 'active' | 'closed' | 'cancelled' | string;
   created_at: string;
-  // Include other fields that might come from the table trigger if needed
-}> & { id?: string }; // ID might be optional depending on RLS/payload specifics
+}> & { id?: string };
 
 
 // ---------- Component ---------------------------------------------
@@ -44,7 +79,6 @@ export default function ListingsPage() {
 
   // --- Realtime Handler ---
   const handleRealtimeChange = useCallback(async (payload: RealtimePostgresChangesPayload<ListingTablePayload>) => {
-    // CORRECTED: Defensive checks for logging payload IDs
     const logId = (payload.new && 'id' in payload.new && payload.new.id)
                   ? payload.new.id
                   : (payload.old && 'id' in payload.old && payload.old.id)
@@ -52,13 +86,11 @@ export default function ListingsPage() {
                     : 'UNKNOWN_ID';
     console.log('Active Listings Page: Realtime event received', payload.eventType, logId);
 
-    // Use defensive checks when assigning records too
     const newRecord = payload.new && 'id' in payload.new && payload.new.id ? payload.new : undefined;
     const oldRecord = payload.old && 'id' in payload.old && payload.old.id ? payload.old : undefined;
 
     const sortByCreatedAtDesc = (a: Listing, b: Listing) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
 
-    // Fetches full item details from the view, ensuring active status
     const fetchFullItemDetails = async (itemId: string): Promise<Listing | null> => {
          const { data: itemData, error: itemError } = await supabase
             .from('listings_with_highest_bid')
@@ -66,89 +98,92 @@ export default function ListingsPage() {
             .eq('id', itemId)
             .eq('status', 'active')
             .maybeSingle();
+
          if (itemError || !itemData) {
              console.error(`RT: Failed fetch full details for active listing ${itemId}`, itemError);
              return null;
          }
-         // Ensure photos is cast correctly
-         return { ...itemData, photos: itemData.photos as string[] | null } as Listing;
+         // Parse photos here
+         return {
+            ...itemData,
+            photos: parsePhotosJson(itemData.photos as string | string[] | null)
+         } as Listing;
     }
 
-    // Update state using functional form to avoid stale closures
     setRows((currentRows) => {
       let updatedList = [...currentRows];
-      let requiresSort = false; // Flag to sort only when structure changes
+      let requiresSort = false;
 
       switch (payload.eventType) {
         case 'INSERT':
-          // Check if the inserted record is active before processing
           if (newRecord?.id && newRecord.status === 'active') {
-             // Fetch detailed view data asynchronously
              fetchFullItemDetails(newRecord.id).then(detailedItem => {
                 if(detailedItem) {
-                    // Use functional update inside async callback
                     setRows(prev => {
                          if (!prev.some(r => r.id === detailedItem.id)) {
                             return [detailedItem, ...prev].sort(sortByCreatedAtDesc);
                          }
-                         return prev; // Already exists (rare, but possible race condition)
+                         return prev;
                     });
                 }
              });
-             // No synchronous return change here
           }
           break;
 
         case 'UPDATE':
           if (newRecord?.id) {
-            const existingItemIndex = updatedList.findIndex(r => r.id === newRecord.id);
-
             if (newRecord.status === 'active') {
-              // Item updated and is still active. Fetch full details asynchronously.
               fetchFullItemDetails(newRecord.id).then(detailedItem => {
                   if(detailedItem) {
-                      setRows(prev => { // Use functional update
+                      setRows(prev => {
                           const currentIdx = prev.findIndex(r => r.id === detailedItem.id);
-                          if(currentIdx !== -1) { // Update existing item
+                          if(currentIdx !== -1) {
                               const newList = [...prev];
                               newList[currentIdx] = detailedItem;
-                              return newList; // Keep order for updates
-                          } else { // Item wasn't in list but is active now, add and sort
+                              return newList;
+                          } else {
                                return [detailedItem, ...prev].sort(sortByCreatedAtDesc);
                           }
                       });
                   } else {
-                      // If fetch fails or item is no longer active after fetching, remove it
                       setRows(prev => prev.filter(r => r.id !== newRecord.id));
                   }
               });
-            } else { // Item became inactive (status changed from 'active' in DB)
+            } else {
+              const existingItemIndex = updatedList.findIndex(r => r.id === newRecord.id);
               if (existingItemIndex !== -1) {
                 updatedList.splice(existingItemIndex, 1);
-                requiresSort = true; // Need to return the modified list
+                // No sort needed here if only removing, but if other ops need it, keep the flag
+                // For now, directly return the filtered list to avoid re-sorting an already sorted list
+                return updatedList.filter(r => r.id !== newRecord.id);
               }
             }
           }
           break;
 
         case 'DELETE':
-          // oldRecord check ensures we have the ID of the deleted item
           if (oldRecord?.id) {
-            const initialLength = updatedList.length;
-            updatedList = updatedList.filter((r) => r.id !== oldRecord.id);
-            if(updatedList.length !== initialLength) requiresSort = true;
+            const itemExists = updatedList.some(r => r.id === oldRecord.id);
+            if (itemExists) {
+                // Directly return the filtered list
+                return updatedList.filter((r) => r.id !== oldRecord.id);
+            }
           }
           break;
         default:
-          // No action for other events
-          break;
+          return currentRows; // Return current rows if no changes applied
       }
-      // Return the potentially modified list (sorting happens inside async for INSERT/UPDATE)
-      return requiresSort ? updatedList.sort(sortByCreatedAtDesc) : updatedList;
+      // If INSERT or UPDATE happened with async fetch, those internal setRows will handle sorting.
+      // This return is primarily for synchronous DELETE or status change to inactive in UPDATE.
+      // If only DELETE, list remains sorted. If status change, list remains sorted.
+      // So, explicit sort here might be redundant if async paths handle their own sort.
+      // Let's ensure only structural changes that don't self-sort trigger a re-sort.
+      // The current DELETE and status change to inactive effectively just filter.
+      // The INSERT and active UPDATE paths handle their own sorting.
+      return updatedList; // No sort needed here as specific cases handle it or preserve order.
     });
-  }, []); // useCallback has no external dependencies
+  }, []);
 
-  // --- Initial Load & Realtime Subscription ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
 
@@ -160,12 +195,15 @@ export default function ListingsPage() {
           .select(`id, title, min_price, photos, current_highest_bid, end_time, status, created_at`)
           .eq('status', 'active')
           .order('created_at', { ascending: false });
+
         if (fetchError) throw fetchError;
+
         const correctlyTypedData = (data ?? []).map(item => ({
             ...item,
-            photos: item.photos as string[] | null
+            photos: parsePhotosJson(item.photos as string | string[] | null) // Parse photos here
         })) as Listing[];
         setRows(correctlyTypedData);
+
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load active listings.');
         setRows([]);
@@ -173,15 +211,14 @@ export default function ListingsPage() {
     };
     loadListings();
 
-    // Setup realtime subscription
     const listingsSubscription = supabase
-      .channel('public-listings-active-page-v7') // Incremented version
+      .channel('public-listings-active-page-v7')
       .on<ListingTablePayload>(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'listings' },
         handleRealtimeChange
       )
-      .subscribe((status, err) => { // Use status and err parameters
+      .subscribe((status, err) => {
          if (status === 'SUBSCRIBED') { console.log('RT channel subscribed for active listings.'); }
          else if (status === 'CHANNEL_ERROR') { console.error(`RT channel error:`, err); }
          else if (status === 'TIMED_OUT') { console.warn(`RT channel timed out.`); }
@@ -193,19 +230,16 @@ export default function ListingsPage() {
           supabase.removeChannel(listingsSubscription).then(() => console.log('RT channel for active listings unsubscribed.'));
       } else { console.log("No active RT channel to unsubscribe for listings page."); }
     };
-  }, [handleRealtimeChange]); // Include handleRealtimeChange
+  }, [handleRealtimeChange]);
 
 
-  // --- Render Guards ---
   if (loading) return ( <div className="container mx-auto px-4 py-20 flex justify-center"><LoadingSpinner message="Loading active auctions..." /></div> );
   if (error) return ( <div className="container mx-auto px-4 py-8 text-center text-red-600 dark:text-red-400"><p className="font-medium">Error loading auctions:</p><p className="text-sm">{error}</p></div> );
 
-  // Define action object before using it in EmptyState
   const emptyStateAction = session
     ? { href: '/listings/new', text: 'List an Item' }
     : { href: '/auth', text: 'Login to List an Item' };
 
-  // --- Main JSX ---
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 pb-4 border-b border-gray-200 dark:border-gray-700 gap-4">
@@ -226,6 +260,7 @@ export default function ListingsPage() {
           className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         >
           {rows.map((listing) => {
+            // Ensure listing.photos is an array and has items before accessing photos[0]
             const thumbnailUrl = (listing.photos && listing.photos.length > 0) ? listing.photos[0] : null;
 
             return (
@@ -234,15 +269,18 @@ export default function ListingsPage() {
                 className="group relative flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1"
               >
                 <Link href={`/listings/${listing.id}`} className="flex flex-col flex-grow">
-                    <div className="aspect-video w-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                    {/* === MODIFIED IMAGE CONTAINER AND IMAGE COMPONENT START === */}
+                    <div className="aspect-video w-full bg-gray-100 dark:bg-gray-700 overflow-hidden relative rounded-t-lg">
                         {thumbnailUrl ? (
                             <Image
                                 src={thumbnailUrl}
-                                alt={`Image for ${listing.title}`}
-                                width={400} height={225}
-                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                alt={`Cover image for ${listing.title}`}
+                                fill
+                                style={{ objectFit: 'cover' }}
+                                className="transition-transform duration-300 group-hover:scale-105"
+                                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
                                 priority={false}
-                                onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-image.svg'; }} // Fallback placeholder
+                                onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-image.svg'; }}
                             />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
@@ -250,6 +288,7 @@ export default function ListingsPage() {
                             </div>
                         )}
                     </div>
+                    {/* === MODIFIED IMAGE CONTAINER AND IMAGE COMPONENT END === */}
                     <div className="p-4 flex flex-col flex-grow">
                         <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 line-clamp-2 leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{listing.title}</h3>
                         <div className="mt-auto pt-3 space-y-1 text-sm border-t border-gray-200 dark:border-gray-700">
