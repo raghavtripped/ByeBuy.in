@@ -35,7 +35,7 @@ yarn-error.log*
 .env*
 # Specifically ignore .env files within any Supabase function directory
 # This is crucial for keeping SERVICE_ROLE_KEY etc out of Git
-.supabase/functions/*/.env
+supabase/functions/*/.env
 
 # vercel
 .vercel
