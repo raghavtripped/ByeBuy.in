@@ -63,7 +63,7 @@ export default function Navbar() {
       console.error('Logout error:', error.message);
       return alert(`Logout failed: ${error.message}`);
     }
-    router.push('/auth');
+    router.push('/auth'); // Or router.push('/') if you prefer them to land on homepage after logout
   };
 
   // --- Loading Skeleton ---
@@ -89,27 +89,22 @@ export default function Navbar() {
     );
   }
 
-  // --- Helper for Nav Link Styling ---
-  // CORRECTED: Added return statement
-  const navLinkClasses = (href: string): string => { 
+  const navLinkClasses = (href: string): string => {
     const isActive = pathname === href;
     let classes = `transition-colors duration-150 ease-in-out text-sm rounded-md `;
-    // Removed isButtonLike parameter as it wasn't used for desktop links as planned
     classes += `px-3 py-2 font-medium `;
-    classes += isActive 
-        ? 'bg-gray-900 text-white' 
+    classes += isActive
+        ? 'bg-gray-900 text-white'
         : 'text-gray-300 hover:bg-gray-700 hover:text-white';
-    return classes; // <<< --- ADDED RETURN ---
+    return classes;
   };
-  
-  // CORRECTED: Added return statement
+
   const mobileNavLinkClasses = (href: string): string => {
     const isActive = pathname === href;
-    // Directly return the constructed string
     return `block px-4 py-3 text-base font-medium rounded-md transition-colors
-            ${isActive 
-                ? 'bg-indigo-500 text-white' 
-                : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`; // <<< --- ADDED RETURN (implicitly via template literal) ---
+            ${isActive
+                ? 'bg-indigo-500 text-white'
+                : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`;
   };
 
 
@@ -119,26 +114,28 @@ export default function Navbar() {
       <nav className="bg-gray-800 text-white shadow-md sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between relative">
           <div className="flex items-center flex-shrink-0">
-            <Link href="/listings" className="flex items-center space-x-2 group">
+            {/* Changed Link href to "/" */}
+            <Link href="/" className="flex items-center space-x-2 group">
               <Image
-                src="/bidly-logo.svg" alt="Bidly logo" width={32} height={32} priority
+                src="/bidly-logo.svg" alt="ByeBuy logo" width={32} height={32} priority // Alt text updated
                 className="h-8 w-auto group-hover:opacity-90 transition-opacity"
               />
               <span className="text-lg font-semibold hidden md:inline group-hover:text-indigo-300 transition-colors">
-                Bidly
+                ByeBuy
               </span>
             </Link>
           </div>
 
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
-            <Link href="/listings" className="text-lg font-semibold text-white hover:text-indigo-300 transition-colors">
-              Bidly
+            {/* Changed Link href to "/" and text to "ByeBuy" */}
+            <Link href="/" className="text-lg font-semibold text-white hover:text-indigo-300 transition-colors">
+              ByeBuy
             </Link>
           </div>
-          
+
           <div className="hidden md:flex items-center space-x-1 flex-grow justify-start ml-4">
-            {/* CORRECTED: Ensure function call result is assigned */}
-            <Link href="/listings" className={navLinkClasses("/listings")}>
+            {/* Changed Link href to "/" for Active Auctions if it's the homepage */}
+            <Link href="/" className={navLinkClasses("/")}>
               Active Auctions
             </Link>
             <Link href="/listings/archive" className={navLinkClasses("/listings/archive")}>
@@ -205,8 +202,8 @@ export default function Navbar() {
       </nav>
 
       {isMobileMenuOpen && (
-          <div 
-              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden" 
+          <div
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden"
               onClick={() => setIsMobileMenuOpen(false)}
               aria-hidden="true"
           ></div>
@@ -222,8 +219,8 @@ export default function Navbar() {
       >
         <div className="flex justify-between items-center mb-6">
             <h2 id="mobile-menu-heading" className="text-lg font-semibold text-white">Menu</h2>
-            <button 
-                onClick={() => setIsMobileMenuOpen(false)} 
+            <button
+                onClick={() => setIsMobileMenuOpen(false)}
                 className="p-1 text-gray-300 hover:text-white rounded-md hover:bg-gray-700"
                 aria-label="Close menu"
             >
@@ -231,13 +228,12 @@ export default function Navbar() {
             </button>
         </div>
         <nav className="space-y-2">
-          {/* CORRECTED: Ensure function call result is assigned */}
-          <Link href="/listings" className={mobileNavLinkClasses("/listings")}>Active Auctions</Link>
+          {/* Changed Link href to "/" for Active Auctions if it's the homepage */}
+          <Link href="/" className={mobileNavLinkClasses("/")}>Active Auctions</Link>
           <Link href="/listings/archive" className={mobileNavLinkClasses("/listings/archive")}>Auction Archive</Link>
           {user ? (
             <>
               <hr className="border-gray-700 my-3" />
-              {/* CORRECTED: Ensure function call result is assigned (though this one already had a good structure) */}
               <Link href="/listings/new" className={`${mobileNavLinkClasses("/listings/new")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>
                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-2"><path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" /></svg>
                 Create New Listing
@@ -250,7 +246,6 @@ export default function Navbar() {
           ) : (
             <>
               <hr className="border-gray-700 my-3" />
-              {/* CORRECTED: Ensure function call result is assigned (though this one already had a good structure) */}
               <Link href="/auth" className={`${mobileNavLinkClasses("/auth")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>Login / Sign Up</Link>
             </>
           )}

@@ -1,103 +1,248 @@
-import Image from "next/image";
+// src/app/page.tsx
+'use client'; // <-- This is important, copied from listings/page.tsx
 
-export default function Home() {
+// ---------- Imports (copied from listings/page.tsx) -----------------
+import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
+import Image from 'next/image'; // This will overwrite the simpler Image import from the original page.tsx
+import { supabase, type Session } from '@/lib/supabaseClient';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import EmptyState from '@/components/EmptyState';
+import { formatCurrency } from '@/lib/formatUtils';
+
+// ---------- Types (copied from listings/page.tsx) --------------------
+type Listing = {
+  id: string;
+  title: string;
+  min_price: number;
+  photos: string[] | null;
+  current_highest_bid?: number | null;
+  end_time?: string | null;
+  status: 'active' | 'closed' | 'cancelled' | string;
+  created_at?: string;
+};
+
+type ListingTablePayload = Partial<{
+  id: string;
+  title: string;
+  min_price: number;
+  photos: string[] | null;
+  end_time: string | null;
+  status: 'active' | 'closed' | 'cancelled' | string;
+  created_at: string;
+}> & { id?: string };
+
+// ---------- Component (Logic copied from ListingsPage, renamed to Home) ---
+export default function Home() { // <-- Renamed from ListingsPage to Home
+  const [session, setSession] = useState<Session | null>(null);
+  const [rows, setRows] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // --- Realtime Handler (copied from listings/page.tsx) ---
+  const handleRealtimeChange = useCallback(async (payload: RealtimePostgresChangesPayload<ListingTablePayload>) => {
+    const logId = (payload.new && 'id' in payload.new && payload.new.id)
+                  ? payload.new.id
+                  : (payload.old && 'id' in payload.old && payload.old.id)
+                    ? payload.old.id
+                    : 'UNKNOWN_ID';
+    console.log('Homepage (Active Listings): Realtime event received', payload.eventType, logId); // <-- Log message updated for clarity
+
+    const newRecord = payload.new && 'id' in payload.new && payload.new.id ? payload.new : undefined;
+    const oldRecord = payload.old && 'id' in payload.old && payload.old.id ? payload.old : undefined;
+
+    const sortByCreatedAtDesc = (a: Listing, b: Listing) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+
+    const fetchFullItemDetails = async (itemId: string): Promise<Listing | null> => {
+         const { data: itemData, error: itemError } = await supabase
+            .from('listings_with_highest_bid')
+            .select(`id, title, min_price, photos, current_highest_bid, end_time, status, created_at`)
+            .eq('id', itemId)
+            .eq('status', 'active')
+            .maybeSingle();
+         if (itemError || !itemData) {
+             console.error(`RT (Homepage): Failed fetch full details for active listing ${itemId}`, itemError); // <-- Log message updated
+             return null;
+         }
+         return { ...itemData, photos: itemData.photos as string[] | null } as Listing;
+    }
+
+    setRows((currentRows) => {
+      let updatedList = [...currentRows];
+      let requiresSort = false;
+
+      switch (payload.eventType) {
+        case 'INSERT':
+          if (newRecord?.id && newRecord.status === 'active') {
+             fetchFullItemDetails(newRecord.id).then(detailedItem => {
+                if(detailedItem) {
+                    setRows(prev => {
+                         if (!prev.some(r => r.id === detailedItem.id)) {
+                            return [detailedItem, ...prev].sort(sortByCreatedAtDesc);
+                         }
+                         return prev;
+                    });
+                }
+             });
+          }
+          break;
+
+        case 'UPDATE':
+          if (newRecord?.id) {
+            const existingItemIndex = updatedList.findIndex(r => r.id === newRecord.id);
+            if (newRecord.status === 'active') {
+              fetchFullItemDetails(newRecord.id).then(detailedItem => {
+                  if(detailedItem) {
+                      setRows(prev => {
+                          const currentIdx = prev.findIndex(r => r.id === detailedItem.id);
+                          if(currentIdx !== -1) {
+                              const newList = [...prev];
+                              newList[currentIdx] = detailedItem;
+                              return newList;
+                          } else {
+                               return [detailedItem, ...prev].sort(sortByCreatedAtDesc);
+                          }
+                      });
+                  } else {
+                      setRows(prev => prev.filter(r => r.id !== newRecord.id));
+                  }
+              });
+            } else {
+              if (existingItemIndex !== -1) {
+                updatedList.splice(existingItemIndex, 1);
+                requiresSort = true;
+              }
+            }
+          }
+          break;
+
+        case 'DELETE':
+          if (oldRecord?.id) {
+            const initialLength = updatedList.length;
+            updatedList = updatedList.filter((r) => r.id !== oldRecord.id);
+            if(updatedList.length !== initialLength) requiresSort = true;
+          }
+          break;
+        default:
+          break;
+      }
+      return requiresSort ? updatedList.sort(sortByCreatedAtDesc) : updatedList;
+    });
+  }, []);
+
+  // --- Initial Load & Realtime Subscription (copied from listings/page.tsx) ---
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+
+    const loadListings = async () => {
+      setLoading(true); setError(null);
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('listings_with_highest_bid')
+          .select(`id, title, min_price, photos, current_highest_bid, end_time, status, created_at`)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false });
+        if (fetchError) throw fetchError;
+        const correctlyTypedData = (data ?? []).map(item => ({
+            ...item,
+            photos: item.photos as string[] | null
+        })) as Listing[];
+        setRows(correctlyTypedData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load active auctions.'); // Message slightly updated
+        setRows([]);
+      } finally { setLoading(false); }
+    };
+    loadListings();
+
+    const listingsSubscription = supabase
+      .channel('public-listings-homepage-v7') // <-- Channel name can be unique if desired, e.g., for debugging
+      .on<ListingTablePayload>(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'listings' },
+        handleRealtimeChange
+      )
+      .subscribe((status, err) => {
+         if (status === 'SUBSCRIBED') { console.log('RT channel subscribed for homepage active listings.'); } // <-- Log message updated
+         else if (status === 'CHANNEL_ERROR') { console.error(`RT channel error (Homepage):`, err); } // <-- Log message updated
+         else if (status === 'TIMED_OUT') { console.warn(`RT channel timed out (Homepage).`); } // <-- Log message updated
+         else { console.log(`RT channel status (Homepage): ${status}`); } // <-- Log message updated
+       });
+
+    return () => {
+      if (listingsSubscription) {
+          supabase.removeChannel(listingsSubscription).then(() => console.log('RT channel for homepage unsubscribed.')); // <-- Log message updated
+      } else { console.log("No active RT channel to unsubscribe for homepage."); } // <-- Log message updated
+    };
+  }, [handleRealtimeChange]);
+
+  // --- Render Guards (copied from listings/page.tsx) ---
+  if (loading) return ( <div className="container mx-auto px-4 py-20 flex justify-center"><LoadingSpinner message="Loading active auctions..." /></div> );
+  if (error) return ( <div className="container mx-auto px-4 py-8 text-center text-red-600 dark:text-red-400"><p className="font-medium">Error loading auctions:</p><p className="text-sm">{error}</p></div> );
+
+  const emptyStateAction = session
+    ? { href: '/listings/new', text: 'List an Item' }
+    : { href: '/auth', text: 'Login to List an Item' };
+
+  // --- Main JSX (copied from listings/page.tsx) ---
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 pb-4 border-b border-gray-200 dark:border-gray-700 gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
+          🎯 Active Auctions
+        </h1>
+        {session && ( <Link href="/listings/new" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors whitespace-nowrap"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-2"><path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" /></svg>Create Listing</Link> )}
+      </header>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      {rows.length === 0 ? (
+        <EmptyState
+          message="No active auctions available right now. Check back soon or list your own item!"
+          action={emptyStateAction}
+        />
+      ) : (
+        <ul
+          role="list"
+          className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          {rows.map((listing) => {
+            const thumbnailUrl = (listing.photos && listing.photos.length > 0) ? listing.photos[0] : null;
+
+            return (
+              <li
+                key={listing.id}
+                className="group relative flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1"
+              >
+                <Link href={`/listings/${listing.id}`} className="flex flex-col flex-grow">
+                    <div className="aspect-video w-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                        {thumbnailUrl ? (
+                            <Image
+                                src={thumbnailUrl}
+                                alt={`Image for ${listing.title}`}
+                                width={400} height={225}
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                priority={false}
+                                onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-image.svg'; }}
+                            />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
+                                <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                            </div>
+                        )}
+                    </div>
+                    <div className="p-4 flex flex-col flex-grow">
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 line-clamp-2 leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{listing.title}</h3>
+                        <div className="mt-auto pt-3 space-y-1 text-sm border-t border-gray-200 dark:border-gray-700">
+                            <p className="text-gray-600 dark:text-gray-400">Min Bid:{' '}<span className="font-semibold text-indigo-700 dark:text-indigo-400">{formatCurrency(listing.min_price)}</span></p>
+                            {listing.current_highest_bid && listing.current_highest_bid > 0 ? ( <p className="text-gray-600 dark:text-gray-400">Top Bid:{' '}<span className="font-semibold text-green-700 dark:text-green-300">{formatCurrency(listing.current_highest_bid)}</span></p> ) : ( <p className="text-gray-500 dark:text-gray-500 italic">No bids yet</p> )}
+                        </div>
+                    </div>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
