@@ -77,7 +77,7 @@ export default function ListingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- Realtime Handler ---
+  // --- Realtime Handler (Refactored as per your analysis) ---
   const handleRealtimeChange = useCallback(async (payload: RealtimePostgresChangesPayload<ListingTablePayload>) => {
     const logId = (payload.new && 'id' in payload.new && payload.new.id)
                   ? payload.new.id
@@ -96,94 +96,103 @@ export default function ListingsPage() {
             .from('listings_with_highest_bid')
             .select(`id, title, min_price, photos, current_highest_bid, end_time, status, created_at`)
             .eq('id', itemId)
-            .eq('status', 'active')
+            .eq('status', 'active') // Ensure we only process/add active items
             .maybeSingle();
-
-         if (itemError || !itemData) {
-             console.error(`RT: Failed fetch full details for active listing ${itemId}`, itemError);
+         if (itemError || !itemData || itemData.status !== 'active') { // Added check for status
+             if (itemData && itemData.status !== 'active') {
+                 console.log(`RT: Item ${itemId} fetched but no longer active. Status: ${itemData.status}`);
+             } else {
+                 console.error(`RT: Failed fetch or item not active for listing ${itemId}`, itemError);
+             }
              return null;
          }
-         // Parse photos here
-         return {
-            ...itemData,
-            photos: parsePhotosJson(itemData.photos as string | string[] | null)
-         } as Listing;
-    }
+         return { ...itemData, photos: parsePhotosJson(itemData.photos as string | string[] | null) } as Listing;
+    };
 
-    setRows((currentRows) => {
-      let updatedList = [...currentRows];
-      let requiresSort = false;
-
+    // All state updates will now happen inside this single setRows call
+    setRows(currentRows => {
       switch (payload.eventType) {
         case 'INSERT':
           if (newRecord?.id && newRecord.status === 'active') {
-             fetchFullItemDetails(newRecord.id).then(detailedItem => {
-                if(detailedItem) {
+            // Optimistically add if not present, then refine/remove if fetch fails or status changed
+            if (!currentRows.some(r => r.id === newRecord.id)) {
+                const optimisticNewItem: Listing = {
+                    id: newRecord.id,
+                    title: newRecord.title || 'Loading title...',
+                    min_price: newRecord.min_price || 0,
+                    photos: parsePhotosJson(newRecord.photos), // Parse what we have
+                    status: 'active',
+                    created_at: newRecord.created_at || new Date().toISOString(),
+                    // current_highest_bid and end_time might be missing from raw payload
+                };
+                // Add it, then trigger async fetch to get full details
+                const newOptimisticList = [optimisticNewItem, ...currentRows].sort(sortByCreatedAtDesc);
+                
+                fetchFullItemDetails(newRecord.id).then(detailedItem => {
                     setRows(prev => {
-                         if (!prev.some(r => r.id === detailedItem.id)) {
-                            return [detailedItem, ...prev].sort(sortByCreatedAtDesc);
-                         }
-                         return prev;
+                        if (detailedItem) { // If still active and fetched successfully
+                            const index = prev.findIndex(r => r.id === detailedItem.id);
+                            if (index !== -1) {
+                                const updated = [...prev];
+                                updated[index] = detailedItem;
+                                return updated.sort(sortByCreatedAtDesc); // Re-sort just in case created_at changed
+                            } else { // Should have been added optimistically, or a very quick succession of events
+                                return [detailedItem, ...prev.filter(r => r.id !== detailedItem.id)].sort(sortByCreatedAtDesc);
+                            }
+                        } else { // Fetch failed or item no longer active, remove optimistic add
+                            return prev.filter(r => r.id !== newRecord.id).sort(sortByCreatedAtDesc);
+                        }
                     });
-                }
-             });
+                });
+                return newOptimisticList; // Return optimistically added list
+            }
           }
-          break;
+          return currentRows; // No change if not active or already exists
 
         case 'UPDATE':
           if (newRecord?.id) {
             if (newRecord.status === 'active') {
+              // Item updated and is (or became) active. Fetch to update/add.
+              // No immediate synchronous change to the list, async update will handle it.
               fetchFullItemDetails(newRecord.id).then(detailedItem => {
-                  if(detailedItem) {
-                      setRows(prev => {
-                          const currentIdx = prev.findIndex(r => r.id === detailedItem.id);
-                          if(currentIdx !== -1) {
-                              const newList = [...prev];
-                              newList[currentIdx] = detailedItem;
-                              return newList;
-                          } else {
-                               return [detailedItem, ...prev].sort(sortByCreatedAtDesc);
+                  setRows(prev => {
+                      if (detailedItem) {
+                          const index = prev.findIndex(r => r.id === detailedItem.id);
+                          if (index !== -1) { // Update existing
+                              const updated = [...prev];
+                              updated[index] = detailedItem;
+                              // If sort order can change on update (e.g., created_at modified, which is rare)
+                              // return updated.sort(sortByCreatedAtDesc);
+                              return updated; // Maintain order on simple update if created_at is immutable
+                          } else { // Was not in list, now active, add and sort
+                              return [detailedItem, ...prev].sort(sortByCreatedAtDesc);
                           }
-                      });
-                  } else {
-                      setRows(prev => prev.filter(r => r.id !== newRecord.id));
-                  }
+                      } else { // No longer active after fetch, remove
+                          return prev.filter(r => r.id !== newRecord.id);
+                      }
+                  });
               });
+              return currentRows; // Return currentRows, async update will follow
             } else {
-              const existingItemIndex = updatedList.findIndex(r => r.id === newRecord.id);
-              if (existingItemIndex !== -1) {
-                updatedList.splice(existingItemIndex, 1);
-                // No sort needed here if only removing, but if other ops need it, keep the flag
-                // For now, directly return the filtered list to avoid re-sorting an already sorted list
-                return updatedList.filter(r => r.id !== newRecord.id);
-              }
+              // Item became inactive, remove it if it exists
+              return currentRows.filter(r => r.id !== newRecord.id);
             }
           }
-          break;
+          return currentRows;
 
         case 'DELETE':
           if (oldRecord?.id) {
-            const itemExists = updatedList.some(r => r.id === oldRecord.id);
-            if (itemExists) {
-                // Directly return the filtered list
-                return updatedList.filter((r) => r.id !== oldRecord.id);
-            }
+            return currentRows.filter(r => r.id !== oldRecord.id);
           }
-          break;
-        default:
-          return currentRows; // Return current rows if no changes applied
-      }
-      // If INSERT or UPDATE happened with async fetch, those internal setRows will handle sorting.
-      // This return is primarily for synchronous DELETE or status change to inactive in UPDATE.
-      // If only DELETE, list remains sorted. If status change, list remains sorted.
-      // So, explicit sort here might be redundant if async paths handle their own sort.
-      // Let's ensure only structural changes that don't self-sort trigger a re-sort.
-      // The current DELETE and status change to inactive effectively just filter.
-      // The INSERT and active UPDATE paths handle their own sorting.
-      return updatedList; // No sort needed here as specific cases handle it or preserve order.
-    });
-  }, []);
+          return currentRows;
 
+        default:
+          return currentRows;
+      }
+    });
+  }, []); // parsePhotosJson is stable (defined outside), supabase is stable.
+
+  // --- Initial Load & Realtime Subscription ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
 
@@ -212,7 +221,7 @@ export default function ListingsPage() {
     loadListings();
 
     const listingsSubscription = supabase
-      .channel('public-listings-active-page-v7')
+      .channel('public-listings-active-page-v7') // Channel name
       .on<ListingTablePayload>(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'listings' },
@@ -230,9 +239,10 @@ export default function ListingsPage() {
           supabase.removeChannel(listingsSubscription).then(() => console.log('RT channel for active listings unsubscribed.'));
       } else { console.log("No active RT channel to unsubscribe for listings page."); }
     };
-  }, [handleRealtimeChange]);
+  }, [handleRealtimeChange]); // Include handleRealtimeChange
 
 
+  // --- Render Guards ---
   if (loading) return ( <div className="container mx-auto px-4 py-20 flex justify-center"><LoadingSpinner message="Loading active auctions..." /></div> );
   if (error) return ( <div className="container mx-auto px-4 py-8 text-center text-red-600 dark:text-red-400"><p className="font-medium">Error loading auctions:</p><p className="text-sm">{error}</p></div> );
 
@@ -240,6 +250,7 @@ export default function ListingsPage() {
     ? { href: '/listings/new', text: 'List an Item' }
     : { href: '/auth', text: 'Login to List an Item' };
 
+  // --- Main JSX ---
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 pb-4 border-b border-gray-200 dark:border-gray-700 gap-4">
@@ -260,7 +271,6 @@ export default function ListingsPage() {
           className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         >
           {rows.map((listing) => {
-            // Ensure listing.photos is an array and has items before accessing photos[0]
             const thumbnailUrl = (listing.photos && listing.photos.length > 0) ? listing.photos[0] : null;
 
             return (
@@ -269,7 +279,6 @@ export default function ListingsPage() {
                 className="group relative flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1"
               >
                 <Link href={`/listings/${listing.id}`} className="flex flex-col flex-grow">
-                    {/* === MODIFIED IMAGE CONTAINER AND IMAGE COMPONENT START === */}
                     <div className="aspect-video w-full bg-gray-100 dark:bg-gray-700 overflow-hidden relative rounded-t-lg">
                         {thumbnailUrl ? (
                             <Image
@@ -288,7 +297,6 @@ export default function ListingsPage() {
                             </div>
                         )}
                     </div>
-                    {/* === MODIFIED IMAGE CONTAINER AND IMAGE COMPONENT END === */}
                     <div className="p-4 flex flex-col flex-grow">
                         <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 line-clamp-2 leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{listing.title}</h3>
                         <div className="mt-auto pt-3 space-y-1 text-sm border-t border-gray-200 dark:border-gray-700">
