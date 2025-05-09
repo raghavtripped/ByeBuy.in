@@ -1,23 +1,20 @@
 // supabase/functions/close-expired-auctions/index.ts
 
-// Note: The triple-slash directive for Deno types has been removed.
-// Ensure your editor (e.g., VS Code with Deno extension) and 
-// supabase/functions/tsconfig.json are set up for local Deno type checking.
+// NOTE: Triple-slash directive removed as per Vercel build fix.
+// Relies on VS Code Deno Extension + supabase/functions/tsconfig.json for local editor types.
 
-import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'; // Using direct URL import
-import { corsHeaders } from './cors.ts'; // Import from the same directory
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeaders } from './cors.ts';
 
 // --- Environment Variables ---
-// These MUST be set in the Supabase Dashboard Function settings for deployment.
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
-const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'); // Secret Key for admin access
-const functionSecret = Deno.env.get('SUPABASE_FUNCTION_SECRET'); // Secret for authorizing cron trigger
+const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const functionSecret = Deno.env.get('CLOSE_EXPIRED_AUCTIONS_SECRET'); // CORRECTED KEY NAME
 
 // --- Type Definitions ---
 interface ListingToCheck {
   id: string;
-  title?: string; 
-  // end_time?: string; // Not strictly needed by the loop logic, only id
+  title?: string;
 }
 interface CloseResult {
     closed_auction_id: string;
@@ -28,10 +25,10 @@ interface CloseResult {
     message: string;
 }
 
-console.log("Function init: close-expired-auctions (Full Logic v1.4 - Deno fixes applied)");
+console.log("Function init: close-expired-auctions (Full Logic v1.5 - Updated Secret Key)");
 
 // --- Main Request Handler ---
-Deno.serve(async (req: Request) => { // Added async back as we have await calls
+Deno.serve(async (req: Request) => {
   const requestStart = Date.now();
   const requestUrl = new URL(req.url);
   console.log(`[${new Date().toISOString()}] Request received: ${req.method} ${requestUrl.pathname}`);
@@ -45,8 +42,9 @@ Deno.serve(async (req: Request) => { // Added async back as we have await calls
   // --- Authorization Check ---
   const authHeader = req.headers.get('Authorization');
   if (!functionSecret) {
-      console.error("CONFIG ERROR: SUPABASE_FUNCTION_SECRET is not set/read from environment variables.");
-      return new Response(JSON.stringify({ error: 'Internal configuration error: Function secret missing.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+      // CORRECTED: Updated error message to reflect new secret name
+      console.error("CONFIG ERROR: CLOSE_EXPIRED_AUCTIONS_SECRET env var not set/read.");
+      return new Response(JSON.stringify({ error: 'Internal configuration error: Function authorization secret missing.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
   }
   if (authHeader !== `Bearer ${functionSecret}`) {
     console.error(`Authorization failed. Expected Bearer token. Received: ${authHeader ? 'Present but potentially incorrect' : 'Missing'}`);
@@ -88,7 +86,7 @@ Deno.serve(async (req: Request) => { // Added async back as we have await calls
 
     const { data: listingsToClose, error: queryError } = await supabaseAdmin
       .from('listings')
-      .select('id, title') // Select title for logging
+      .select('id, title')
       .eq('status', 'active')
       .lt('end_time', now)
       .returns<ListingToCheck[]>();
@@ -107,11 +105,9 @@ Deno.serve(async (req: Request) => { // Added async back as we have await calls
       });
     }
 
-    // Added explicit type for 'l' in map
     console.log(`Found ${listingsToClose.length} listing(s) needing closure:`, listingsToClose.map((l: ListingToCheck) => ({id: l.id, title: l.title || 'N/A'})));
 
     const processingResults: { id: string; outcome: string; detail: string }[] = [];
-    // Added explicit type for 'listing' in map
     const promises = listingsToClose.map(async (listing: ListingToCheck) => {
       console.log(`--> Processing listing ID: ${listing.id} (${listing.title || 'No Title'})`);
       try {
@@ -122,7 +118,7 @@ Deno.serve(async (req: Request) => { // Added async back as we have await calls
             console.error(`    RPC Error for ${listing.id}:`, rpcError);
             processingResults.push({ id: listing.id, outcome: 'rpc_error', detail: rpcError.message });
           } else if (Array.isArray(rpcDataUntyped) && rpcDataUntyped.length > 0 && rpcDataUntyped[0]) {
-             const result = rpcDataUntyped[0] as CloseResult; // Type assertion
+             const result = rpcDataUntyped[0] as CloseResult;
              console.log(`    RPC Success for ${listing.id}: ${result.outcome_status} - ${result.message}`);
              processingResults.push({ id: result.closed_auction_id, outcome: result.outcome_status, detail: result.message });
           } else {
@@ -131,11 +127,10 @@ Deno.serve(async (req: Request) => { // Added async back as we have await calls
           }
       } catch (rpcInvokeError) {
           console.error(`    RPC Exception for ${listing.id}:`, rpcInvokeError);
-          // Type guard for rpcInvokeError
-          processingResults.push({ 
-            id: listing.id, 
-            outcome: 'rpc_exception', 
-            detail: rpcInvokeError instanceof Error ? rpcInvokeError.message : String(rpcInvokeError) 
+          processingResults.push({
+            id: listing.id,
+            outcome: 'rpc_exception',
+            detail: rpcInvokeError instanceof Error ? rpcInvokeError.message : String(rpcInvokeError)
           });
       }
     });
@@ -159,9 +154,8 @@ Deno.serve(async (req: Request) => { // Added async back as we have await calls
   } catch (error) {
     const duration = Date.now() - requestStart;
     console.error(`Unhandled error in close-expired-auctions after ${duration}ms:`, error);
-    // Type guard for error
-    return new Response(JSON.stringify({ 
-        error: (error instanceof Error ? error.message : String(error)) || 'An unexpected server error occurred.' 
+    return new Response(JSON.stringify({
+        error: (error instanceof Error ? error.message : String(error)) || 'An unexpected server error occurred.'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
