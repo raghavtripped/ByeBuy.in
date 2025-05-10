@@ -1,7 +1,8 @@
 // src/app/listings/new/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+// CORRECTED: Removed useCallback as it's no longer used
+import { useState, useEffect } from 'react'; 
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { supabase, User } from '@/lib/supabaseClient';
@@ -14,7 +15,6 @@ const CATEGORIES_FOR_FORM = [
   "Textbooks & Study Materials",
   "Apparel & Accessories",
   "Sports & Hobby Gear",
-  // Consider adding an "Other" category if desired
 ];
 const MAX_PHOTOS = 5;
 
@@ -40,7 +40,7 @@ export default function NewListingPage() {
     const [rules, setRules] = useState('');
     const [photos, setPhotos] = useState<File[]>([]);
     const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
-    const [selectedCategory, setSelectedCategory] = useState<string>(''); // For single category
+    const [selectedCategory, setSelectedCategory] = useState<string>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitMessage, setSubmitMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -80,7 +80,7 @@ export default function NewListingPage() {
                 }
                 return combined;
             });
-             e.target.value = ''; // Allow re-selecting the same file(s)
+             e.target.value = '';
         }
     };
     const handleRemovePhoto = (indexToRemove: number) => { setPhotos(prevPhotos => prevPhotos.filter((_, index) => index !== indexToRemove)); };
@@ -113,7 +113,8 @@ export default function NewListingPage() {
 
         setIsSubmitting(true);
         const uploadErrors: string[] = [];
-        let uploadedPhotoUrls: string[] = [];
+        // CORRECTED: Use const as the array reference itself isn't reassigned
+        const uploadedPhotoUrls: string[] = []; 
 
         // --- Step 1: Upload Photos ---
         if (photos.length > 0) {
