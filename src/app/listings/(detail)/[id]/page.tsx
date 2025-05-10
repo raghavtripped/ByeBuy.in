@@ -12,7 +12,7 @@ import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
 import { supabase, type User } from '@/lib/supabaseClient';
-// Removed: import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'; // FIX 1: Removed unused import
+// import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'; // Removed as payload is directly typed with <ListingTablePayload>
 import {
   formatRelativeTime,
   isPast,
@@ -142,7 +142,7 @@ export default function ListingDetails() {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
     loadData();
     const bidsChannel = supabase.channel(`listing-bids-${id}`);
-    bidsChannel.on<BidTablePayload>( // Payload type directly here
+    bidsChannel.on<BidTablePayload>(
         'postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` },
         async (payload) => {
           if (payload.new?.id) {
@@ -152,9 +152,9 @@ export default function ListingDetails() {
         }
       ).subscribe();
     const listingChannel = supabase.channel(`listing-details-status-${id}`);
-    listingChannel.on<ListingTablePayload>( // Payload type directly here
+    listingChannel.on<ListingTablePayload>(
         'postgres_changes', { event: 'UPDATE', schema: 'public', table: 'listings', filter: `id=eq.${id}` },
-        (payload) => { // payload is now ListingTablePayload
+        (payload) => { // payload is ListingTablePayload due to generic on .on<T>
           const updated = payload.new; if (!updated) return;
           setListing(prev => {
             if (!prev) return null;
@@ -166,12 +166,14 @@ export default function ListingDetails() {
             }
             if (needsFullReload) { loadData(); return prev; }
             const newPartial: Partial<Listing> = {};
+            // Check and assign each property individually to avoid overwriting with undefined
             if (updated.title !== undefined && prev.title !== updated.title) newPartial.title = updated.title;
             if (updated.description !== undefined && prev.description !== updated.description) newPartial.description = updated.description;
             if (updated.min_price !== undefined && prev.min_price !== updated.min_price) newPartial.min_price = updated.min_price;
             if (updated.upper_cap !== undefined && prev.upper_cap !== updated.upper_cap) newPartial.upper_cap = updated.upper_cap;
             if (updated.rules !== undefined && prev.rules !== updated.rules) newPartial.rules = updated.rules;
             if (updated.photos !== undefined) newPartial.photos = parseListingPhotos(updated.photos);
+            // Add other fields as needed
             return Object.keys(newPartial).length > 0 ? { ...prev, ...newPartial } : prev;
           });
         }
@@ -187,9 +189,10 @@ export default function ListingDetails() {
     if (!listing || auctionEnded) return { sliderMin: 1, sliderMax: 100, sliderStep: 1, displaySlider: false };
     const nextValidBid = Math.max(listing.min_price, currentHighestBidVal + 1);
     if (listing.upper_cap && nextValidBid >= listing.upper_cap) return { sliderMin: nextValidBid, sliderMax: nextValidBid, sliderStep: 1, displaySlider: false };
-    // FIX 2: sMin is const
-    const sMin = nextValidBid; 
+    
+    const sMin = nextValidBid; // LINT FIX: sMin is not reassigned, so const
     let sMax: number;
+
     if (listing.upper_cap && listing.upper_cap > sMin) { sMax = listing.upper_cap - 1; }
     else {
       const base = currentHighestBidVal || listing.min_price;
@@ -199,44 +202,46 @@ export default function ListingDetails() {
     if (sMax <= sMin) sMax = sMin + Math.max(100, Math.ceil(sMin * 0.1));
     if (listing.upper_cap && sMax >= listing.upper_cap) sMax = listing.upper_cap - 1;
     if (sMax <= sMin) return { sliderMin: sMin, sliderMax: sMin, sliderStep: 1, displaySlider: false };
+    
     let sStep = 1; const range = sMax - sMin;
     if (range <= 100) sStep = 1; else if (range <= 500) sStep = 5; else if (range <= 2000) sStep = 10;
     else if (range <= 10000) sStep = 50; else if (range <= 50000) sStep = 100; else sStep = 250;
     return { sliderMin: Math.max(1, sMin), sliderMax: Math.max(sMin + sStep, sMax), sliderStep: sStep, displaySlider: true };
   }, [listing, auctionEnded, currentHighestBidVal]);
 
-  // FIX 3: Corrected interval handling for countdown timer
+  // LINT FIX: Corrected interval handling for countdown timer
   useEffect(() => {
       if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) {
           setCountdown(null);
-          return;
+          return; // Exit early if no timer needed
       }
 
       const updateTimer = (): boolean => { // Returns true if timer should stop
+          // Re-check conditions inside timer in case state changes rapidly
           if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) {
               setCountdown(null);
               return true; 
           }
           const remaining = formatCountdown(listing.end_time);
           setCountdown(remaining);
-          if (remaining === null) {
+          if (remaining === null) { // Countdown finished
               return true; 
           }
-          return false; 
+          return false; // Continue timer
       };
 
       if (updateTimer()) return; // Initial call, stop if already ended
 
       const intervalId = window.setInterval(() => {
-          if (updateTimer()) { 
+          if (updateTimer()) { // if updateTimer signals to stop
               clearInterval(intervalId);
           }
       }, 1000);
 
-      return () => {
+      return () => { // Cleanup function
           clearInterval(intervalId);
       };
-  }, [listing?.end_time, listing?.status, auctionEnded]);
+  }, [listing?.end_time, listing?.status, auctionEnded]); // Dependencies
 
 
   const placeBid = async () => {
@@ -251,20 +256,22 @@ export default function ListingDetails() {
     const minRequired = Math.max(listing.min_price, currentHighestBidVal + 1);
     if (amt < minRequired) { setBidStatusMessage(`⚠️ Bid must be at least ${formatCurrency(minRequired)}.`); return; }
     try {
-      const { error: e } = await supabase.from('bids').insert({ item_id: id, bidder_id: user.id, bid_price: amt });
-      if (e) throw e;
+      const { error: insertError } = await supabase.from('bids').insert({ item_id: id, bidder_id: user.id, bid_price: amt });
+      if (insertError) throw insertError;
       setPrice(''); setBidStatusMessage('✅ Bid placed successfully!'); setTimeout(() => setBidStatusMessage(null), 4000);
-    } catch (err: unknown) { // FIX 4: Changed to unknown
+    } catch (err: unknown) { // LINT FIX: unknown type for error
         console.error("Bid failed:", err);
         let userMessage = '❌ Bid failed: An unexpected error occurred.';
         if (err instanceof Error) {
-            const supabaseError = err as any; // Use 'as any' carefully for non-standard props
-            if (supabaseError.code === '23514' || supabaseError.details?.includes('violates check constraint')) {
-                userMessage = '❌ Bid failed: The bid amount is invalid or violates auction rules.';
-            } else if (supabaseError.message?.toLowerCase().includes('row-level security policy')) {
-                userMessage = '❌ Bid failed: You do not have permission to place this bid.';
-            } else {
-                userMessage = `❌ Bid failed: ${err.message.substring(0, 100)}`;
+            userMessage = `❌ Bid failed: ${err.message.substring(0, 100)}`; // Default from Error
+            // More specific error checking for Supabase/Postgres errors
+            if (typeof err === 'object' && err !== null) {
+                const potentialError = err as { code?: string; details?: string; message?: string };
+                if (potentialError.code === '23514' || potentialError.details?.includes('violates check constraint')) {
+                    userMessage = '❌ Bid failed: The bid amount is invalid or violates auction rules.';
+                } else if (potentialError.message?.toLowerCase().includes('row-level security policy')) {
+                    userMessage = '❌ Bid failed: You do not have permission to place this bid.';
+                }
             }
         }
         setBidStatusMessage(userMessage);
