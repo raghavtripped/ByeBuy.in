@@ -8,24 +8,20 @@ import { supabase, User } from '@/lib/supabaseClient';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
 // --- Constants ---
-const PREDEFINED_TAGS = [
-    'Electronics', 'Laptop', 'Mobile', 'Charger', 'Speaker', 'Headphones',
-    'Furniture', 'Chair', 'Table', 'Lamp', 'Mattress', 'Storage',
-    'Academics', 'Books', 'Notes', 'Calculator', 'Stationery',
-    'Appliances', 'Kettle', 'Iron', 'Mini-fridge', 'Fan',
-    'Clothing', 'Fashion', 'Accessories',
-    'Sports', 'Fitness', 'Games',
-    'Vehicle', 'Bicycle', 'Scooter',
-    'Other', 'Home Goods', 'Decor',
+const CATEGORIES_FOR_FORM = [
+  "Electronics & Gadgets",
+  "Furniture & Dorm Essentials",
+  "Textbooks & Study Materials",
+  "Apparel & Accessories",
+  "Sports & Hobby Gear",
+  // Consider adding an "Other" category if desired
 ];
-const MAX_TAGS = 10;
 const MAX_PHOTOS = 5;
 
-// Corrected: Interface for associating filename with upload result
 interface UploadResult {
   status: 'fulfilled' | 'rejected';
-  value?: string; // URL if fulfilled
-  reason?: unknown; // Use unknown instead of any for rejection reason
+  value?: string;
+  reason?: unknown;
   filename: string;
 }
 
@@ -44,8 +40,7 @@ export default function NewListingPage() {
     const [rules, setRules] = useState('');
     const [photos, setPhotos] = useState<File[]>([]);
     const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
-    const [tagInput, setTagInput] = useState('');
-    const [selectedTags, setSelectedTags] = useState<string[]>([]);
+    const [selectedCategory, setSelectedCategory] = useState<string>(''); // For single category
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitMessage, setSubmitMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -71,18 +66,6 @@ export default function NewListingPage() {
         };
     }, [photos]);
 
-    // --- Tag Management Callbacks ---
-    const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => { setTagInput(e.target.value); };
-    const addTag = useCallback((tagToAdd: string) => {
-        const cleanedTag = tagToAdd.trim().toLowerCase();
-        if (cleanedTag && !selectedTags.includes(cleanedTag) && selectedTags.length < MAX_TAGS) {
-            setSelectedTags((prevTags) => [...prevTags, cleanedTag]);
-        }
-        setTagInput('');
-    }, [selectedTags]);
-    const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(tagInput); } };
-    const removeTag = (tagToRemove: string) => { setSelectedTags((prevTags) => prevTags.filter((tag) => tag !== tagToRemove)); };
-
     // --- Photo Management Callbacks ---
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSubmitMessage(null);
@@ -97,10 +80,15 @@ export default function NewListingPage() {
                 }
                 return combined;
             });
-             e.target.value = '';
+             e.target.value = ''; // Allow re-selecting the same file(s)
         }
     };
     const handleRemovePhoto = (indexToRemove: number) => { setPhotos(prevPhotos => prevPhotos.filter((_, index) => index !== indexToRemove)); };
+
+    // --- Category Selection Handler ---
+    const handleCategorySelect = (category: string) => {
+        setSelectedCategory(category);
+    };
 
     // --- Form Submission Logic ---
     const handleSubmit = async (e: React.FormEvent) => {
@@ -108,110 +96,95 @@ export default function NewListingPage() {
         setSubmitMessage(null);
 
         // --- Validation ---
-        if (!user) { setSubmitMessage({ type: 'error', text: 'Authentication error.' }); return; }
+        if (!user) { setSubmitMessage({ type: 'error', text: 'Authentication error. Please log in again.' }); return; }
         if (photos.length === 0) { setSubmitMessage({ type: 'error', text: 'Please upload at least one photo.' }); return; }
         if (!title.trim() || !description.trim() || !minPrice || !endTime) { setSubmitMessage({ type: 'error', text: 'Please fill all required fields (*).' }); return; }
+        if (!selectedCategory) { setSubmitMessage({ type: 'error', text: 'Please select a category for your item.' }); return; }
+        
         const minPriceFloat = parseFloat(minPrice);
         const upperCapFloat = upperCap.trim() ? parseFloat(upperCap) : null;
-        if (isNaN(minPriceFloat) || minPriceFloat < 0) { setSubmitMessage({ type: 'error', text: 'Minimum Bid must be a non-negative number.' }); return; }
-        if (upperCapFloat !== null && (isNaN(upperCapFloat) || upperCapFloat <= minPriceFloat)) { setSubmitMessage({ type: 'error', text: 'Buy Now price must be a valid number greater than Minimum Bid.' }); return; }
-        if (new Date(endTime) <= new Date()) { setSubmitMessage({ type: 'error', text: 'End Time must be in the future.' }); return; }
+        if (isNaN(minPriceFloat) || minPriceFloat < 0) { setSubmitMessage({ type: 'error', text: 'Minimum Bid Price must be a valid non-negative number.' }); return; }
+        if (upperCapFloat !== null) {
+             if (isNaN(upperCapFloat)) { setSubmitMessage({ type: 'error', text: 'Buy Now price must be a valid number.' }); return; }
+             if (upperCapFloat <= minPriceFloat) { setSubmitMessage({ type: 'error', text: 'Buy Now price must be greater than the Minimum Bid Price.' }); return; }
+         }
+        if (new Date(endTime) <= new Date()) { setSubmitMessage({ type: 'error', text: 'Auction End Time must be set to a future date and time.' }); return; }
         // --- End Validation ---
 
         setIsSubmitting(true);
         const uploadErrors: string[] = [];
+        let uploadedPhotoUrls: string[] = [];
 
         // --- Step 1: Upload Photos ---
-        console.log(`Starting upload for ${photos.length} photos...`);
-        
-        const uploadPromises: Promise<UploadResult>[] = photos.map((photoFile) => {
-            const fileExt = photoFile.name.split('.').pop()?.toLowerCase() || 'file';
-            const safeTitle = title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
-            const filePath = `${user.id}/${safeTitle}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+        if (photos.length > 0) {
+            console.log(`Starting upload for ${photos.length} photos...`);
+            const uploadPromises: Promise<UploadResult>[] = photos.map((photoFile) => {
+                const fileExt = photoFile.name.split('.').pop()?.toLowerCase() || 'file';
+                const safeTitle = title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+                const filePath = `${user.id}/${safeTitle}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
 
-            return supabase.storage
-                .from('listing-images')
-                .upload(filePath, photoFile, { cacheControl: '3600', upsert: false })
-                .then(({ error: uploadError }) => {
-                    if (uploadError) {
-                        throw new Error(`Upload failed: ${uploadError.message}`);
-                    }
-                    const { data: urlData } = supabase.storage.from('listing-images').getPublicUrl(filePath);
-                    const publicUrl = urlData?.publicUrl;
-                    if (!publicUrl) {
-                        throw new Error(`GetPublicUrl failed.`);
-                    }
-                    return { status: 'fulfilled' as const, value: publicUrl, filename: photoFile.name };
-                })
-                .catch(error => {
-                     console.error(`Error uploading ${photoFile.name}:`, error);
-                     return { status: 'rejected' as const, reason: error, filename: photoFile.name }; // Pass raw error
-                });
-        });
-
-        const results: UploadResult[] = await Promise.all(uploadPromises);
-
-        const uploadedPhotoUrls: string[] = [];
-        results.forEach(result => {
-            if (result.status === 'fulfilled' && result.value) {
-                uploadedPhotoUrls.push(result.value);
-            } else if (result.status === 'rejected') {
-                // CORRECTED: Type narrowing for reason
-                let reasonText = 'Unknown upload error';
-                if (result.reason instanceof Error) {
-                    reasonText = result.reason.message;
-                } else if (typeof result.reason === 'string') {
-                    reasonText = result.reason;
-                } else {
-                    // Fallback if reason is not Error or string (should be rare with current catch)
-                    reasonText = JSON.stringify(result.reason);
+                return supabase.storage
+                    .from('listing-images')
+                    .upload(filePath, photoFile, { cacheControl: '3600', upsert: false })
+                    .then(({ error: uploadError }) => {
+                        if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+                        const { data: urlData } = supabase.storage.from('listing-images').getPublicUrl(filePath);
+                        const publicUrl = urlData?.publicUrl;
+                        if (!publicUrl) throw new Error(`GetPublicUrl failed for ${filePath}.`);
+                        return { status: 'fulfilled' as const, value: publicUrl, filename: photoFile.name };
+                    })
+                    .catch(error => {
+                         console.error(`Error uploading ${photoFile.name}:`, error);
+                         return { status: 'rejected' as const, reason: error, filename: photoFile.name };
+                    });
+            });
+            const results: UploadResult[] = await Promise.all(uploadPromises);
+            results.forEach(result => {
+                if (result.status === 'fulfilled' && result.value) { uploadedPhotoUrls.push(result.value); }
+                else if (result.status === 'rejected') {
+                    let reasonText = 'Unknown upload error';
+                    if (result.reason instanceof Error) { reasonText = result.reason.message; }
+                    else if (typeof result.reason === 'string') { reasonText = result.reason; }
+                    else { reasonText = JSON.stringify(result.reason); }
+                    uploadErrors.push(`'${result.filename}': ${reasonText}`);
                 }
-                uploadErrors.push(`'${result.filename}': ${reasonText}`);
+            });
+            if (uploadedPhotoUrls.length === 0 && photos.length > 0) {
+                setSubmitMessage({ type: 'error', text: `Photo upload failed. Errors: ${uploadErrors.join('; ')}` });
+                setIsSubmitting(false); return;
             }
-        });
-
-        if (uploadedPhotoUrls.length === 0 && photos.length > 0) { // Check if any photos were attempted
-            console.error("All photo uploads failed.");
-            setSubmitMessage({ type: 'error', text: `Photo upload failed. Errors: ${uploadErrors.join('; ')}` });
-            setIsSubmitting(false);
-            return;
+            if (uploadErrors.length > 0) console.warn("Some photos failed to upload:", uploadErrors);
         }
-        if (uploadErrors.length > 0) {
-            console.warn("Some photos failed to upload:", uploadErrors);
-        }
+        // --- End Photo Upload ---
 
         // --- Step 2: Insert Listing Data ---
         try {
-            console.log("Inserting listing with photo URLs:", uploadedPhotoUrls);
             const listingData = {
                 title: title.trim(), description: description.trim(),
                 min_price: minPriceFloat, end_time: new Date(endTime).toISOString(),
-                seller_id: user.id, photos: uploadedPhotoUrls,
+                seller_id: user.id, photos: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : null,
                 upper_cap: upperCapFloat, rules: rules.trim() || null,
-                status: 'active', tags: selectedTags.length > 0 ? selectedTags : null,
+                status: 'active', tags: selectedCategory ? [selectedCategory] : null,
             };
-
             const { error: insertError } = await supabase.from('listings').insert(listingData);
             if (insertError) throw insertError;
 
             let successMsg = 'Listing created successfully!';
-            if (uploadErrors.length > 0) successMsg += ` (${uploadErrors.length} photo(s) failed to upload). Redirecting...`;
+            if (uploadErrors.length > 0) successMsg += ` (${uploadErrors.length} photo(s) failed). Redirecting...`;
             else successMsg += ' Redirecting...';
             setSubmitMessage({ type: 'success', text: successMsg });
 
             setTitle(''); setDesc(''); setMinPrice(''); setUpperCap('');
             setEndTime(''); setRules(''); setPhotos([]); setPhotoPreviews([]);
-            setSelectedTags([]); setTagInput('');
+            setSelectedCategory('');
             const fileInput = document.getElementById('photo-upload') as HTMLInputElement;
             if (fileInput) fileInput.value = '';
-
-            setTimeout(() => { router.push('/listings'); }, uploadErrors.length > 0 ? 3000 : 2000); // Longer delay if there were partial errors
-
+            setTimeout(() => { router.push('/listings'); }, uploadErrors.length > 0 ? 3000 : 2000);
         } catch (error) {
             console.error('Listing insertion failed:', error);
-            let message = 'Database error during listing creation.';
+            let message = 'Database error.';
              if (error instanceof Error) message = `DB Error: ${error.message}`;
-             if (uploadErrors.length > 0) message += ` (${uploadErrors.length} photo(s) also failed upload).`;
+             if (uploadErrors.length > 0) message += ` (Some photos also failed upload).`;
             setSubmitMessage({ type: 'error', text: message });
             setIsSubmitting(false);
         }
@@ -231,7 +204,7 @@ export default function NewListingPage() {
                 noValidate
                 className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md p-6 sm:p-8 space-y-6"
             >
-                {/* Submission Feedback Area */}
+                 {/* Submission Feedback Area */}
                  {submitMessage && (
                     <div
                         className={`p-4 rounded-md border text-sm flex items-start gap-3 ${submitMessage.type === 'error' ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-600/50 text-red-800 dark:text-red-200' : 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-600/50 text-green-800 dark:text-green-200'}`}
@@ -244,8 +217,8 @@ export default function NewListingPage() {
                     </div>
                 )}
 
-                 {/* --- Field: Title --- */}
-                 <div>
+                {/* --- Field: Listing Title --- */}
+                <div>
                     <label htmlFor="title" className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
                         Listing Title <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
                     </label>
@@ -293,28 +266,30 @@ export default function NewListingPage() {
                     <textarea id="rules" placeholder="e.g., Pickup only from campus hostel X, Payment via UPI within 24 hours of winning." value={rules} onChange={e => setRules(e.target.value)} rows={3} className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500" />
                 </div>
 
-                {/* --- Field: Tags --- */}
+                {/* --- Field: Category Selection --- */}
                 <div>
-                     <label htmlFor="tag-input" className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                        Tags <span className="text-gray-500 text-xs">(Optional, helps discovery, max {MAX_TAGS})</span>
+                     <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                        Category <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
                     </label>
-                     <div className="flex flex-wrap gap-2 mb-2 min-h-[28px]">
-                        {selectedTags.map(tag => ( <span key={tag} className="inline-flex items-center gap-x-1.5 rounded-full bg-blue-100 dark:bg-blue-800/60 px-2.5 py-1 text-xs font-medium text-blue-800 dark:text-blue-200 ring-1 ring-inset ring-blue-200 dark:ring-blue-700">{tag}<button type="button" onClick={() => removeTag(tag)} className="-mr-0.5 p-0.5 rounded-full inline-flex items-center justify-center text-blue-500 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label={`Remove ${tag}`}><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3"><path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" /></svg></button></span> ))}
+                    <div className="flex flex-wrap gap-2 mt-1.5">
+                        {CATEGORIES_FOR_FORM.map(category => (
+                            <button
+                                type="button"
+                                key={category}
+                                onClick={() => handleCategorySelect(category)}
+                                className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-full border transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800
+                                    ${selectedCategory === category
+                                        ? 'bg-indigo-600 text-white border-indigo-600 ring-indigo-500 shadow-md'
+                                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 ring-indigo-500'
+                                    }`}
+                            >
+                                {category}
+                            </button>
+                        ))}
                     </div>
-                    <input
-                        id="tag-input" type="text"
-                        placeholder={selectedTags.length < MAX_TAGS ? `Type a tag and press Enter (e.g., 'book')` : `Maximum ${MAX_TAGS} tags reached`}
-                        value={tagInput} onChange={handleTagInputChange} onKeyDown={handleTagInputKeyDown}
-                        disabled={selectedTags.length >= MAX_TAGS}
-                        className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Or click to add common tags:</p>
-                     <div className="flex flex-wrap gap-2 mt-1.5">
-                         {PREDEFINED_TAGS.filter(t => !selectedTags.includes(t.toLowerCase())).slice(0, 15).map(tag => ( <button type="button" key={tag} onClick={() => addTag(tag)} disabled={selectedTags.length >= MAX_TAGS} className="px-2.5 py-1 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">{tag}</button> ))}
-                     </div>
                 </div>
 
-                {/* --- Photo Upload Section --- */}
+                {/* --- Field: Photo Upload --- */}
                 <div>
                     <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
                         Upload Photos <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
