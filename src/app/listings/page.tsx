@@ -30,7 +30,8 @@ const parsePhotosJson = (photosInput: string | string[] | null | undefined): str
       const parsed = JSON.parse(photosInput);
       return (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) ? parsed as string[] : null;
     } catch (_error) {
-      // console.error('Failed to parse photos JSON string for input:', photosInput, _error);
+      // LINT FIX: Actually use _error in a log statement
+      console.warn('Failed to parse photos JSON string (error caught):', _error); 
       return null;
     }
   }
@@ -53,7 +54,7 @@ type Listing = {
 type ListingTablePayload = Partial<Omit<Listing, 'photos' | 'tags'> & {
     photos: string | string[] | null;
     tags: string | string[] | null;
-}> & { id?: string }; // id is optional here because `payload.old` might not always have it typed strictly if T is full Listing
+}> & { id?: string };
 
 
 // ---------- Component ---------------------------------------------
@@ -105,22 +106,17 @@ export default function ListingsPage() {
     fetchListings(selectedCategory);
 
     const listingsSubscription = supabase
-      .channel('public-listings-active-page-v14') // Increment channel name
-      .on<ListingTablePayload>( // T for the .on<T>() method, influencing payload.new/old when not {}
+      .channel('public-listings-active-page-v14') 
+      .on<ListingTablePayload>(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'listings' },
-        (payload) => { // payload is RealtimePostgresChangesPayload<ListingTablePayload>
+        (payload) => { 
           let changedItemId: string | undefined;
-
-          // Safely access id from payload.new
           if (payload.new && typeof payload.new === 'object' && 'id' in payload.new && typeof payload.new.id === 'string') {
             changedItemId = payload.new.id;
           } 
-          // Safely access id from payload.old, especially for DELETE events
           else if (payload.eventType === 'DELETE' && payload.old && typeof payload.old === 'object' && 'id' in payload.old) {
-            // For payload.old, 'id' might be on a Partial<ListingTablePayload> or just an object with id.
-            // We can cast to check, or if `id` is always present on `old` for delete.
-            const oldRecord = payload.old as { id?: unknown }; // Be more flexible with old record type
+            const oldRecord = payload.old as { id?: unknown }; 
             if (typeof oldRecord.id === 'string') {
                 changedItemId = oldRecord.id;
             }
