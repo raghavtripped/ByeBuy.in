@@ -1,15 +1,14 @@
 // src/app/listings/(detail)/[id]/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import Slider from "react-slick";
 
-// Import slick carousel CSS
 import "slick-carousel/slick/slick.css";
-import "slick-carousel/slick/slick-theme.css"; // Keep theme CSS for arrow base styles
+import "slick-carousel/slick/slick-theme.css";
 
 import { supabase, type User } from '@/lib/supabaseClient';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
@@ -21,20 +20,22 @@ import {
 import { formatCurrency } from '@/lib/formatUtils';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
-// Type Definitions
+// --- Type Definitions ---
 type Listing = {
   id: string;
   title: string;
   description: string;
   min_price: number;
-  photos: string[] | null;
+  photos: string[] | null; // This should be string[] after parsing JSON from DB
   end_time?: string | null;
   upper_cap?: number | null;
   rules?: string | null;
   seller_email?: string | null;
   seller_id?: string;
-  status: 'active' | 'closed' | 'cancelled' | string; // Required
+  status: 'active' | 'closed' | 'cancelled' | string;
   winning_bidder_id?: string | null;
+  winning_bid_id?: string | null; // <<< FIX 1: Added winning_bid_id
+  final_sale_price?: number | null;
 };
 
 type Bid = {
@@ -45,32 +46,31 @@ type Bid = {
   bidder_email?: string | null;
 };
 
-// Type for the payload coming from the 'listings' table realtime changes
-type ListingTablePayload = Partial<{ // Use Partial as UPDATE might only send changed fields
+type ListingTablePayload = Partial<{
   id: string;
   title: string;
   description: string;
   min_price: number;
-  photos: string[] | null; // Type after migration
+  photos: string[] | null; // Assuming this is how it comes, or string for JSON
   end_time: string | null;
   upper_cap: number | null;
   rules: string | null;
   seller_id: string;
-  status: 'active' | 'closed' | 'cancelled' | string; // Still allow broader string
+  status: 'active' | 'closed' | 'cancelled' | string;
   winning_bid_id: string | null;
   winning_bidder_id: string | null;
   created_at: string;
   tags: string[] | null;
-}> & { id: string }; // Ensure ID is always present if payload exists
+  final_sale_price?: number | null;
+}> & { id: string };
 
-// Type for payload from 'bids' table
 type BidTablePayload = Partial<{
     id: string;
     item_id: string;
     bidder_id: string;
     bid_price: number;
     timestamp: string;
-}> & { id?: string }; // ID might be missing in some edge cases, handle defensively
+}> & { id?: string };
 
 
 // --- Component ---
@@ -78,7 +78,6 @@ export default function ListingDetails() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
-  // --- State ---
   const [listing, setListing] = useState<Listing | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [price, setPrice] = useState('');
@@ -89,9 +88,21 @@ export default function ListingDetails() {
   const [countdown, setCountdown] = useState<string | null>(null);
   const [winnerEmail, setWinnerEmail] = useState<string | null>(null);
 
+  const parseListingPhotos = (photosData: unknown): string[] | null => {
+    if (typeof photosData === 'string') {
+      try {
+        const parsed = JSON.parse(photosData);
+        return Array.isArray(parsed) ? parsed.filter(p => typeof p === 'string') : null;
+      } catch (e) {
+        console.error("Failed to parse photos JSON string:", e);
+        return null;
+      }
+    }
+    return Array.isArray(photosData) ? photosData.filter(p => typeof p === 'string') : null;
+  };
 
-  // --- Load listing, bids, and winner email ---
-  useEffect(() => {
+
+  const loadData = useCallback(async () => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!id || !uuidRegex.test(id)) {
       setError('Invalid listing ID format.'); setLoading(false); return;
@@ -99,104 +110,154 @@ export default function ListingDetails() {
 
     setLoading(true); setError(null); setListing(null); setBids([]); setPrice(''); setWinnerEmail(null);
 
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    try {
+      let fetchedListingData: Partial<Listing> & { id: string, status: Listing['status'] } | null = null; // Use Partial for intermediate steps
 
-    const loadData = async () => {
-      try {
-        const { data: lData, error: lError } = await supabase
-          .from('listings_with_seller_email')
-          .select('id, title, description, min_price, photos, end_time, upper_cap, rules, seller_email, seller_id, status, winning_bidder_id')
-          .eq('id', id)
-          .maybeSingle();
+      const { data: archivedData, error: archivedError } = await supabase
+        .from('archived_listings_details')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
 
-        if (lError) throw lError;
-        if (!lData || !lData.status) {
-             setError('Listing not found or missing status.'); setLoading(false); return;
-        }
-
-        const fetchedListing = {
-             ...lData,
-             photos: lData.photos as string[] | null,
-             status: lData.status as Listing['status']
-        } as Listing;
-        setListing(fetchedListing);
-
-        const { data: bData, error: bError } = await supabase
-          .from('bids_with_bidder_email')
-          .select('*').eq('item_id', id).order('timestamp', { ascending: false });
-        if (bError) throw bError;
-        setBids(bData ?? []);
-
-        if (fetchedListing.status === 'closed' && fetchedListing.winning_bidder_id) {
-          const { data: winnerData, error: winnerError } = await supabase
-             .from('users') // Check RLS/Permissions
-             .select('email')
-             .eq('id', fetchedListing.winning_bidder_id)
-             .single();
-           if (winnerError) console.error("Error fetching winner email (check RLS/table permissions):", winnerError.message);
-           else if (winnerData) setWinnerEmail(winnerData.email);
-        }
-
-      } catch (err) {
-        console.error("Data loading error:", err);
-        setError(`Error loading details: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      } finally {
-        setLoading(false);
+      if (archivedError) {
+          console.warn("Could not fetch from archived_listings_details, trying listings_with_seller_email. Error:", archivedError?.message);
       }
-    };
+
+      if (archivedData) {
+          fetchedListingData = {
+              ...archivedData,
+              photos: parseListingPhotos(archivedData.photos),
+              status: archivedData.status as Listing['status'],
+              final_sale_price: archivedData.final_sale_price,
+          };
+          if (archivedData.winner_email) {
+              setWinnerEmail(archivedData.winner_email);
+          }
+      } else {
+          const { data: lData, error: lError } = await supabase
+              .from('listings_with_seller_email')
+              .select('id, title, description, min_price, photos, end_time, upper_cap, rules, seller_email, seller_id, status, winning_bidder_id, winning_bid_id')
+              .eq('id', id)
+              .maybeSingle();
+
+          if (lError) throw lError;
+          if (!lData) {
+              setError('Listing not found.'); setLoading(false); return;
+          }
+
+          fetchedListingData = {
+              ...lData,
+              photos: parseListingPhotos(lData.photos),
+              status: lData.status as Listing['status'],
+          };
+
+          // <<< FIX 1 applied: Check winning_bid_id on fetchedListingData (which is now correctly typed with it)
+          if (fetchedListingData.status === 'closed' && fetchedListingData.winning_bidder_id) {
+              if (fetchedListingData.winning_bid_id) { // Now this property exists on fetchedListingData
+                  const {data: winningBidData, error: winningBidError} = await supabase
+                      .from('bids')
+                      .select('bid_price')
+                      .eq('id', fetchedListingData.winning_bid_id)
+                      .single();
+                  if (winningBidError) console.error("Error fetching winning bid price:", winningBidError.message)
+                  else if (winningBidData) fetchedListingData.final_sale_price = winningBidData.bid_price;
+              }
+              const { data: winnerData, error: winnerError } = await supabase
+                  .from('users')
+                  .select('email')
+                  .eq('id', fetchedListingData.winning_bidder_id)
+                  .single();
+              if (winnerError) console.error("Error fetching winner email:", winnerError.message);
+              else if (winnerData) setWinnerEmail(winnerData.email);
+          }
+      }
+
+      if (!fetchedListingData) {
+        setError('Listing not found.'); setLoading(false); return;
+      }
+      setListing(fetchedListingData as Listing); // Cast to full Listing type
+
+      const { data: bData, error: bError } = await supabase
+        .from('bids_with_bidder_email')
+        .select('*').eq('item_id', id).order('timestamp', { ascending: false });
+      if (bError) throw bError;
+      setBids(bData ?? []);
+
+    } catch (err) {
+      console.error("Data loading error:", err);
+      setError(`Error loading details: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
     loadData();
 
-    // --- Realtime Bids Channel ---
     const bidsChannel = supabase.channel(`listing-bids-${id}`);
     bidsChannel
-      .on<BidTablePayload>( // Use corrected payload type
+      .on<BidTablePayload>(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` },
         async (payload) => {
-          // Defensive check
           if (payload.new && 'id' in payload.new && payload.new.id) {
-            console.log('New bid received via realtime:', payload.new.id);
             const { data: newBid, error } = await supabase
               .from('bids_with_bidder_email')
               .select('*').eq('id', payload.new.id).single();
             if (!error && newBid) {
               setBids((currentBids) => [newBid as Bid, ...currentBids.filter((b) => b.id !== newBid.id)]);
             } else if (error) { console.error("Error fetching new bid details:", error); }
-          } else {
-              console.warn("Received bid INSERT payload without an ID:", payload.new);
           }
         }
       )
       .subscribe(status => console.log(`Bids channel status for ${id}: ${status}`));
 
-    // --- Realtime Listing Status Updates Channel ---
     const listingChannel = supabase.channel(`listing-details-status-${id}`);
     listingChannel
         .on(
             'postgres_changes',
             { event: 'UPDATE', schema: 'public', table: 'listings', filter: `id=eq.${id}` },
-            (payload: RealtimePostgresChangesPayload<ListingTablePayload>) => { // Callback uses specific payload type
+            (payload: RealtimePostgresChangesPayload<ListingTablePayload>) => {
                 const updatedListingData = payload.new && 'id' in payload.new ? payload.new : null;
                 if (!updatedListingData) return;
-                console.log("Listing update received:", updatedListingData.status);
 
                  setListing(prev => {
                      if (!prev) return null;
-                     const newStatus = updatedListingData.status ?? prev.status;
-                     const newWinnerId = updatedListingData.winning_bidder_id !== undefined ? updatedListingData.winning_bidder_id : prev.winning_bidder_id;
-                     let stateNeedsUpdate = false;
-                     if (prev.status !== newStatus) stateNeedsUpdate = true;
-                     if (prev.winning_bidder_id !== newWinnerId) stateNeedsUpdate = true;
+                     const newPartialListing: Partial<Listing> = {};
+                     let needsFullReload = false;
 
-                     if (stateNeedsUpdate) {
-                         console.log(`RT Updating state: Status ${prev.status}->${newStatus}, Winner ${prev.winning_bidder_id}->${newWinnerId}`);
-                         if (newStatus === 'closed' && newWinnerId && prev.winning_bidder_id !== newWinnerId) {
-                            supabase.from('users').select('email').eq('id', newWinnerId).single().then(({data, error}) => {
-                                if(!error && data) { setWinnerEmail(data.email); }
-                                else { setWinnerEmail(null); }
-                            });
-                         } else if (newStatus !== 'closed') { setWinnerEmail(null); }
-                         return { ...prev, status: newStatus, winning_bidder_id: newWinnerId };
+                     if (updatedListingData.status && prev.status !== updatedListingData.status) {
+                         newPartialListing.status = updatedListingData.status;
+                         if (updatedListingData.status === 'closed' || updatedListingData.status === 'cancelled') {
+                             needsFullReload = true;
+                         }
+                     }
+                     if (updatedListingData.winning_bidder_id !== undefined && prev.winning_bidder_id !== updatedListingData.winning_bidder_id) {
+                         newPartialListing.winning_bidder_id = updatedListingData.winning_bidder_id;
+                         needsFullReload = true;
+                     }
+                     if (updatedListingData.winning_bid_id !== undefined && prev.winning_bid_id !== updatedListingData.winning_bid_id) {
+                        newPartialListing.winning_bid_id = updatedListingData.winning_bid_id;
+                        // If winning_bid_id changes, final_sale_price likely changes too, so reload
+                        needsFullReload = true;
+                     }
+                     if (updatedListingData.photos && JSON.stringify(prev.photos) !== JSON.stringify(updatedListingData.photos)) {
+                        newPartialListing.photos = updatedListingData.photos; // Assume photos in payload is already string[]
+                     }
+                     // Add other fields to update in real-time if necessary
+                     // e.g. title, description, min_price, upper_cap, rules
+                     if (updatedListingData.title && prev.title !== updatedListingData.title) newPartialListing.title = updatedListingData.title;
+                     // ... and so on for other directly updatable fields
+
+                     if (needsFullReload) {
+                         console.log("Significant listing update detected, reloading data for listing:", id);
+                         loadData();
+                         return prev;
+                     }
+
+                     if (Object.keys(newPartialListing).length > 0) {
+                        return { ...prev, ...newPartialListing };
                      }
                      return prev;
                  });
@@ -207,18 +268,27 @@ export default function ListingDetails() {
     return () => {
       supabase.removeChannel(bidsChannel);
       supabase.removeChannel(listingChannel);
-      console.log(`RT channels unsubscribed for listing ${id}`);
     };
-  }, [id]);
+  }, [id, loadData]);
+
+  // --- Derived State for Rendering ---
+  // <<< FIX 3 & 4: Moved auctionEnded declaration here, before useEffect for countdown
+  const auctionEnded = !!(listing && (listing.status === 'closed' || listing.status === 'cancelled'));
+  const photos = listing?.photos ?? []; // photos is already string[] | null from parseListingPhotos
 
   // --- Countdown timer ---
   useEffect(() => {
       if (!listing?.end_time) { setCountdown(null); return; }
-      const auctionIsClosed = listing.status === 'closed' || listing.status === 'cancelled';
-      if (auctionIsClosed || isPast(listing.end_time)) { setCountdown(null); return; }
+      // Now auctionEnded is defined and can be used
+      if (auctionEnded || isPast(listing.end_time)) { setCountdown(null); return; }
+
       let interval: number | undefined = undefined;
       const updateTimer = () => {
-        if (!listing?.end_time) return;
+        if (!listing?.end_time || auctionEnded) { // Add auctionEnded check here too
+            if(interval) clearInterval(interval);
+            setCountdown(null);
+            return;
+        }
         const remaining = formatCountdown(listing.end_time);
         setCountdown(remaining);
         if (remaining === null && interval) clearInterval(interval);
@@ -226,14 +296,15 @@ export default function ListingDetails() {
       updateTimer();
       interval = window.setInterval(updateTimer, 1000);
       return () => { if (interval) clearInterval(interval); };
-  }, [listing?.end_time, listing?.status]);
+  }, [listing?.end_time, listing?.status, auctionEnded]);
 
-  // --- Bid action ---
+
   const placeBid = async () => {
     setBidStatusMessage(null);
     if (!user) return router.push('/auth');
     if (!listing) return;
-    if (listing.status === 'closed' || listing.status === 'cancelled' || (listing.end_time && isPast(listing.end_time))) {
+    // Use the derived auctionEnded constant
+    if (auctionEnded || (listing.end_time && isPast(listing.end_time))) {
         setBidStatusMessage('⚠️ Auction has ended.'); return;
     }
     if (user.id === listing.seller_id) { setBidStatusMessage('⚠️ You cannot bid on your own item.'); return; }
@@ -256,42 +327,35 @@ export default function ListingDetails() {
     }
   };
 
-  // --- Render Guards ---
   if (loading) return <div className="flex justify-center py-20"><LoadingSpinner message="Loading listing details..." /></div>;
   if (error) return <p className="p-6 text-center text-red-600 dark:text-red-400 font-medium">{error}</p>;
   if (!listing) return <p className="p-6 text-center text-gray-700 dark:text-gray-300">Listing details could not be loaded.</p>;
 
-  // --- Derived State for Rendering ---
-  const auctionEnded = listing.status === 'closed' || listing.status === 'cancelled';
-  const photos = listing.photos ?? [];
+  // Moved photos declaration above timeDisplay because it might be used in other derived states if any
   const timeDisplay = auctionEnded
     ? listing.end_time ? `Ended ${formatRelativeTime(listing.end_time)}` : 'Auction Ended'
     : countdown !== null ? `Ends in: ${countdown}` : listing.end_time ? `Ends ${formatRelativeTime(listing.end_time)}` : 'End time not set';
   const highestBid = bids[0] ?? null;
 
-  // --- Slider Settings ---
   const sliderSettings = {
-    dots: false, // Dots are removed
+    dots: false,
     infinite: photos.length > 1,
     speed: 500,
     slidesToShow: 1,
     slidesToScroll: 1,
-    arrows: true, // Arrows are kept
+    arrows: true,
     adaptiveHeight: true,
-    // No appendDots or customPaging needed
   };
 
-  // --- JSX ---
   return (
     <main className="listing-detail-page max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
       <section className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
-        {/* Image Slider */}
         {photos.length > 0 ? (
-            // Container does not need extra padding-bottom now
             <div className="w-full md:w-1/2 flex-shrink-0 slick-container relative">
                  <Slider {...sliderSettings}>
-                    {photos.map((photoUrl, index) => (
-                        <div key={photoUrl} className="aspect-square relative bg-gray-100 dark:bg-gray-800">
+                    {/* <<< FIX 5 & 6: Added types for photoUrl and index */}
+                    {photos.map((photoUrl: string, index: number) => (
+                        <div key={photoUrl || `photo-${index}`} className="aspect-square relative bg-gray-100 dark:bg-gray-800">
                              <Image
                                 src={photoUrl} alt={`Photo ${index + 1} for ${listing.title}`} fill
                                 style={{ objectFit: 'contain' }}
@@ -305,44 +369,67 @@ export default function ListingDetails() {
             </div>
         ) : ( <div className="w-full md:w-1/2 flex-shrink-0 aspect-square bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center"> <svg className="h-20 w-20 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /> </svg> </div> )}
 
-        {/* Details Column */}
         <div className={`w-full ${photos.length > 0 ? 'md:w-1/2' : ''} space-y-4`}>
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100 break-words">{listing.title}</h1>
             {listing.seller_email && ( <p className="text-sm text-gray-600 dark:text-gray-400"> Sold by:{' '} <span className="font-medium text-gray-800 dark:text-gray-200">{listing.seller_email}</span> </p> )}
 
-            {/* Price Info & Highest Bid Block */}
-            <div className="flex flex-col sm:flex-row gap-4 pt-2">
-                <div className="flex-1 space-y-2 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-200 dark:border-gray-700">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Minimum Bid:</p>
-                    <p className="text-xl font-bold text-indigo-700 dark:text-indigo-400">{formatCurrency(listing.min_price)}</p>
-                    {listing.upper_cap && listing.upper_cap > 0 && ( <div className="pt-1"> <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Buy Now Price:</p> <p className="text-xl font-bold text-purple-700 dark:text-purple-400">{formatCurrency(listing.upper_cap)}</p> </div> )}
+            {listing.status === 'active' && (
+                <div className="flex flex-col sm:flex-row gap-4 pt-2">
+                    <div className="flex-1 space-y-2 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-200 dark:border-gray-700">
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Minimum Bid:</p>
+                        <p className="text-xl font-bold text-indigo-700 dark:text-indigo-400">{formatCurrency(listing.min_price)}</p>
+                        {listing.upper_cap && listing.upper_cap > 0 && ( <div className="pt-1"> <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Buy Now Price:</p> <p className="text-xl font-bold text-purple-700 dark:text-purple-400">{formatCurrency(listing.upper_cap)}</p> </div> )}
+                    </div>
+                    <div className="flex-1 space-y-1 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-200 dark:border-gray-700">
+                         <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Highest Bid:</h3>
+                         {highestBid ? ( <> <p className="text-2xl font-bold text-green-700 dark:text-green-300">{formatCurrency(highestBid.bid_price)}</p> {highestBid.bidder_email && ( <p className="text-xs text-gray-500 dark:text-gray-400 pt-1"> by <span className="font-medium text-gray-700 dark:text-gray-300">{highestBid.bidder_email}</span></p> )} </> ) : ( <p className="text-lg text-gray-500 dark:text-gray-400 pt-2">No bids yet.</p> )}
+                    </div>
                 </div>
-                <div className="flex-1 space-y-1 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-200 dark:border-gray-700">
-                     <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Highest Bid:</h3>
-                     {highestBid ? ( <> <p className="text-2xl font-bold text-green-700 dark:text-green-300">{formatCurrency(highestBid.bid_price)}</p> {highestBid.bidder_email && ( <p className="text-xs text-gray-500 dark:text-gray-400 pt-1"> by <span className="font-medium text-gray-700 dark:text-gray-300">{highestBid.bidder_email}</span></p> )} </> ) : ( <p className="text-lg text-gray-500 dark:text-gray-400 pt-2">No bids yet.</p> )}
-                </div>
-            </div>
+            )}
 
-            {/* Display Auction Status & Winner */}
-            {auctionEnded && listing.status && (
-                 <div className={`p-3 rounded-md text-sm font-medium ${ listing.status === 'closed' && listing.winning_bidder_id ? 'bg-green-100 dark:bg-green-800/50 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700' : listing.status === 'closed' ? 'bg-yellow-100 dark:bg-yellow-800/50 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700' : listing.status === 'cancelled' ? 'bg-red-100 dark:bg-red-800/50 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700' : '' }`}>
-                     <p>Status: {listing.status.charAt(0).toUpperCase() + listing.status.slice(1)}</p>
-                     {listing.status === 'closed' && listing.winning_bidder_id && winnerEmail && ( <p>Winner: <span className="font-semibold">{winnerEmail}</span></p> )}
-                     {listing.status === 'closed' && !listing.winning_bidder_id && ( <p>This auction ended with no winning bids.</p> )}
+            {listing.status === 'closed' && (
+                 <div className={`p-4 rounded-md my-3 border ${listing.winning_bidder_id ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700' : 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'}`}>
+                     <h3 className={`text-lg font-semibold text-center mb-2 ${listing.winning_bidder_id ? 'text-green-700 dark:text-green-300' : 'text-blue-700 dark:text-blue-300'}`}>
+                         Auction Ended
+                     </h3>
+                     {listing.winning_bidder_id && listing.final_sale_price ? (
+                         <>
+                             <p className="text-md text-center">
+                                 Sold for: <span className="font-bold">{formatCurrency(listing.final_sale_price)}</span>
+                             </p>
+                             {winnerEmail && (
+                                 <p className="text-sm text-center text-gray-600 dark:text-gray-400">
+                                     Winner: <span className="font-medium">{winnerEmail}</span>
+                                 </p>
+                             )}
+                         </>
+                     ) : (
+                         <p className="text-md text-center text-gray-700 dark:text-gray-300">This auction closed with no winning bids.</p>
+                     )}
                  </div>
             )}
 
-             {/* Time Remaining/Ended */}
-             {listing.end_time && !auctionEnded && (
-                 <p className={`text-sm font-medium pt-2 text-gray-600 dark:text-gray-300`}>
-                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 inline-block mr-1 align-text-bottom"> <path fillRule="evenodd" d="M8 1.75a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V2.5A.75.75 0 0 1 8 1.75ZM8 14a.75.75 0 0 1 .75.75v.01a.75.75 0 0 1-1.5 0v-.01A.75.75 0 0 1 8 14ZM4.21 3.97a.75.75 0 0 1 1.06 0l.74.745a.75.75 0 1 1-1.06 1.06l-.745-.74a.75.75 0 0 1 0-1.06Zm6.52 0a.75.75 0 0 1 0 1.06l-.74.745a.75.75 0 1 1-1.06-1.06l.74-.74a.75.75 0 0 1 1.06 0ZM1.75 8a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H2.5a.75.75 0 0 1-.75-.75Zm11.5 0a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5h-.01a.75.75 0 0 1-.75-.75ZM4.21 10.97a.75.75 0 0 1 0 1.06l-.745.74a.75.75 0 1 1-1.06-1.06l.74-.74a.75.75 0 0 1 1.06 0Zm6.52 0a.75.75 0 0 1 1.06 0l.74.74a.75.75 0 1 1-1.06 1.06l-.74-.74a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /> <path d="M8 4.75a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0V5.5a.75.75 0 0 1 .75-.75Z" /> </svg>
+            {listing.status === 'cancelled' && (
+                 <div className="p-4 rounded-md my-3 border bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700">
+                     <h3 className="text-lg font-semibold text-center text-yellow-700 dark:text-yellow-300">
+                         Auction Cancelled
+                     </h3>
+                 </div>
+            )}
+
+             {listing.end_time && (
+                 <p className={`text-sm font-medium pt-2 ${auctionEnded ? 'text-gray-500 dark:text-gray-400' : 'text-gray-600 dark:text-gray-300'}`}>
+                     {/* SVG Code - Assuming this is where line 445 was. If error persists, inspect this SVG closely or simplify/componentize it */}
+                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 inline-block mr-1 align-text-bottom">
+                        <path fillRule="evenodd" d="M8 1.75a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V2.5A.75.75 0 0 1 8 1.75ZM8 14a.75.75 0 0 1 .75.75v.01a.75.75 0 0 1-1.5 0v-.01A.75.75 0 0 1 8 14ZM4.21 3.97a.75.75 0 0 1 1.06 0l.74.745a.75.75 0 1 1-1.06 1.06l-.745-.74a.75.75 0 0 1 0-1.06Zm6.52 0a.75.75 0 0 1 0 1.06l-.74.745a.75.75 0 1 1-1.06-1.06l.74-.74a.75.75 0 0 1 1.06 0ZM1.75 8a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H2.5a.75.75 0 0 1-.75-.75Zm11.5 0a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5h-.01a.75.75 0 0 1-.75-.75ZM4.21 10.97a.75.75 0 0 1 0 1.06l-.745.74a.75.75 0 1 1-1.06-1.06l.74-.74a.75.75 0 0 1 1.06 0Zm6.52 0a.75.75 0 0 1 1.06 0l.74.74a.75.75 0 1 1-1.06 1.06l-.74-.74a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                        <path d="M8 4.75a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0V5.5a.75.75 0 0 1 .75-.75Z" />
+                     </svg>
                      {timeDisplay}
                  </p>
             )}
         </div>
       </section>
 
-      {/* --- Description --- */}
       <section>
           <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Description</h3>
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800">
@@ -350,7 +437,6 @@ export default function ListingDetails() {
           </div>
       </section>
 
-      {/* --- Rules --- */}
       {listing.rules && (
         <section>
              <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Auction Rules</h3>
@@ -360,9 +446,7 @@ export default function ListingDetails() {
         </section>
       )}
 
-      {/* --- Bid Form Section --- */}
-      <section>
-         {user && user.id !== listing.seller_id && listing.status === 'active' && (!listing.end_time || !isPast(listing.end_time)) && (
+      {!auctionEnded && user && user.id !== listing.seller_id && (
              <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 shadow-sm">
                  <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">Place Your Bid</h3>
                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -378,23 +462,18 @@ export default function ListingDetails() {
                  {bidStatusMessage && ( <p className={`mt-3 text-sm font-medium ${bidStatusMessage.startsWith('✅') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{bidStatusMessage}</p> )}
              </div>
          )}
-         {user && user.id === listing.seller_id && listing.status === 'active' && (!listing.end_time || !isPast(listing.end_time)) && (
+      {!auctionEnded && user && user.id === listing.seller_id && (
              <div className="p-3 border border-yellow-300 dark:border-yellow-700 rounded-md bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 text-center text-sm"> You cannot place bids on your own listing. </div>
          )}
-         {!user && listing.status === 'active' && (!listing.end_time || !isPast(listing.end_time)) && (
+      {!auctionEnded && !user && (
              <div className="p-3 border border-blue-200 dark:border-blue-700 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-center text-sm"> Please{' '} <Link href="/auth" className="font-bold underline hover:text-blue-900 dark:hover:text-blue-200">log in</Link>{' '} to place a bid. </div>
          )}
-         {auctionEnded && listing.status && (
-            <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-center text-sm font-medium"> This auction has ended. </div>
-         )}
-      </section>
 
-      {/* --- Bid History --- */}
       <section className="pt-8 border-t border-gray-200 dark:border-gray-700">
          <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-white"> Bid History ({bids.length}) </h2>
          {bids.length === 0 ? ( <p className="text-gray-600 dark:text-gray-400">No bids have been placed yet.</p> ) : (
              <ul className="space-y-3 max-h-[400px] overflow-y-auto pr-2 -mr-2">
-                 {bids.map((bid, index) => (
+                 {bids.map((bid: Bid, index: number) => ( // Added type for bid here too
                      <li key={bid.id} className={`p-3 border rounded-md flex justify-between items-center text-sm ${ index === 0 ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700' }`}>
                          <div><span className={`font-semibold ${index === 0 ? 'text-green-800 dark:text-green-300' : 'text-indigo-800 dark:text-indigo-400'}`}>{formatCurrency(bid.bid_price)}</span>{bid.bidder_email && ( <span className="text-xs text-gray-500 dark:text-gray-400 ml-2"> by {bid.bidder_email} </span> )}</div>
                          <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-4">{new Date(bid.timestamp).toLocaleString()}</span>
@@ -404,11 +483,9 @@ export default function ListingDetails() {
          )}
       </section>
 
-      {/* Global Styles for Slider - FINAL VERSION (No Dots, Centered Arrows) */}
       <style jsx global>{`
-        /* Arrow Styling - Positioned Inside */
         .slick-prev, .slick-next {
-           position: absolute !important; /* Use important to override potential inline styles */
+           position: absolute !important;
            top: 50% !important;
            transform: translateY(-50%) !important;
            z-index: 10 !important;
@@ -432,22 +509,15 @@ export default function ListingDetails() {
         .slick-prev { left: 10px !important; }
         .slick-next { right: 10px !important; }
 
-        /* The actual arrow character/icon */
         .slick-prev::before, .slick-next::before {
-            font-family: 'slick' !important; /* Ensure slick font is used */
+            font-family: 'slick' !important;
             font-size: 18px !important;
             color: white !important;
             opacity: 1 !important;
-            line-height: normal !important; /* Reset line-height */
-            display: block !important; /* Ensure it's treated as block */
+            line-height: normal !important;
+            display: block !important;
         }
-
-        /* Hide Dots */
-        .slick-dots {
-            display: none !important;
-        }
-
-        /* Responsive Arrow Adjustments */
+        .slick-dots { display: none !important; }
         @media (max-width: 640px) {
              .slick-prev { left: 5px !important; }
              .slick-next { right: 5px !important; }
