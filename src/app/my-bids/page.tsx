@@ -13,16 +13,31 @@ import { formatRelativeTime, formatCountdown, isPast } from '@/lib/timeUtils';
 
 // ---------- Helper Functions ---------------------------------------
 const parsePhotosJson = (photosInput: string | string[] | null | undefined): string[] | null => {
-  if (photosInput === null || photosInput === undefined) return null;
+  if (photosInput === null || photosInput === undefined) {
+    return null;
+  }
   if (Array.isArray(photosInput)) {
-    return photosInput.every(item => typeof item === 'string') ? photosInput as string[] : null;
+    // Ensure all items in the array are strings
+    if (photosInput.every(item => typeof item === 'string')) {
+      return photosInput as string[];
+    }
+    // console.warn('Photos input is an array but not uniformly strings:', photosInput);
+    return null; // Or filter out non-string items if preferred
   }
   if (typeof photosInput === 'string') {
     try {
       const parsed = JSON.parse(photosInput);
-      return (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) ? parsed as string[] : null;
-    } catch (error) { console.error('Failed to parse photos JSON string:', photosInput, error); return null; }
+      if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) {
+        return parsed as string[];
+      }
+      // console.warn('Parsed photos JSON string is not an array of strings:', parsed);
+      return null;
+    } catch (error) {
+      // console.error('Failed to parse photos JSON string:', photosInput, error);
+      return null;
+    }
   }
+  // console.warn('Unexpected type for photosInput, cannot parse:', typeof photosInput, photosInput);
   return null;
 };
 
@@ -32,7 +47,7 @@ type MyBidDisplayItem = {
   listingTitle: string;
   listingPhotos: string[] | null;
   listingEndTime: string | null;
-  listingStatus: 'active' | 'closed' | 'cancelled'; // Keep this strict for processed items
+  listingStatus: 'active' | 'closed' | 'cancelled'; // Strict for processed items
   listingWinningBidderId: string | null;
   userHighestBidOnItem: number | null;
   currentOverallHighestBid: number | null;
@@ -97,7 +112,8 @@ export default function MyBidsPage() {
         const overallHighestBidObject = bidsOnThisItem[0];
         processedItems.push({
           listingId: listing.id, listingTitle: listing.title, listingPhotos: listing.photos,
-          listingEndTime: listing.end_time, listingStatus: listing.status as MyBidDisplayItem['listingStatus'],
+          listingEndTime: listing.end_time, 
+          listingStatus: listing.status as MyBidDisplayItem['listingStatus'], // Cast to strict type
           listingWinningBidderId: listing.winning_bidder_id, userHighestBidOnItem: userHighestBid,
           currentOverallHighestBid: overallHighestBidObject?.bid_price || null,
           currentOverallHighestBidderId: overallHighestBidObject?.bidder_id || null,
@@ -144,11 +160,20 @@ export default function MyBidsPage() {
     const past = allBidItems.filter(item => item.isEffectivelyEnded || item.listingStatus === 'closed' || item.listingStatus === 'cancelled');
     const sortActive = (a: MyBidDisplayItem, b: MyBidDisplayItem) => (a.listingEndTime ? new Date(a.listingEndTime).getTime() : Infinity) - (b.listingEndTime ? new Date(b.listingEndTime).getTime() : Infinity);
     const sortPast = (a: MyBidDisplayItem, b: MyBidDisplayItem) => (b.listingEndTime ? new Date(b.listingEndTime).getTime() : 0) - (a.listingEndTime ? new Date(a.listingEndTime).getTime() : 0);
+    
     return { 
         activeWinningItems: active.filter(i => i.currentOverallHighestBidderId === user.id).sort(sortActive), 
         activeLosingItems: active.filter(i => i.currentOverallHighestBidderId !== user.id).sort(sortActive), 
         pastWonItems: past.filter(i => i.listingStatus === 'closed' && i.listingWinningBidderId === user.id).sort(sortPast), 
-        pastLostItems: past.filter(i => (i.listingStatus === 'closed' && i.listingWinningBidderId !== user.id && i.listingWinningBidderId !== null) || i.listingStatus === 'cancelled' || (i.listingStatus === 'closed' && i.listingWinningBidderId === null)).sort(sortPast)
+        // MODIFIED pastLostItems filter for clarity and correctness
+        pastLostItems: past.filter(item => {
+            if (item.listingStatus === 'cancelled') return true;
+            if (item.listingStatus === 'closed') {
+                // Lost (someone else won) OR Ended with no winner
+                return (item.listingWinningBidderId !== null && item.listingWinningBidderId !== user.id) || item.listingWinningBidderId === null;
+            }
+            return false; // Should not include 'active' items here
+        }).sort(sortPast)
     };
   }, [allBidItems, user]);
 
@@ -161,41 +186,40 @@ export default function MyBidsPage() {
       let statusText = '';
       let statusColorClasses = ''; // Base classes: 'inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset'
 
-      // --- MODIFIED LOGIC FOR STATUS BADGES ---
       if (cardType === 'active-winning') {
           statusText = '🎉 Winning';
-          statusColorClasses = 'bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-200 ring-green-600/20 dark:ring-green-500/30';
+          statusColorClasses = 'bg-green-100 dark:bg-green-700/30 text-green-700 dark:text-green-200 ring-green-600/20 dark:ring-green-500/30';
       } else if (cardType === 'active-losing') {
           statusText = '💔 Losing';
-          statusColorClasses = 'bg-orange-100 dark:bg-orange-800/50 text-orange-700 dark:text-orange-200 ring-orange-600/20 dark:ring-orange-500/30';
+          statusColorClasses = 'bg-orange-100 dark:bg-orange-700/30 text-orange-700 dark:text-orange-200 ring-orange-600/20 dark:ring-orange-500/30';
       } else if (cardType === 'past-won') {
           statusText = '🏆 You Won!';
-          statusColorClasses = 'bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-200 ring-green-600/20 dark:ring-green-500/30';
+          statusColorClasses = 'bg-green-100 dark:bg-green-700/30 text-green-700 dark:text-green-200 ring-green-600/20 dark:ring-green-500/30';
       } else if (cardType === 'past-lost') {
+          // --- THIS IS THE MODIFIED LOGIC ---
           if (item.listingStatus === 'cancelled') {
-              statusText = '🚫 Cancelled';
-              statusColorClasses = 'bg-yellow-100 dark:bg-yellow-700/40 text-yellow-700 dark:text-yellow-200 ring-yellow-600/30 dark:ring-yellow-500/30';
+              statusText = '🚫 Cancelled'; // Using a different emoji for cancelled
+              statusColorClasses = 'bg-yellow-100 dark:bg-yellow-700/40 text-yellow-700 dark:text-yellow-200 ring-yellow-600/30 dark:ring-yellow-500/40';
           } else if (item.listingStatus === 'closed') {
-              if (item.listingWinningBidderId && item.listingWinningBidderId !== user?.id) {
+              if (item.listingWinningBidderId && item.listingWinningBidderId !== user?.id) { // Check user?.id as user might be null briefly
                   statusText = '💔 Not Won';
-                  statusColorClasses = 'bg-red-100 dark:bg-red-800/50 text-red-700 dark:text-red-200 ring-red-600/30 dark:ring-red-500/30';
+                  statusColorClasses = 'bg-red-100 dark:bg-red-700/30 text-red-700 dark:text-red-200 ring-red-600/30 dark:ring-red-500/30';
               } else if (!item.listingWinningBidderId) { // Closed with no winner
                   statusText = 'Ended (No Winner)';
-                  statusColorClasses = 'bg-blue-100 dark:bg-blue-800/50 text-blue-700 dark:text-blue-200 ring-blue-600/30 dark:ring-blue-500/30';
+                  statusColorClasses = 'bg-blue-100 dark:bg-blue-700/30 text-blue-700 dark:text-blue-200 ring-blue-600/30 dark:ring-blue-500/30';
               } else {
-                  // This case should not be hit for 'past-lost' if 'past-won' correctly categorizes wins.
-                  // It implies listingStatus is 'closed' but it's not a loss (e.g. user IS winner, but somehow in this category).
-                  // Or, listingWinningBidderId is user.id - which should be 'past-won'.
-                  // As a safe fallback:
-                  statusText = 'Auction Ended'; 
+                  // This case implies listing.winningBidderId === user.id, which should have been caught by 'past-won'.
+                  // If it reaches here, it's an unexpected state for a "lost" item.
+                  statusText = 'Auction Ended (Verify)'; 
                   statusColorClasses = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 ring-gray-500/20 dark:ring-gray-500/30';
               }
-          } else { // Should not happen if filtering is correct, but good to have a fallback
+          } else {
+              // Fallback for any other unexpected status in past items (e.g., 'active' somehow ended up here)
               statusText = item.listingStatus.charAt(0).toUpperCase() + item.listingStatus.slice(1);
               statusColorClasses = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 ring-gray-500/20 dark:ring-gray-500/30';
           }
+          // --- END OF MODIFIED LOGIC ---
       }
-      // --- END OF MODIFIED LOGIC ---
       
       const timeToDisplay = !item.isEffectivelyEnded && item.listingStatus === 'active' && item.listingEndTime && !isPast(item.listingEndTime)
           ? activeCountdownTimers[item.listingId] || `Ends ${formatRelativeTime(item.listingEndTime)}`
