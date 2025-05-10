@@ -12,7 +12,7 @@ import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
 import { supabase, type User } from '@/lib/supabaseClient';
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+// Removed: import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'; // FIX 1: Removed unused import
 import {
   formatRelativeTime,
   isPast,
@@ -142,7 +142,7 @@ export default function ListingDetails() {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
     loadData();
     const bidsChannel = supabase.channel(`listing-bids-${id}`);
-    bidsChannel.on<BidTablePayload>(
+    bidsChannel.on<BidTablePayload>( // Payload type directly here
         'postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` },
         async (payload) => {
           if (payload.new?.id) {
@@ -152,9 +152,9 @@ export default function ListingDetails() {
         }
       ).subscribe();
     const listingChannel = supabase.channel(`listing-details-status-${id}`);
-    listingChannel.on<ListingTablePayload>(
+    listingChannel.on<ListingTablePayload>( // Payload type directly here
         'postgres_changes', { event: 'UPDATE', schema: 'public', table: 'listings', filter: `id=eq.${id}` },
-        (payload) => {
+        (payload) => { // payload is now ListingTablePayload
           const updated = payload.new; if (!updated) return;
           setListing(prev => {
             if (!prev) return null;
@@ -171,7 +171,7 @@ export default function ListingDetails() {
             if (updated.min_price !== undefined && prev.min_price !== updated.min_price) newPartial.min_price = updated.min_price;
             if (updated.upper_cap !== undefined && prev.upper_cap !== updated.upper_cap) newPartial.upper_cap = updated.upper_cap;
             if (updated.rules !== undefined && prev.rules !== updated.rules) newPartial.rules = updated.rules;
-            if (updated.photos !== undefined) newPartial.photos = parseListingPhotos(updated.photos); // Ensure photos are parsed
+            if (updated.photos !== undefined) newPartial.photos = parseListingPhotos(updated.photos);
             return Object.keys(newPartial).length > 0 ? { ...prev, ...newPartial } : prev;
           });
         }
@@ -187,7 +187,9 @@ export default function ListingDetails() {
     if (!listing || auctionEnded) return { sliderMin: 1, sliderMax: 100, sliderStep: 1, displaySlider: false };
     const nextValidBid = Math.max(listing.min_price, currentHighestBidVal + 1);
     if (listing.upper_cap && nextValidBid >= listing.upper_cap) return { sliderMin: nextValidBid, sliderMax: nextValidBid, sliderStep: 1, displaySlider: false };
-    let sMin = nextValidBid; let sMax: number;
+    // FIX 2: sMin is const
+    const sMin = nextValidBid; 
+    let sMax: number;
     if (listing.upper_cap && listing.upper_cap > sMin) { sMax = listing.upper_cap - 1; }
     else {
       const base = currentHighestBidVal || listing.min_price;
@@ -203,11 +205,39 @@ export default function ListingDetails() {
     return { sliderMin: Math.max(1, sMin), sliderMax: Math.max(sMin + sStep, sMax), sliderStep: sStep, displaySlider: true };
   }, [listing, auctionEnded, currentHighestBidVal]);
 
+  // FIX 3: Corrected interval handling for countdown timer
   useEffect(() => {
-      if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) { setCountdown(null); return; }
-      let i:number|undefined; const u=()=>{if(!listing?.end_time||auctionEnded){if(i)clearInterval(i);setCountdown(null);return}const r=formatCountdown(listing.end_time);setCountdown(r);if(r===null&&i)clearInterval(i)}; u(); i=window.setInterval(u,1000);
-      return () => { if (i) clearInterval(i); };
+      if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) {
+          setCountdown(null);
+          return;
+      }
+
+      const updateTimer = (): boolean => { // Returns true if timer should stop
+          if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) {
+              setCountdown(null);
+              return true; 
+          }
+          const remaining = formatCountdown(listing.end_time);
+          setCountdown(remaining);
+          if (remaining === null) {
+              return true; 
+          }
+          return false; 
+      };
+
+      if (updateTimer()) return; // Initial call, stop if already ended
+
+      const intervalId = window.setInterval(() => {
+          if (updateTimer()) { 
+              clearInterval(intervalId);
+          }
+      }, 1000);
+
+      return () => {
+          clearInterval(intervalId);
+      };
   }, [listing?.end_time, listing?.status, auctionEnded]);
+
 
   const placeBid = async () => {
     setBidStatusMessage(null);
@@ -224,7 +254,21 @@ export default function ListingDetails() {
       const { error: e } = await supabase.from('bids').insert({ item_id: id, bidder_id: user.id, bid_price: amt });
       if (e) throw e;
       setPrice(''); setBidStatusMessage('✅ Bid placed successfully!'); setTimeout(() => setBidStatusMessage(null), 4000);
-    } catch (err: any) { console.error("Bid failed:", err); setBidStatusMessage(`❌ Bid failed: ${err.message?.substring(0,100) || 'Unknown error'}`); }
+    } catch (err: unknown) { // FIX 4: Changed to unknown
+        console.error("Bid failed:", err);
+        let userMessage = '❌ Bid failed: An unexpected error occurred.';
+        if (err instanceof Error) {
+            const supabaseError = err as any; // Use 'as any' carefully for non-standard props
+            if (supabaseError.code === '23514' || supabaseError.details?.includes('violates check constraint')) {
+                userMessage = '❌ Bid failed: The bid amount is invalid or violates auction rules.';
+            } else if (supabaseError.message?.toLowerCase().includes('row-level security policy')) {
+                userMessage = '❌ Bid failed: You do not have permission to place this bid.';
+            } else {
+                userMessage = `❌ Bid failed: ${err.message.substring(0, 100)}`;
+            }
+        }
+        setBidStatusMessage(userMessage);
+    }
   };
 
   if (loading && !listing) return <div className="flex justify-center py-20"><LoadingSpinner message="Loading listing details..." /></div>;
@@ -318,7 +362,6 @@ export default function ListingDetails() {
                     <>
                         <h3 className="text-xl font-semibold mb-4 text-center text-gray-800 dark:text-white">Place Your Bid</h3>
                         
-                        {/* NEW: Dynamic Preview Text for Slider Range */}
                         {displaySlider && (
                             <p className="text-xs text-center text-gray-500 dark:text-gray-400 mb-3">
                                 Suggested bid range: {formatCurrency(sliderMin)} - {formatCurrency(sliderMax)}
@@ -326,7 +369,7 @@ export default function ListingDetails() {
                         )}
 
                         {displaySlider && (
-                            <div className="mb-5"> {/* Adjusted margin from mb-6 to mb-5 */}
+                            <div className="mb-5">
                                 <label htmlFor="bidSlider" className="sr-only">Bid Amount Slider</label>
                                 <input id="bidSlider" type="range" min={sliderMin} max={sliderMax} step={sliderStep} value={price || sliderMin}
                                     onChange={(e) => { setPrice(e.target.value); setBidStatusMessage(null); }}
@@ -342,7 +385,7 @@ export default function ListingDetails() {
                                 <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-gray-400 pointer-events-none">₹</span>
                                 <input id="bidAmount" type="number" value={price}
                                     onChange={(e) => { setPrice(e.target.value); setBidStatusMessage(null); }}
-                                    placeholder={`Min. ${formatCurrency(sliderMin)}`} // Uses sliderMin for placeholder
+                                    placeholder={`Min. ${formatCurrency(sliderMin)}`}
                                     className="pl-7 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-md w-full focus:ring-indigo-500 focus:border-indigo-500 text-base dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-500"
                                     step="1" min={sliderMin > 0 ? sliderMin : 1} />
                             </div>
