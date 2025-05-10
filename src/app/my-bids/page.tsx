@@ -17,12 +17,11 @@ const parsePhotosJson = (photosInput: string | string[] | null | undefined): str
     return null;
   }
   if (Array.isArray(photosInput)) {
-    // Ensure all items in the array are strings
     if (photosInput.every(item => typeof item === 'string')) {
       return photosInput as string[];
     }
     // console.warn('Photos input is an array but not uniformly strings:', photosInput);
-    return null; // Or filter out non-string items if preferred
+    return null;
   }
   if (typeof photosInput === 'string') {
     try {
@@ -32,8 +31,8 @@ const parsePhotosJson = (photosInput: string | string[] | null | undefined): str
       }
       // console.warn('Parsed photos JSON string is not an array of strings:', parsed);
       return null;
-    } catch (error) {
-      // console.error('Failed to parse photos JSON string:', photosInput, error);
+    } catch (_error) { // LINT FIX: Prefixed error with underscore as it's only used for logging
+      console.error('Failed to parse photos JSON string:', photosInput, _error);
       return null;
     }
   }
@@ -47,7 +46,7 @@ type MyBidDisplayItem = {
   listingTitle: string;
   listingPhotos: string[] | null;
   listingEndTime: string | null;
-  listingStatus: 'active' | 'closed' | 'cancelled'; // Strict for processed items
+  listingStatus: 'active' | 'closed' | 'cancelled';
   listingWinningBidderId: string | null;
   userHighestBidOnItem: number | null;
   currentOverallHighestBid: number | null;
@@ -60,7 +59,7 @@ type RawListingFromDB = {
     title: string;
     photos: string | string[] | null;
     end_time: string | null;
-    status: 'active' | 'closed' | 'cancelled' | string; // Allow broader string from DB
+    status: 'active' | 'closed' | 'cancelled' | string;
     winning_bidder_id: string | null;
 };
 
@@ -73,7 +72,7 @@ export default function MyBidsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [allBidItems, setAllBidItems] = useState<MyBidDisplayItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // This 'error' state IS used for displaying errors to the user.
   const [activeCountdownTimers, setActiveCountdownTimers] = useState<Record<string, string | null>>({});
   const [viewFilter, setViewFilter] = useState<ViewFilter>('active');
 
@@ -112,8 +111,7 @@ export default function MyBidsPage() {
         const overallHighestBidObject = bidsOnThisItem[0];
         processedItems.push({
           listingId: listing.id, listingTitle: listing.title, listingPhotos: listing.photos,
-          listingEndTime: listing.end_time, 
-          listingStatus: listing.status as MyBidDisplayItem['listingStatus'], // Cast to strict type
+          listingEndTime: listing.end_time, listingStatus: listing.status as MyBidDisplayItem['listingStatus'],
           listingWinningBidderId: listing.winning_bidder_id, userHighestBidOnItem: userHighestBid,
           currentOverallHighestBid: overallHighestBidObject?.bid_price || null,
           currentOverallHighestBidderId: overallHighestBidObject?.bidder_id || null,
@@ -121,7 +119,7 @@ export default function MyBidsPage() {
         });
       }
       setAllBidItems(processedItems);
-    } catch (err) {
+    } catch (err) { // This 'err' IS used
       console.error("Error in fetchMyBidData:", err);
       setError(err instanceof Error ? `Failed to load your bids: ${err.message}` : 'An unknown error occurred.');
     } finally { setLoading(false); }
@@ -165,14 +163,12 @@ export default function MyBidsPage() {
         activeWinningItems: active.filter(i => i.currentOverallHighestBidderId === user.id).sort(sortActive), 
         activeLosingItems: active.filter(i => i.currentOverallHighestBidderId !== user.id).sort(sortActive), 
         pastWonItems: past.filter(i => i.listingStatus === 'closed' && i.listingWinningBidderId === user.id).sort(sortPast), 
-        // MODIFIED pastLostItems filter for clarity and correctness
         pastLostItems: past.filter(item => {
             if (item.listingStatus === 'cancelled') return true;
             if (item.listingStatus === 'closed') {
-                // Lost (someone else won) OR Ended with no winner
                 return (item.listingWinningBidderId !== null && item.listingWinningBidderId !== user.id) || item.listingWinningBidderId === null;
             }
-            return false; // Should not include 'active' items here
+            return false;
         }).sort(sortPast)
     };
   }, [allBidItems, user]);
@@ -184,7 +180,7 @@ export default function MyBidsPage() {
 
   const renderBidItemCard = (item: MyBidDisplayItem, cardType: 'active-winning' | 'active-losing' | 'past-won' | 'past-lost') => {
       let statusText = '';
-      let statusColorClasses = ''; // Base classes: 'inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset'
+      let statusColorClasses = '';
 
       if (cardType === 'active-winning') {
           statusText = '🎉 Winning';
@@ -196,29 +192,24 @@ export default function MyBidsPage() {
           statusText = '🏆 You Won!';
           statusColorClasses = 'bg-green-100 dark:bg-green-700/30 text-green-700 dark:text-green-200 ring-green-600/20 dark:ring-green-500/30';
       } else if (cardType === 'past-lost') {
-          // --- THIS IS THE MODIFIED LOGIC ---
           if (item.listingStatus === 'cancelled') {
-              statusText = '🚫 Cancelled'; // Using a different emoji for cancelled
+              statusText = '🚫 Cancelled';
               statusColorClasses = 'bg-yellow-100 dark:bg-yellow-700/40 text-yellow-700 dark:text-yellow-200 ring-yellow-600/30 dark:ring-yellow-500/40';
           } else if (item.listingStatus === 'closed') {
-              if (item.listingWinningBidderId && item.listingWinningBidderId !== user?.id) { // Check user?.id as user might be null briefly
+              if (item.listingWinningBidderId && item.listingWinningBidderId !== user?.id) {
                   statusText = '💔 Not Won';
                   statusColorClasses = 'bg-red-100 dark:bg-red-700/30 text-red-700 dark:text-red-200 ring-red-600/30 dark:ring-red-500/30';
-              } else if (!item.listingWinningBidderId) { // Closed with no winner
+              } else if (!item.listingWinningBidderId) {
                   statusText = 'Ended (No Winner)';
                   statusColorClasses = 'bg-blue-100 dark:bg-blue-700/30 text-blue-700 dark:text-blue-200 ring-blue-600/30 dark:ring-blue-500/30';
               } else {
-                  // This case implies listing.winningBidderId === user.id, which should have been caught by 'past-won'.
-                  // If it reaches here, it's an unexpected state for a "lost" item.
                   statusText = 'Auction Ended (Verify)'; 
                   statusColorClasses = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 ring-gray-500/20 dark:ring-gray-500/30';
               }
           } else {
-              // Fallback for any other unexpected status in past items (e.g., 'active' somehow ended up here)
               statusText = item.listingStatus.charAt(0).toUpperCase() + item.listingStatus.slice(1);
               statusColorClasses = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 ring-gray-500/20 dark:ring-gray-500/30';
           }
-          // --- END OF MODIFIED LOGIC ---
       }
       
       const timeToDisplay = !item.isEffectivelyEnded && item.listingStatus === 'active' && item.listingEndTime && !isPast(item.listingEndTime)
