@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { supabase, type Session } from '@/lib/supabaseClient';
+// import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'; // Not directly used
 import LoadingSpinner from '@/components/LoadingSpinner';
 import EmptyState from '@/components/EmptyState'; 
 import { formatCurrency } from '@/lib/formatUtils';
@@ -29,6 +30,7 @@ const parsePhotosJson = (photosInput: string | string[] | null | undefined): str
       const parsed = JSON.parse(photosInput);
       return (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) ? parsed as string[] : null;
     } catch (_error) {
+      // console.error('Failed to parse photos JSON string for input:', photosInput, _error);
       return null;
     }
   }
@@ -45,13 +47,13 @@ type Listing = {
   end_time?: string | null;
   status: 'active' | 'closed' | 'cancelled' | string;
   created_at?: string;
-  tags?: string[] | null; // Now assuming this will be string[] directly if DB column is text[]
+  tags?: string[] | null;
 };
 
 type ListingTablePayload = Partial<Omit<Listing, 'photos' | 'tags'> & {
     photos: string | string[] | null;
-    tags: string[] | null; // If DB is text[], this would likely come as string[]
-}> & { id?: string };
+    tags: string | string[] | null;
+}> & { id?: string }; // id is optional here because `payload.old` might not always have it typed strictly if T is full Listing
 
 
 // ---------- Component ---------------------------------------------
@@ -72,9 +74,7 @@ export default function ListingsPage() {
         .eq('status', 'active');
 
       if (category) {
-        // MODIFIED TO USE ARRAY CONTAINS OPERATOR
-        // This assumes 'tags' column in the view 'listings_with_highest_bid' is of type TEXT[]
-        query = query.contains('tags', [category]); 
+        query = query.contains('tags', [category]);
       }
 
       const { data, error: fetchError } = await query
@@ -85,9 +85,6 @@ export default function ListingsPage() {
       const correctlyTypedData = (data ?? []).map(item => ({
           ...item,
           photos: parsePhotosJson(item.photos as string | string[] | null),
-          // If 'tags' comes directly as string[] from a TEXT[] DB column, no parsing needed here.
-          // If it's still a JSON string from a TEXT column that the view passes through, parsing is needed.
-          // Given the error, assume it's treated as array-like by PostgREST or is actual array.
           tags: Array.isArray(item.tags) ? item.tags as string[] : parsePhotosJson(item.tags as string | string[] | null),
           status: item.status as Listing['status']
       })) as Listing[];
@@ -108,13 +105,33 @@ export default function ListingsPage() {
     fetchListings(selectedCategory);
 
     const listingsSubscription = supabase
-      .channel('public-listings-active-page-v12') // Increment channel name
-      .on<ListingTablePayload>(
+      .channel('public-listings-active-page-v14') // Increment channel name
+      .on<ListingTablePayload>( // T for the .on<T>() method, influencing payload.new/old when not {}
         'postgres_changes',
         { event: '*', schema: 'public', table: 'listings' },
-        (_payload) => {
-            console.log('RT change detected on listings, refetching with filter:', selectedCategory);
-            fetchListings(selectedCategory);
+        (payload) => { // payload is RealtimePostgresChangesPayload<ListingTablePayload>
+          let changedItemId: string | undefined;
+
+          // Safely access id from payload.new
+          if (payload.new && typeof payload.new === 'object' && 'id' in payload.new && typeof payload.new.id === 'string') {
+            changedItemId = payload.new.id;
+          } 
+          // Safely access id from payload.old, especially for DELETE events
+          else if (payload.eventType === 'DELETE' && payload.old && typeof payload.old === 'object' && 'id' in payload.old) {
+            // For payload.old, 'id' might be on a Partial<ListingTablePayload> or just an object with id.
+            // We can cast to check, or if `id` is always present on `old` for delete.
+            const oldRecord = payload.old as { id?: unknown }; // Be more flexible with old record type
+            if (typeof oldRecord.id === 'string') {
+                changedItemId = oldRecord.id;
+            }
+          }
+          
+          console.log(
+            'RT change detected (event:', payload.eventType, 
+            ', item ID:', changedItemId || 'N/A', 
+            '), refetching with filter:', selectedCategory
+          );
+          fetchListings(selectedCategory);
         }
       )
       .subscribe((status, err) => {
