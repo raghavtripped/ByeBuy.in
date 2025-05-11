@@ -33,8 +33,8 @@ interface WatchlistButtonProps {
   className?: string;
 }
 
-// Type for Supabase Postgrest response (simplified but more accurate for what we care about)
-type SupabaseMutationResponse = { data?: any | null; error: PostgrestError | null; status?: number };
+// MODIFIED: SupabaseMutationResponse data type changed from any to unknown
+type SupabaseMutationResponse = { data?: unknown | null; error: PostgrestError | null; status?: number };
 
 
 export default function WatchlistButton({ 
@@ -88,7 +88,6 @@ export default function WatchlistButton({
 
       if (newOptimisticIsWatched) {
         console.log(`WatchlistButton: (${listingId}) PRE-INSERT block for user ${userId}`);
-        // CORRECTED: No explicit type needed for the builder variable here if used directly in Promise.race
         const insertOperation = supabase
           .from('watched_listings')
           .insert({ user_id: userId, listing_id: listingId });
@@ -98,13 +97,11 @@ export default function WatchlistButton({
           setTimeout(() => reject(new Error(`Supabase INSERT timed out after ${SUPABASE_OPERATION_TIMEOUT/1000} seconds`)), SUPABASE_OPERATION_TIMEOUT)
         );
         console.log(`WatchlistButton: (${listingId}) Timeout promise for INSERT created.`);
-
-        // The 'insertOperation' (builder) becomes a Promise when awaited or used in Promise.race
+        
         const result = await Promise.race([insertOperation, timeoutPromise]);
         console.log(`WatchlistButton: (${listingId}) Promise.race for INSERT completed. Result:`, result);
         
-        if (result instanceof Error) throw result; // Timeout occurred
-        // If it's not an Error, it's the result from Supabase (SupabaseMutationResponse)
+        if (result instanceof Error) throw result;
         const insertError = (result as SupabaseMutationResponse).error; 
         
         console.log(`WatchlistButton: (${listingId}) Supabase INSERT result - error:`, insertError);
@@ -121,7 +118,6 @@ export default function WatchlistButton({
         }
       } else { 
         console.log(`WatchlistButton: (${listingId}) PRE-DELETE block for user ${userId}`);
-        // CORRECTED: No explicit type needed for the builder variable here
         const deleteOperation = supabase
           .from('watched_listings')
           .delete()
@@ -137,7 +133,7 @@ export default function WatchlistButton({
         const result = await Promise.race([deleteOperation, timeoutPromise]);
         console.log(`WatchlistButton: (${listingId}) Promise.race for DELETE completed. Result:`, result);
 
-        if (result instanceof Error) throw result; // Timeout occurred
+        if (result instanceof Error) throw result;
         const deleteError = (result as SupabaseMutationResponse).error;
 
         console.log(`WatchlistButton: (${listingId}) Supabase DELETE result - error:`, deleteError);
@@ -156,9 +152,12 @@ export default function WatchlistButton({
       console.log(`WatchlistButton: (${listingId}) Reverted UI and store to original pre-click state: ${originallyWatched}`);
 
       let message = 'Failed to update watchlist';
-      if (error instanceof Error) message = error.message; 
-      else if (typeof error === 'string') message = error;
-      else if (error && typeof error === 'object' && 'message' in error && typeof (error as {message: any}).message === 'string') {
+      if (error instanceof Error) {
+        message = error.message; 
+      } else if (typeof error === 'string') {
+        message = error;
+      // MODIFIED: More specific type check for error object with message property
+      } else if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
           message = (error as {message: string}).message;
       }
       
