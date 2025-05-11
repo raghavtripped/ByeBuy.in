@@ -12,7 +12,6 @@ import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
 import { supabase, type User } from '@/lib/supabaseClient';
-// import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'; // Removed as payload is directly typed with <ListingTablePayload>
 import {
   formatRelativeTime,
   isPast,
@@ -20,6 +19,7 @@ import {
 } from '@/lib/timeUtils';
 import { formatCurrency } from '@/lib/formatUtils';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import WatchlistButton from '@/components/WatchlistButton'; // Adjust path if necessary
 
 // --- Type Definitions ---
 type Listing = {
@@ -59,7 +59,7 @@ const CheckCircleIcon = () => (
 
 const ClockIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 inline-block mr-1 align-text-bottom">
-        <path fillRule="evenodd" d="M8 1.75a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V2.5A.75.75 0 0 1 8 1.75ZM8 14a.75.75 0 0 1 .75.75v.01a.75.75 0 0 1-1.5 0v-.01A.75.75 0 0 1 8 14ZM4.21 3.97a.75.75 0 0 1 1.06 0l.74.745a.75.75 0 1 1-1.06 1.06l-.745-.74a.75.75 0 0 1 0-1.06Zm6.52 0a.75.75 0 0 1 0 1.06l-.74.745a.75.75 0 1 1-1.06-1.06l.74-.74a.75.75 0 0 1 1.06 0ZM1.75 8a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H2.5a.75.75 0 0 1-.75-.75Zm11.5 0a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5h-.01a.75.75 0 0 1-.75-.75ZM4.21 10.97a.75.75 0 0 1 0 1.06l-.745.74a.75.75 0 1 1-1.06-1.06l.74-.74a.75.75 0 0 1 1.06 0Zm6.52 0a.75.75 0 0 1 1.06 0l.74.74a.75.75 0 1 1-1.06 1.06l-.74-.74a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+        <path fillRule="evenodd" d="M8 1.75a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V2.5A.75.75 0 0 1 8 1.75ZM8 14a.75.75 0 0 1 .75.75v.01a.75.75 0 0 1-1.5 0v-.01A.75.75 0 0 1 8 14ZM4.21 3.97a.75.75 0 0 1 1.06 0l.74.745a.75.75 0 1 1-1.06 1.06l-.745-.74a.75.75 0 0 1 0-1.06Zm6.52 0a.75.75 0 0 1 0 1.06l-.74.745a.75.75 0 1 1-1.06-1.06l.74-.74a.75.75 0 0 1 1.06 0ZM1.75 8a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H2.5a.75.75 0 0 1-.75-.75Zm11.5 0a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5h-.01a.75.75 0 0 1-.75-.75ZM4.21 10.97a.75.75 0 0 1 0 1.06l-.745.74a.75.75 0 1 1-1.06-1.06l.74-.74a.75.75 0 0 1 1.06 0Zm6.52 0a.75.75 0 0 1 1.06 0l.74.74a.75.75 0 1 1-1.06-1.06l-.74-.74a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
         <path d="M8 4.75a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0V5.5a.75.75 0 0 1 .75-.75Z" />
     </svg>
 );
@@ -72,7 +72,7 @@ export default function ListingDetails() {
   const [listing, setListing] = useState<Listing | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [price, setPrice] = useState('');
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null); // This is your currentUser
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bidStatusMessage, setBidStatusMessage] = useState<string | null>(null);
@@ -154,7 +154,7 @@ export default function ListingDetails() {
     const listingChannel = supabase.channel(`listing-details-status-${id}`);
     listingChannel.on<ListingTablePayload>(
         'postgres_changes', { event: 'UPDATE', schema: 'public', table: 'listings', filter: `id=eq.${id}` },
-        (payload) => { // payload is ListingTablePayload due to generic on .on<T>
+        (payload) => { 
           const updated = payload.new; if (!updated) return;
           setListing(prev => {
             if (!prev) return null;
@@ -166,14 +166,12 @@ export default function ListingDetails() {
             }
             if (needsFullReload) { loadData(); return prev; }
             const newPartial: Partial<Listing> = {};
-            // Check and assign each property individually to avoid overwriting with undefined
             if (updated.title !== undefined && prev.title !== updated.title) newPartial.title = updated.title;
             if (updated.description !== undefined && prev.description !== updated.description) newPartial.description = updated.description;
             if (updated.min_price !== undefined && prev.min_price !== updated.min_price) newPartial.min_price = updated.min_price;
             if (updated.upper_cap !== undefined && prev.upper_cap !== updated.upper_cap) newPartial.upper_cap = updated.upper_cap;
             if (updated.rules !== undefined && prev.rules !== updated.rules) newPartial.rules = updated.rules;
             if (updated.photos !== undefined) newPartial.photos = parseListingPhotos(updated.photos);
-            // Add other fields as needed
             return Object.keys(newPartial).length > 0 ? { ...prev, ...newPartial } : prev;
           });
         }
@@ -190,7 +188,7 @@ export default function ListingDetails() {
     const nextValidBid = Math.max(listing.min_price, currentHighestBidVal + 1);
     if (listing.upper_cap && nextValidBid >= listing.upper_cap) return { sliderMin: nextValidBid, sliderMax: nextValidBid, sliderStep: 1, displaySlider: false };
     
-    const sMin = nextValidBid; // LINT FIX: sMin is not reassigned, so const
+    const sMin = nextValidBid;
     let sMax: number;
 
     if (listing.upper_cap && listing.upper_cap > sMin) { sMax = listing.upper_cap - 1; }
@@ -209,39 +207,37 @@ export default function ListingDetails() {
     return { sliderMin: Math.max(1, sMin), sliderMax: Math.max(sMin + sStep, sMax), sliderStep: sStep, displaySlider: true };
   }, [listing, auctionEnded, currentHighestBidVal]);
 
-  // LINT FIX: Corrected interval handling for countdown timer
   useEffect(() => {
       if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) {
           setCountdown(null);
-          return; // Exit early if no timer needed
+          return;
       }
 
-      const updateTimer = (): boolean => { // Returns true if timer should stop
-          // Re-check conditions inside timer in case state changes rapidly
+      const updateTimer = (): boolean => {
           if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) {
               setCountdown(null);
               return true; 
           }
           const remaining = formatCountdown(listing.end_time);
           setCountdown(remaining);
-          if (remaining === null) { // Countdown finished
+          if (remaining === null) {
               return true; 
           }
-          return false; // Continue timer
+          return false;
       };
 
-      if (updateTimer()) return; // Initial call, stop if already ended
+      if (updateTimer()) return;
 
       const intervalId = window.setInterval(() => {
-          if (updateTimer()) { // if updateTimer signals to stop
+          if (updateTimer()) {
               clearInterval(intervalId);
           }
       }, 1000);
 
-      return () => { // Cleanup function
+      return () => {
           clearInterval(intervalId);
       };
-  }, [listing?.end_time, listing?.status, auctionEnded]); // Dependencies
+  }, [listing?.end_time, listing?.status, auctionEnded]);
 
 
   const placeBid = async () => {
@@ -259,12 +255,11 @@ export default function ListingDetails() {
       const { error: insertError } = await supabase.from('bids').insert({ item_id: id, bidder_id: user.id, bid_price: amt });
       if (insertError) throw insertError;
       setPrice(''); setBidStatusMessage('✅ Bid placed successfully!'); setTimeout(() => setBidStatusMessage(null), 4000);
-    } catch (err: unknown) { // LINT FIX: unknown type for error
+    } catch (err: unknown) {
         console.error("Bid failed:", err);
         let userMessage = '❌ Bid failed: An unexpected error occurred.';
         if (err instanceof Error) {
-            userMessage = `❌ Bid failed: ${err.message.substring(0, 100)}`; // Default from Error
-            // More specific error checking for Supabase/Postgres errors
+            userMessage = `❌ Bid failed: ${err.message.substring(0, 100)}`;
             if (typeof err === 'object' && err !== null) {
                 const potentialError = err as { code?: string; details?: string; message?: string };
                 if (potentialError.code === '23514' || potentialError.details?.includes('violates check constraint')) {
@@ -305,7 +300,22 @@ export default function ListingDetails() {
         </div>
 
         <div className={`w-full ${photos.length > 0 ? 'md:w-1/2' : ''} space-y-4`}>
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100 break-words">{listing.title}</h1>
+            {/* MODIFIED/NEW: Flex container for title and watchlist button */}
+            <div className="flex items-center space-x-3">
+              <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100 break-words">
+                {listing.title}
+              </h1>
+              {/* NEW: WatchlistButton integration */}
+              {user !== undefined && listing && ( // Only render if user state is determined and listing is loaded
+                <WatchlistButton
+                  listingId={listing.id}
+                  userId={user?.id} // Pass current user's ID, or undefined if not logged in
+                  size="md" 
+                  className="flex-shrink-0 mt-1" 
+                />
+              )}
+            </div>
+
             {listing.seller_id && listing.seller_email ? (
                 <p className="text-sm text-gray-600 dark:text-gray-400">Sold by: {' '}
                     <Link href={`/user/${listing.seller_id}`} className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline">
@@ -361,7 +371,6 @@ export default function ListingDetails() {
         </div>
       </section>
 
-      {/* Section 2: "Place Your Bid" Card - Relocated and Corrected Styling */}
       {!auctionEnded && (
         <section className="my-8 py-6 bg-gray-100 dark:bg-gray-800/40 rounded-xl shadow-inner">
             <div className="max-w-lg mx-auto bg-white dark:bg-gray-800 shadow-xl rounded-lg p-6 sm:p-8">
@@ -416,7 +425,6 @@ export default function ListingDetails() {
         </section>
       )}
 
-      {/* Section 3: Description */}
       <section>
           <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Description</h3>
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800">
@@ -424,7 +432,6 @@ export default function ListingDetails() {
           </div>
       </section>
 
-      {/* Section 4: Rules (if any) */}
       {listing.rules && (
         <section>
              <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Auction Rules</h3>
@@ -434,7 +441,6 @@ export default function ListingDetails() {
         </section>
       )}
 
-      {/* Section 5: Bid History */}
       <section className="pt-8 border-t border-gray-200 dark:border-gray-700">
          <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-white"> Bid History ({bids.length}) </h2>
          {bids.length === 0 ? ( <p className="text-gray-600 dark:text-gray-400">No bids have been placed yet.</p> ) : (
@@ -449,9 +455,7 @@ export default function ListingDetails() {
          )}
       </section>
 
-      {/* Global Styles for Slick Slider & Custom Scrollbar */}
       <style jsx global>{`
-        /* Slick Slider Arrow Styling (from your original) */
         .slick-prev, .slick-next {
            position: absolute !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 10 !important;
            width: 40px !important; height: 40px !important; background-color: rgba(0, 0, 0, 0.3) !important;
@@ -472,7 +476,6 @@ export default function ListingDetails() {
              .slick-prev:before, .slick-next:before { font-size: 14px !important; }
         }
 
-        /* Optional Custom Scrollbar for Bid History */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
