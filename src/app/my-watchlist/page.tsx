@@ -20,7 +20,6 @@ export default function MyWatchlistPage() {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError || !session?.user) {
-        // console.log("MyWatchlistPage: No user session, redirecting to login.");
         router.push('/auth?redirect=/my-watchlist');
         return;
       }
@@ -35,21 +34,17 @@ export default function MyWatchlistPage() {
           .eq('user_id', session.user.id)
           .order('created_at', { ascending: false });
 
-        if (fetchWatchedIdsError) {
-          throw fetchWatchedIdsError;
-        }
+        if (fetchWatchedIdsError) throw fetchWatchedIdsError;
 
         if (watchedEntries && watchedEntries.length > 0) {
           const listingIds = watchedEntries.map(entry => entry.listing_id);
           
           const { data: listingsData, error: fetchListingsError } = await supabase
-            .from('listings_with_highest_bid') // Ensure this view has all necessary fields
+            .from('listings_with_highest_bid')
             .select('id, title, photos, min_price, current_highest_bid, end_time, status')
             .in('id', listingIds);
 
-          if (fetchListingsError) {
-            throw fetchListingsError;
-          }
+          if (fetchListingsError) throw fetchListingsError;
           
           const parsePhotos = (photosData: string | string[] | null | undefined): string[] | null => {
             if (!photosData) return null;
@@ -62,12 +57,12 @@ export default function MyWatchlistPage() {
 
           const parsedListings = listingsData?.map(item => ({
             id: item.id || '',
-            title: item.title || 'Untitled Listing', // Fallback for title
+            title: item.title || 'Untitled Listing',
             photos: parsePhotos(item.photos),
-            min_price: item.min_price || 0, // Fallback for min_price
+            min_price: item.min_price || 0,
             current_highest_bid: item.current_highest_bid ?? null,
             end_time: item.end_time ?? null,
-            status: (item.status as ListingCardItem['status']) || 'unknown', // Fallback for status
+            status: (item.status as ListingCardItem['status']) || 'unknown',
           })).filter(item => item.id) as ListingCardItem[];
 
           setWatchedListings(parsedListings);
@@ -77,11 +72,9 @@ export default function MyWatchlistPage() {
       } catch (err: unknown) {
         console.error("Error loading watchlist:", err);
         let message = 'Failed to load your watchlist.';
-        if (err instanceof Error) {
-          message = err.message;
-        } else if (typeof err === 'string') {
-          message = err;
-        } else if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
+        if (err instanceof Error) message = err.message;
+        else if (typeof err === 'string') message = err;
+        else if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
             message = (err as {message: string}).message;
         }
         setError(message);
@@ -89,9 +82,8 @@ export default function MyWatchlistPage() {
         setLoading(false);
       }
     };
-
     checkUserAndLoadWatchlist();
-  }, [router]); // router is a dependency for the redirect logic
+  }, [router]);
 
   if (loading) {
     return <div className="flex justify-center py-20"><LoadingSpinner message="Loading your watchlist..." /></div>;
@@ -127,10 +119,13 @@ export default function MyWatchlistPage() {
           </svg>
           <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">Your watchlist is empty.</h3>
           {/* ===================================================================== */}
-          {/*                  ENSURED APOSTROPHE IS ESCAPED                      */}
+          {/*    AGGRESSIVE FIX FOR APOSTROPHE + ALTERNATIVE HTML ENTITY          */}
           {/* ===================================================================== */}
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Start browsing and add items you're interested in!
+            {"Start browsing and add items you're interested in!"} 
+            {/* Using template literal to ensure no "smart quotes" are interfering either */}
+            {/* And also checking if there are any other problematic characters in this specific string. */}
+            {/* If this still fails, the problem is either not this string, or Vercel's cache is very stubborn */}
           </p>
           {/* ===================================================================== */}
           <div className="mt-6">
