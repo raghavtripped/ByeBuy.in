@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from 'next/image'; // Assuming you still want the image logo
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase, type User } from '@/lib/supabaseClient';
 
@@ -18,32 +18,38 @@ export default function Navbar() {
 
   // --- Auth State ---
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user ?? null);
+    const getSessionAndUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
       setLoading(false);
-    });
+    };
+    getSessionAndUser();
+
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
-      if (!session) setIsMobileMenuOpen(false);
+      if (!session?.user && isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+      }
     });
     return () => {
       authListener?.subscription?.unsubscribe();
     };
-  }, []);
+  }, [isMobileMenuOpen]); // isMobileMenuOpen added for the close logic
 
   // --- Mobile Menu Logic ---
   useEffect(() => {
     if (isMobileMenuOpen) {
-      setIsMobileMenuOpen(false);
+      setIsMobileMenuOpen(false); // Close menu when path changes
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [pathname]); // Only run when pathname changes
 
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isMobileMenuOpen) {
         setIsMobileMenuOpen(false);
+        buttonRef.current?.focus();
       }
     };
     document.addEventListener('keydown', handleEscapeKey);
@@ -63,7 +69,7 @@ export default function Navbar() {
       console.error('Logout error:', error.message);
       return alert(`Logout failed: ${error.message}`);
     }
-    router.push('/auth'); // Or router.push('/') if you prefer them to land on homepage after logout
+    router.push('/'); // Redirect to homepage after logout
   };
 
   // --- Loading Skeleton ---
@@ -81,6 +87,9 @@ export default function Navbar() {
           <div className="hidden md:flex space-x-4 animate-pulse">
             <div className="h-6 bg-gray-700 w-24 rounded" />
             <div className="h-6 bg-gray-700 w-28 rounded" />
+            <div className="h-6 bg-gray-700 w-28 rounded" />
+            <div className="h-6 bg-gray-700 w-24 rounded" />
+            <div className="h-6 bg-gray-700 w-20 rounded" />
             <div className="h-7 bg-gray-700 w-24 rounded-md" />
           </div>
           <div className="md:hidden h-7 w-7 bg-gray-700 rounded animate-pulse" />
@@ -89,70 +98,81 @@ export default function Navbar() {
     );
   }
 
+  // --- Link Styling Functions ---
   const navLinkClasses = (href: string): string => {
     const isActive = pathname === href;
-    let classes = `transition-colors duration-150 ease-in-out text-sm rounded-md `;
-    classes += `px-3 py-2 font-medium `;
-    classes += isActive
+    return `transition-colors duration-150 ease-in-out text-sm rounded-md px-3 py-2 font-medium ${
+      isActive
         ? 'bg-gray-900 text-white'
-        : 'text-gray-300 hover:bg-gray-700 hover:text-white';
-    return classes;
+        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+    }`;
   };
 
   const mobileNavLinkClasses = (href: string): string => {
     const isActive = pathname === href;
-    return `block px-4 py-3 text-base font-medium rounded-md transition-colors
-            ${isActive
-                ? 'bg-indigo-500 text-white'
-                : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`;
+    return `block px-4 py-3 text-base font-medium rounded-md transition-colors ${
+      isActive
+        ? 'bg-indigo-500 text-white'
+        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+    }`;
   };
 
+  // --- Define Link Structures ---
+  const commonNavLinks = [
+    // Assuming '/' is your active auctions page, as per your original Navbar.
+    // If /listings is the active auctions page, change href to /listings here.
+    { href: '/', text: 'Active Auctions' }, 
+    { href: '/listings/archive', text: 'Auction Archive' },
+  ];
+
+  const userNavLinks = user
+    ? [
+        { href: '/my-watchlist', text: 'My Watchlist' }, // "My Watchlist" inserted here
+        { href: '/my-listings', text: 'My Listings' },
+        { href: '/my-bids', text: 'My Bids' },
+      ]
+    : [];
 
   // --- Main Navbar JSX ---
   return (
     <>
       <nav className="bg-gray-800 text-white shadow-md sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between relative">
+          {/* Logo Section */}
           <div className="flex items-center flex-shrink-0">
-            {/* Changed Link href to "/" */}
             <Link href="/" className="flex items-center space-x-2 group">
               <Image
-                src="/bidly-logo.svg" alt="ByeBuy logo" width={32} height={32} priority // Alt text updated
+                src="/bidly-logo.svg" alt="ByeBuy logo" width={32} height={32} priority
                 className="h-8 w-auto group-hover:opacity-90 transition-opacity"
               />
               <span className="text-lg font-semibold hidden md:inline group-hover:text-indigo-300 transition-colors">
-                ByeBuy
+                ByeBuy {/* CORRECTED to ByeBuy */}
               </span>
             </Link>
           </div>
 
+          {/* Centered Mobile Logo/Title */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
-            {/* Changed Link href to "/" and text to "ByeBuy" */}
             <Link href="/" className="text-lg font-semibold text-white hover:text-indigo-300 transition-colors">
-              ByeBuy
+              ByeBuy {/* CORRECTED to ByeBuy */}
             </Link>
           </div>
 
+          {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center space-x-1 flex-grow justify-start ml-4">
-            {/* Changed Link href to "/" for Active Auctions if it's the homepage */}
-            <Link href="/" className={navLinkClasses("/")}>
-              Active Auctions
-            </Link>
-            <Link href="/listings/archive" className={navLinkClasses("/listings/archive")}>
-              Auction Archive
-            </Link>
-            {user && (
-              <>
-                <Link href="/my-listings" className={navLinkClasses("/my-listings")}>
-                  My Listings
-                </Link>
-                <Link href="/my-bids" className={navLinkClasses("/my-bids")}>
-                  My Bids
-                </Link>
-              </>
-            )}
+            {commonNavLinks.map((link) => (
+              <Link key={link.text} href={link.href} className={navLinkClasses(link.href)}>
+                {link.text}
+              </Link>
+            ))}
+            {user && userNavLinks.map((link) => (
+              <Link key={link.text} href={link.href} className={navLinkClasses(link.href)}>
+                {link.text}
+              </Link>
+            ))}
           </div>
 
+          {/* Right Aligned Actions (Desktop and Mobile Hamburger) */}
           <div className="flex items-center flex-shrink-0">
             <div className="hidden md:flex items-center space-x-2 sm:space-x-3">
               {user ? (
@@ -181,6 +201,7 @@ export default function Navbar() {
               )}
             </div>
 
+            {/* Mobile Menu Button */}
             <div className="md:hidden">
               <button
                 ref={buttonRef}
@@ -201,6 +222,7 @@ export default function Navbar() {
         </div>
       </nav>
 
+      {/* Mobile Menu Panel */}
       {isMobileMenuOpen && (
           <div
               className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden"
@@ -228,26 +250,36 @@ export default function Navbar() {
             </button>
         </div>
         <nav className="space-y-2">
-          {/* Changed Link href to "/" for Active Auctions if it's the homepage */}
-          <Link href="/" className={mobileNavLinkClasses("/")}>Active Auctions</Link>
-          <Link href="/listings/archive" className={mobileNavLinkClasses("/listings/archive")}>Auction Archive</Link>
-          {user ? (
+          {commonNavLinks.map((link) => (
+             <Link key={`mobile-${link.text}`} href={link.href} onClick={() => setIsMobileMenuOpen(false)}
+                className={mobileNavLinkClasses(link.href)}>
+                {link.text}
+             </Link>
+          ))}
+          
+          {user && (
             <>
               <hr className="border-gray-700 my-3" />
-              <Link href="/listings/new" className={`${mobileNavLinkClasses("/listings/new")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>
+              {userNavLinks.map((link) => (
+                 <Link key={`mobile-${link.text}`} href={link.href} onClick={() => setIsMobileMenuOpen(false)}
+                    className={mobileNavLinkClasses(link.href)}>
+                    {link.text}
+                 </Link>
+              ))}
+            </>
+          )}
+
+          <hr className="border-gray-700 my-3" />
+          {user ? (
+            <>
+              <Link href="/listings/new" onClick={() => setIsMobileMenuOpen(false)} className={`${mobileNavLinkClasses("/listings/new")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>
                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-2"><path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" /></svg>
                 Create New Listing
               </Link>
-              <Link href="/my-listings" className={mobileNavLinkClasses("/my-listings")}>My Listings</Link>
-              <Link href="/my-bids" className={mobileNavLinkClasses("/my-bids")}>My Bids</Link>
-              <hr className="border-gray-700 my-3" />
               <button onClick={handleLogout} className="block w-full text-left px-4 py-3 text-base font-medium rounded-md text-red-300 hover:bg-red-700 hover:text-white transition-colors">Logout</button>
             </>
           ) : (
-            <>
-              <hr className="border-gray-700 my-3" />
-              <Link href="/auth" className={`${mobileNavLinkClasses("/auth")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>Login / Sign Up</Link>
-            </>
+            <Link href="/auth" onClick={() => setIsMobileMenuOpen(false)} className={`${mobileNavLinkClasses("/auth")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>Login / Sign Up</Link>
           )}
         </nav>
       </div>

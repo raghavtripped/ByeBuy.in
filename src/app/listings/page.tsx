@@ -3,23 +3,20 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { supabase, type Session } from '@/lib/supabaseClient';
-// import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'; // Not directly used
+import { supabase, User } from '@/lib/supabaseClient'; // REMOVED: type Session
 import LoadingSpinner from '@/components/LoadingSpinner';
 import EmptyState from '@/components/EmptyState'; 
-import { formatCurrency } from '@/lib/formatUtils';
+import ListingCard, { ListingCardItem } from '@/components/ListingCard';
 
-// ---------- Predefined Categories/Tags for Filtering ----------
 const PREDEFINED_CATEGORIES = [
   "Electronics & Gadgets",
   "Furniture & Dorm Essentials",
   "Textbooks & Study Materials",
   "Apparel & Accessories",
   "Sports & Hobby Gear",
+  "Other"
 ];
 
-// ---------- Helper Functions ---------------------------------------
 const parsePhotosJson = (photosInput: string | string[] | null | undefined): string[] | null => {
   if (photosInput === null || photosInput === undefined) return null;
   if (Array.isArray(photosInput)) {
@@ -29,41 +26,41 @@ const parsePhotosJson = (photosInput: string | string[] | null | undefined): str
     try {
       const parsed = JSON.parse(photosInput);
       return (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) ? parsed as string[] : null;
-    } catch (_error) {
-      // LINT FIX: Actually use _error in a log statement
-      console.warn('Failed to parse photos JSON string (error caught):', _error); 
+    } catch (parseError) {
+      console.warn('Failed to parse photos JSON string:', parseError); 
       return null;
     }
   }
   return null;
 };
 
-// ---------- Types --------------------------------------------------
-type Listing = {
-  id: string;
-  title: string;
-  min_price: number;
-  photos: string[] | null;
-  current_highest_bid?: number | null;
-  end_time?: string | null;
-  status: 'active' | 'closed' | 'cancelled' | string;
-  created_at?: string;
-  tags?: string[] | null;
+type ListingTablePayload = Partial<Omit<ListingCardItem, 'photos' | 'tags'>> & {
+    photos?: string | string[] | null;
+    tags?: string | string[] | null;
+    id?: string;
 };
 
-type ListingTablePayload = Partial<Omit<Listing, 'photos' | 'tags'> & {
-    photos: string | string[] | null;
-    tags: string | string[] | null;
-}> & { id?: string };
-
-
-// ---------- Component ---------------------------------------------
 export default function ListingsPage() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [rows, setRows] = useState<Listing[]>([]);
+  // REMOVED: const [session, setSession] = useState<Session | null>(null);
+  const [rows, setRows] = useState<ListingCardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    // MODIFIED: Only set currentUser
+    supabase.auth.getSession().then(({ data: { session } }) => { // Destructure session here
+        setCurrentUser(session?.user ?? null);
+    });
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        setCurrentUser(session?.user ?? null);
+    });
+    return () => {
+        authListener?.subscription.unsubscribe();
+    };
+  }, []);
+
 
   const fetchListings = useCallback(async (category: string | null) => {
     setLoading(true);
@@ -75,7 +72,7 @@ export default function ListingsPage() {
         .eq('status', 'active');
 
       if (category) {
-        query = query.contains('tags', [category]);
+        query = query.contains('tags', [category]); 
       }
 
       const { data, error: fetchError } = await query
@@ -84,16 +81,26 @@ export default function ListingsPage() {
       if (fetchError) throw fetchError;
 
       const correctlyTypedData = (data ?? []).map(item => ({
-          ...item,
-          photos: parsePhotosJson(item.photos as string | string[] | null),
-          tags: Array.isArray(item.tags) ? item.tags as string[] : parsePhotosJson(item.tags as string | string[] | null),
-          status: item.status as Listing['status']
-      })) as Listing[];
+          id: item.id || '',
+          title: item.title || 'Untitled Listing', 
+          min_price: item.min_price || 0, 
+          photos: parsePhotosJson(item.photos), 
+          tags: parsePhotosJson(item.tags), 
+          status: item.status as ListingCardItem['status'] || 'unknown',
+          current_highest_bid: item.current_highest_bid ?? null,
+          end_time: item.end_time ?? null,
+      })).filter(item => item.id) as ListingCardItem[];
       setRows(correctlyTypedData);
 
-    } catch (err) {
-      console.error("Detailed error in listings/page.tsx fetchListings:", JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
-      setError(err instanceof Error ? err.message : 'Failed to load active listings (unknown error structure).');
+    } catch (err: unknown) {
+      console.error("Detailed error in listings/page.tsx fetchListings:", err);
+      let message = 'Failed to load active listings.';
+      if (err instanceof Error) message = err.message;
+      else if (typeof err === 'string') message = err;
+      else if (err && typeof err === 'object' && 'message' in err && typeof (err as {message: unknown}).message === 'string') {
+          message = (err as {message: string}).message;
+      }
+      setError(message);
       setRows([]);
     } finally {
       setLoading(false);
@@ -102,46 +109,38 @@ export default function ListingsPage() {
 
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
     fetchListings(selectedCategory);
 
     const listingsSubscription = supabase
-      .channel('public-listings-active-page-v14') 
+      .channel('public-listings-active-page-listings-page')
       .on<ListingTablePayload>(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'listings' },
         (payload) => { 
-          let changedItemId: string | undefined;
-          if (payload.new && typeof payload.new === 'object' && 'id' in payload.new && typeof payload.new.id === 'string') {
-            changedItemId = payload.new.id;
-          } 
-          else if (payload.eventType === 'DELETE' && payload.old && typeof payload.old === 'object' && 'id' in payload.old) {
-            const oldRecord = payload.old as { id?: unknown }; 
-            if (typeof oldRecord.id === 'string') {
-                changedItemId = oldRecord.id;
-            }
+          let changedItemId: string | undefined = undefined;
+          if (payload.new && typeof payload.new === 'object' && 'id' in payload.new) {
+            const newId = (payload.new as { id?: unknown }).id;
+            if (typeof newId === 'string') changedItemId = newId;
+          } else if (payload.old && typeof payload.old === 'object' && 'id' in payload.old) {
+            const oldId = (payload.old as { id?: unknown }).id;
+            if (typeof oldId === 'string') changedItemId = oldId;
           }
-          
-          console.log(
-            'RT change detected (event:', payload.eventType, 
-            ', item ID:', changedItemId || 'N/A', 
-            '), refetching with filter:', selectedCategory
-          );
+          console.log('ListingsPage RT change (event:', payload.eventType, ', item ID:', changedItemId || 'N/A', '), refetching with filter:', selectedCategory);
           fetchListings(selectedCategory);
         }
       )
       .subscribe((status, err) => {
-         if (status === 'SUBSCRIBED') { console.log('RT channel subscribed for active listings.'); }
-         else if (status === 'CHANNEL_ERROR') { console.error(`RT channel error:`, err); }
-         else if (status === 'TIMED_OUT') { console.warn(`RT channel timed out.`); }
+         if (status === 'SUBSCRIBED') { console.log('ListingsPage RT channel subscribed.'); }
+         else if (status === 'CHANNEL_ERROR') { console.error(`ListingsPage RT channel error:`, err); }
+         else if (status === 'TIMED_OUT') { console.warn(`ListingsPage RT channel timed out.`); }
        });
 
     return () => {
       if (listingsSubscription) {
-          supabase.removeChannel(listingsSubscription).then(() => console.log('RT channel for active listings unsubscribed.'));
+          supabase.removeChannel(listingsSubscription).then(() => console.log('ListingsPage RT channel unsubscribed.'));
       }
     };
-  }, [selectedCategory, fetchListings]);
+  }, [selectedCategory, fetchListings]); 
 
   const handleCategoryClick = (category: string) => {
     if (selectedCategory === category) {
@@ -166,9 +165,9 @@ export default function ListingsPage() {
     </div> 
   );
 
-  const emptyStateAction = session
+  const emptyStateAction = currentUser
     ? { href: '/listings/new', text: 'List an Item' }
-    : { href: '/auth', text: 'Login to List an Item' };
+    : { href: '/auth?redirect=/listings/new', text: 'Login to List an Item' };
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
@@ -176,7 +175,12 @@ export default function ListingsPage() {
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
           🎯 Active Auctions
         </h1>
-        {session && ( <Link href="/listings/new" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors whitespace-nowrap"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-2"><path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" /></svg>Create Listing</Link> )}
+        {currentUser && (
+            <Link href="/listings/new" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors whitespace-nowrap">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-2"><path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" /></svg>
+                Create Listing
+            </Link>
+        )}
       </header>
 
       <div className="mb-6 sm:mb-8">
@@ -219,43 +223,13 @@ export default function ListingsPage() {
           role="list"
           className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         >
-          {rows.map((listing) => {
-            const thumbnailUrl = (listing.photos && listing.photos.length > 0) ? listing.photos[0] : null;
-            return (
-              <li
-                key={listing.id}
-                className="group relative flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1"
-              >
-                <Link href={`/listings/${listing.id}`} className="flex flex-col flex-grow">
-                    <div className="aspect-video w-full bg-gray-100 dark:bg-gray-700 overflow-hidden relative rounded-t-lg">
-                        {thumbnailUrl ? (
-                            <Image
-                                src={thumbnailUrl}
-                                alt={`Cover image for ${listing.title}`}
-                                fill
-                                style={{ objectFit: 'cover' }}
-                                className="transition-transform duration-300 group-hover:scale-105"
-                                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
-                                priority={false}
-                                onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-image.svg'; }}
-                            />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
-                                <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                            </div>
-                        )}
-                    </div>
-                    <div className="p-4 flex flex-col flex-grow">
-                        <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 line-clamp-2 leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{listing.title}</h3>
-                        <div className="mt-auto pt-3 space-y-1 text-sm border-t border-gray-200 dark:border-gray-700">
-                            <p className="text-gray-600 dark:text-gray-400">Min Bid:{' '}<span className="font-semibold text-indigo-700 dark:text-indigo-400">{formatCurrency(listing.min_price)}</span></p>
-                            {listing.current_highest_bid && listing.current_highest_bid > 0 ? ( <p className="text-gray-600 dark:text-gray-400">Top Bid:{' '}<span className="font-semibold text-green-700 dark:text-green-300">{formatCurrency(listing.current_highest_bid)}</span></p> ) : ( <p className="text-gray-500 dark:text-gray-500 italic">No bids yet</p> )}
-                        </div>
-                    </div>
-                </Link>
-              </li>
-            );
-          })}
+          {rows.map((listing) => (
+            <ListingCard
+              key={listing.id}
+              listing={listing}
+              currentUser={currentUser}
+            />
+          ))}
         </ul>
       )}
     </div>
