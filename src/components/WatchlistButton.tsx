@@ -1,15 +1,10 @@
 // src/components/WatchlistButton.tsx
 'use client';
 
-import { useState, useEffect } from 'react'; // Removed useCallback as it's not used here
-import { supabase } from '@/lib/supabaseClient'; // Adjust path
-// Removed User import as userId is passed as prop, and we don't fetch user here directly
-import { useWatchlistStore } from '@/stores/watchlistStore'; // Adjust path
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { useWatchlistStore } from '@/stores/watchlistStore';
 
-// Optional: Import an icon library
-// import { FaStar, FaRegStar } from 'react-icons/fa';
-
-// NEW: Define showNotification locally or import from a utility file
 const showNotification = (type: 'success' | 'error', message: string) => {
   if (typeof window !== 'undefined') {
     if (type === 'success') {
@@ -18,24 +13,25 @@ const showNotification = (type: 'success' | 'error', message: string) => {
       alert(`Error: ${message}`);
     }
   }
-  console.log(`WatchlistButton Notification (${type}): ${message}`); // Fallback console log
+  console.log(`WatchlistButton Notification (${type}): ${message}`);
 };
 
-
-// Simple Star SVG components (or use react-icons)
+// CORRECTED: SVG components must return JSX
 const StarIconFilled = ({ className = "w-5 h-5" }: { className?: string }) => (
+  // Implicit return with parentheses
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
     <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401Z" clipRule="evenodd" />
   </svg>
 );
 
 const StarIconOutline = ({ className = "w-5 h-5" }: { className?: string }) => (
+  // Implicit return with parentheses
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20" strokeWidth={1.5} stroke="currentColor" className={className}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.652 0l-4.725 2.885a.562.562 0 0 1-.84-.61l1.285-5.385a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
   </svg>
 );
 
-
+// CORRECTED: Props interface definition
 interface WatchlistButtonProps {
   listingId: string;
   userId: string | undefined;
@@ -43,11 +39,15 @@ interface WatchlistButtonProps {
   className?: string;
 }
 
-export default function WatchlistButton({ listingId, userId, size = 'md', className = '' }: WatchlistButtonProps) {
+export default function WatchlistButton({ 
+  listingId, 
+  userId, 
+  size = 'md', 
+  className = '' 
+}: WatchlistButtonProps) { // Props correctly destructured and typed
   const isInitiallyWatched = useWatchlistStore(state => state.isWatched(listingId));
   const addToWatchlistLocal = useWatchlistStore(state => state.addToWatchlistLocal);
   const removeFromWatchlistLocal = useWatchlistStore(state => state.removeFromWatchlistLocal);
-  // fetchWatchedListings is not directly used by this button, but good to know it's in the store
 
   const [isWatched, setIsWatched] = useState(isInitiallyWatched);
   const [isLoading, setIsLoading] = useState(false);
@@ -59,7 +59,6 @@ export default function WatchlistButton({ listingId, userId, size = 'md', classN
   const handleToggleWatchlist = async () => {
     if (!userId) {
       showNotification('error', 'Please log in to add items to your watchlist.');
-      // Optionally, redirect to login: router.push('/auth?redirect=' + window.location.pathname);
       return;
     }
     if (isLoading) return;
@@ -67,6 +66,7 @@ export default function WatchlistButton({ listingId, userId, size = 'md', classN
     setIsLoading(true);
     const currentlyWatched = isWatched;
 
+    // Optimistic UI update
     setIsWatched(!currentlyWatched);
     if (!currentlyWatched) {
       addToWatchlistLocal(listingId);
@@ -80,12 +80,12 @@ export default function WatchlistButton({ listingId, userId, size = 'md', classN
           .from('watched_listings')
           .insert({ user_id: userId, listing_id: listingId });
         if (error) {
-          if (error.code === '23505') { // Unique constraint violation
+          if (error.code === '23505') {
             console.warn('WatchlistButton: Item likely already in DB watchlist (unique violation). Ensuring local store sync.');
             addToWatchlistLocal(listingId);
-            setIsWatched(true); // Ensure button is in correct state
+            setIsWatched(true);
           } else {
-            throw error; // Re-throw other errors
+            throw error;
           }
         }
       } else {
@@ -96,10 +96,17 @@ export default function WatchlistButton({ listingId, userId, size = 'md', classN
           .eq('listing_id', listingId);
         if (error) throw error;
       }
-    } catch (error: any) { // Keep 'any' here for now, or use 'unknown' and type check
+    } catch (error: unknown) { // Corrected to unknown
       console.error('Failed to update watchlist:', error);
-      showNotification('error', `Failed to update watchlist: ${error.message || 'Unknown error'}`);
-      setIsWatched(currentlyWatched); // Revert optimistic UI
+      let message = 'Failed to update watchlist: Unknown error';
+      if (error instanceof Error) {
+        message = `Failed to update watchlist: ${error.message}`;
+      } else if (typeof error === 'string') {
+        message = `Failed to update watchlist: ${error}`;
+      }
+      showNotification('error', message);
+      // Revert optimistic UI
+      setIsWatched(currentlyWatched);
       if (!currentlyWatched) {
         removeFromWatchlistLocal(listingId);
       } else {
@@ -120,7 +127,7 @@ export default function WatchlistButton({ listingId, userId, size = 'md', classN
       disabled={isLoading || !userId}
       className={`p-1.5 rounded-full transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 dark:focus:ring-offset-gray-800
                   ${isWatched
-                    ? 'text-yellow-400 hover:text-yellow-500 dark:text-yellow-300 dark:hover:text-yellow-400' // Adjusted dark mode watched color
+                    ? 'text-yellow-400 hover:text-yellow-500 dark:text-yellow-300 dark:hover:text-yellow-400'
                     : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
                   }
                   ${isLoading ? 'opacity-50 cursor-wait' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}

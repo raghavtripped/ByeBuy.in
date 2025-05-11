@@ -5,7 +5,8 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import AuthWatchlistManager from '@/components/AuthWatchlistManager'; 
+import AuthWatchlistManager from '@/components/AuthWatchlistManager'; // ENSURE THIS IS UNCOMMENTED
+
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
@@ -24,9 +25,9 @@ export default function RootLayout({
         <ThemeScript />
       </head>
       <body
-        className={`${inter.className} bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen text-gray-900 dark:text-gray-800`}
+        className={`${inter.className} bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen text-gray-900 dark:text-gray-800`} // Note: text-gray-800 in dark mode might be hard to see
       >
-        {/* <AuthWatchlistManager /> */} {/* STEP 1: Comment out the usage */}
+        <AuthWatchlistManager /> {/* ENSURE THIS IS UNCOMMENTED */}
         <Navbar />
         <main className="pt-4 flex-grow container mx-auto px-4 sm:px-6 lg:p-8"> 
             {children}
