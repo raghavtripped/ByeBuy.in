@@ -2,22 +2,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient'; // Adjust path if necessary
-import { useWatchlistStore } from '@/stores/watchlistStore'; // Adjust path if necessary
+import { supabase } from '@/lib/supabaseClient';
+import { useWatchlistStore } from '@/stores/watchlistStore';
+import type { PostgrestError } from '@supabase/supabase-js';
 
-// Define showNotification locally
 const showNotification = (type: 'success' | 'error', message: string) => {
   if (typeof window !== 'undefined') {
-    if (type === 'success') {
-      alert(`Success: ${message}`);
-    } else {
-      alert(`Error: ${message}`);
-    }
+    if (type === 'success') alert(`Success: ${message}`);
+    else alert(`Error: ${message}`);
   }
   console.log(`WatchlistButton Notification (${type}): ${message}`);
 };
 
-// Simple Star SVG components
 const StarIconFilled = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
     <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401Z" clipRule="evenodd" />
@@ -30,13 +26,16 @@ const StarIconOutline = ({ className = "w-5 h-5" }: { className?: string }) => (
   </svg>
 );
 
-// Props interface definition
 interface WatchlistButtonProps {
   listingId: string;
   userId: string | undefined;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
+
+// Type for Supabase Postgrest response (simplified but more accurate for what we care about)
+type SupabaseMutationResponse = { data?: any | null; error: PostgrestError | null; status?: number };
+
 
 export default function WatchlistButton({ 
   listingId, 
@@ -67,100 +66,102 @@ export default function WatchlistButton({
       return;
     }
 
-    // Moved setIsLoading and currentlyWatched outside the new try block for clarity.
-    // The main try...catch will now handle errors from optimistic updates too if they occur.
-    const originallyWatched = isWatched; // Capture state before any changes
+    const originallyWatched = isWatched;
 
     try {
       setIsLoading(true);
       console.log(`WatchlistButton: (${listingId}) setIsLoading(true) done.`);
 
-      // Optimistic UI update
       const newOptimisticIsWatched = !originallyWatched;
       setIsWatched(newOptimisticIsWatched);
       console.log(`WatchlistButton: (${listingId}) Optimistically set isWatched to ${newOptimisticIsWatched}.`);
 
-      if (newOptimisticIsWatched) { // We are trying to watch
+      if (newOptimisticIsWatched) {
         addToWatchlistLocal(listingId);
         console.log(`WatchlistButton: (${listingId}) Called addToWatchlistLocal.`);
-      } else { // We are trying to unwatch
+      } else {
         removeFromWatchlistLocal(listingId);
         console.log(`WatchlistButton: (${listingId}) Called removeFromWatchlistLocal.`);
       }
 
-      const SUPABASE_OPERATION_TIMEOUT = 10000; // 10 seconds
+      const SUPABASE_OPERATION_TIMEOUT = 10000;
 
-      if (newOptimisticIsWatched) { // Trying to watch (INSERT)
+      if (newOptimisticIsWatched) {
         console.log(`WatchlistButton: (${listingId}) PRE-INSERT block for user ${userId}`);
-        const insertPromise = supabase
+        // CORRECTED: No explicit type needed for the builder variable here if used directly in Promise.race
+        const insertOperation = supabase
           .from('watched_listings')
           .insert({ user_id: userId, listing_id: listingId });
-        console.log(`WatchlistButton: (${listingId}) Insert promise created.`);
+        console.log(`WatchlistButton: (${listingId}) Insert operation configured.`);
 
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise<Error>((_, reject) => 
           setTimeout(() => reject(new Error(`Supabase INSERT timed out after ${SUPABASE_OPERATION_TIMEOUT/1000} seconds`)), SUPABASE_OPERATION_TIMEOUT)
         );
         console.log(`WatchlistButton: (${listingId}) Timeout promise for INSERT created.`);
 
-        // @ts-ignore 
-        const result: { error?: any } = await Promise.race([insertPromise, timeoutPromise]);
+        // The 'insertOperation' (builder) becomes a Promise when awaited or used in Promise.race
+        const result = await Promise.race([insertOperation, timeoutPromise]);
         console.log(`WatchlistButton: (${listingId}) Promise.race for INSERT completed. Result:`, result);
-        const insertError = result.error;
+        
+        if (result instanceof Error) throw result; // Timeout occurred
+        // If it's not an Error, it's the result from Supabase (SupabaseMutationResponse)
+        const insertError = (result as SupabaseMutationResponse).error; 
         
         console.log(`WatchlistButton: (${listingId}) Supabase INSERT result - error:`, insertError);
         if (insertError) {
           if (insertError.code === '23505') {
-            console.warn(`WatchlistButton: (${listingId}) DB unique violation on insert. Syncing (already watched).`);
-            // Already handled by optimistic update, but ensure store consistency if needed
-             if (!useWatchlistStore.getState().isWatched(listingId)) addToWatchlistLocal(listingId);
-             if (!isWatched) setIsWatched(true); // Double check button state
+            console.warn(`WatchlistButton: (${listingId}) DB unique violation on insert. Syncing.`);
+            if (!isWatched) setIsWatched(true); 
+            if (!useWatchlistStore.getState().isWatched(listingId)) addToWatchlistLocal(listingId);
           } else {
-            throw insertError; // Re-throw other DB errors
+            throw insertError; 
           }
         } else {
           console.log(`WatchlistButton: (${listingId}) Supabase INSERT successful.`);
         }
-      } else { // Trying to unwatch (DELETE)
+      } else { 
         console.log(`WatchlistButton: (${listingId}) PRE-DELETE block for user ${userId}`);
-        const deletePromise = supabase
+        // CORRECTED: No explicit type needed for the builder variable here
+        const deleteOperation = supabase
           .from('watched_listings')
           .delete()
           .eq('user_id', userId)
           .eq('listing_id', listingId);
-        console.log(`WatchlistButton: (${listingId}) Delete promise created.`);
+        console.log(`WatchlistButton: (${listingId}) Delete operation configured.`);
         
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise<Error>((_, reject) => 
             setTimeout(() => reject(new Error(`Supabase DELETE timed out after ${SUPABASE_OPERATION_TIMEOUT/1000} seconds`)), SUPABASE_OPERATION_TIMEOUT)
         );
         console.log(`WatchlistButton: (${listingId}) Timeout promise for DELETE created.`);
         
-        // @ts-ignore
-        const result: { error?: any } = await Promise.race([deletePromise, timeoutPromise]);
+        const result = await Promise.race([deleteOperation, timeoutPromise]);
         console.log(`WatchlistButton: (${listingId}) Promise.race for DELETE completed. Result:`, result);
-        const deleteError = result.error;
+
+        if (result instanceof Error) throw result; // Timeout occurred
+        const deleteError = (result as SupabaseMutationResponse).error;
 
         console.log(`WatchlistButton: (${listingId}) Supabase DELETE result - error:`, deleteError);
-        if (deleteError) throw deleteError; // Re-throw DB errors
+        if (deleteError) throw deleteError;
         console.log(`WatchlistButton: (${listingId}) Supabase DELETE successful.`);
       }
     } catch (error: unknown) {
       console.error(`WatchlistButton: (${listingId}) CATCH block. Error:`, error);
       
-      // Revert UI and store to the original state before this toggle attempt
       setIsWatched(originallyWatched);
-      if (originallyWatched) { // If it was originally watched (and we tried to unwatch)
+      if (originallyWatched) {
         if (!useWatchlistStore.getState().isWatched(listingId)) addToWatchlistLocal(listingId);
-      } else { // If it was originally not watched (and we tried to watch)
+      } else {
         if (useWatchlistStore.getState().isWatched(listingId)) removeFromWatchlistLocal(listingId);
       }
       console.log(`WatchlistButton: (${listingId}) Reverted UI and store to original pre-click state: ${originallyWatched}`);
 
       let message = 'Failed to update watchlist';
-      if (error instanceof Error) {
-        message = error.message; 
-      } else if (typeof error === 'string') {
-        message = error;
+      if (error instanceof Error) message = error.message; 
+      else if (typeof error === 'string') message = error;
+      else if (error && typeof error === 'object' && 'message' in error && typeof (error as {message: any}).message === 'string') {
+          message = (error as {message: string}).message;
       }
+      
       showNotification('error', `Update failed: ${message}`);
     } finally {
       setIsLoading(false);
