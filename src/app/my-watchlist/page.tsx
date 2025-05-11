@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 // Image is handled by ListingCard
 import { supabase, User } from '@/lib/supabaseClient';
-// REMOVED: import WatchlistButton from '@/components/WatchlistButton'; 
+// REMOVED WatchlistButton import as it's used within ListingCard
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ListingCard, { ListingCardItem } from '@/components/ListingCard';
 
@@ -127,8 +127,8 @@ export default function MyWatchlistPage() {
           <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1">
             <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.846 5.675a.5.5 0 00.475.345h5.975c.925 0 1.315 1.193.586 1.815l-4.834 3.51a.5.5 0 00-.182.557l1.846 5.675c.3.921-.751 1.688-1.538 1.162l-4.834-3.51a.5.5 0 00-.586 0l-4.834 3.51c-.787.526-1.838-.241-1.538-1.162l1.846-5.675a.5.5 0 00-.182-.557l-4.834-3.51c-.73-.622-.339-1.815.586-1.815h5.975a.5.5 0 00.475-.345L11.049 2.927z" />
           </svg>
-          {/* CORRECTED: Escaped apostrophe */}
           <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">Your watchlist is empty.</h3>
+          {/* THIS IS THE CORRECTED LINE 👇 */}
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Start browsing and add items you're interested in!
           </p>
