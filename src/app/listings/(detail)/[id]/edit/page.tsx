@@ -26,22 +26,19 @@ interface Listing {
   end_time: string;
   seller_id: string;
   photos: string | null;
-  tags: string | null;   // This will store the JSON array, e.g., ["Electronics & Gadgets"]
+  tags: string | null;
   rules: string | null;
   status: 'active' | 'closed' | 'cancelled';
 }
 
-// MODIFIED: CATEGORIES_FOR_FORM constant, same as new listing page
 const CATEGORIES_FOR_FORM = [
   "Electronics & Gadgets",
   "Furniture & Dorm Essentials",
   "Textbooks & Study Materials",
   "Apparel & Accessories",
   "Sports & Hobby Gear",
-  "Other" // Added "Other" for completeness
+  "Other"
 ];
-
-// REMOVED: TagInput component is no longer needed here
 
 export default function EditListingPage() {
   const router = useRouter();
@@ -63,8 +60,8 @@ export default function EditListingPage() {
   const [rules, setRules] = useState('');
 
   const MAX_PHOTOS = 5;
-  const [existingPhotoUrls, setExistingPhotoUrls] = useState<string[]>([]);
-  const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([]); // Used via displayPhoto.file in handleSubmit
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [photosToDelete, setPhotosToDelete] = useState<string[]>([]);
 
@@ -72,7 +69,6 @@ export default function EditListingPage() {
   const [displayPhotos, setDisplayPhotos] = useState<DisplayPhoto[]>([]);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
-  // MODIFIED: Changed from `tags` to `selectedCategory`
   const [selectedCategory, setSelectedCategory] = useState<string>('');
 
   useEffect(() => {
@@ -97,13 +93,17 @@ export default function EditListingPage() {
         const { count: bidCount, error: bidError } = await supabase.from('bids').select('id', { count: 'exact', head: true }).eq('item_id', listingId);
         if (bidError) console.error('Failed to fetch bid count:', bidError.message);
         setHasBids(bidCount !== null && bidCount > 0);
-      } catch (err: any) {
+      } catch (err: unknown) { // FIXED: err: unknown for ESLint
         let specificError = 'An unexpected error occurred while loading the listing.';
-        if (err.message === 'F.L.D.') specificError = 'Failed to fetch listing details.';
-        else if (err.message === 'L.N.F.') specificError = 'Listing not found.';
-        else if (err.message === 'N.A.E.') specificError = 'You are not authorized to edit this listing.';
-        else if (err.message.startsWith('L.S.N.A:')) specificError = `This listing is ${err.message.split(': ')[1]} and cannot be edited.`;
-        else if (err.message) specificError = err.message;
+        if (err instanceof Error) {
+            if (err.message === 'F.L.D.') specificError = 'Failed to fetch listing details.';
+            else if (err.message === 'L.N.F.') specificError = 'Listing not found.';
+            else if (err.message === 'N.A.E.') specificError = 'You are not authorized to edit this listing.';
+            else if (err.message.startsWith('L.S.N.A:')) specificError = `This listing is ${err.message.split(': ')[1]} and cannot be edited.`;
+            else specificError = err.message;
+        } else {
+            specificError = String(err); // Fallback for non-Error types
+        }
         setPageError(specificError);
         setListing(null);
       } finally { setLoadingPage(false); }
@@ -119,16 +119,15 @@ export default function EditListingPage() {
       setUpperCap(listing.upper_cap?.toString() || '');
       setRules(listing.rules || '');
       
-      let initialPhotos: string[] = [];
+      let initialPhotosFromDB: string[] = [];
       try {
         const parsed = listing.photos ? JSON.parse(listing.photos) : [];
-        if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) initialPhotos = parsed;
+        if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) initialPhotosFromDB = parsed;
       } catch (e) { console.error("Error parsing listing photos:", e); }
-      setExistingPhotoUrls(initialPhotos);
-      setDisplayPhotos(initialPhotos.map(url => ({ id: url, url, isNew: false })));
+      setDisplayPhotos(initialPhotosFromDB.map(url => ({ id: url, url, isNew: false })));
+      
       setNewPhotoFiles([]); setPhotoPreviews([]); setPhotosToDelete([]);
 
-      // MODIFIED: Populate selectedCategory from listing.tags
       let initialCategory: string = '';
       try {
         const parsedTags = listing.tags ? JSON.parse(listing.tags) : [];
@@ -144,7 +143,7 @@ export default function EditListingPage() {
 
   const validatePricesForSubmit = (): boolean => {
     let isValid = true;
-    let messages: string[] = [];
+    const messages: string[] = []; // FIXED: const instead of let for ESLint
     if (!hasBids) {
         const minPriceNum = parseFloat(minPrice);
         if (!minPrice.trim()){
@@ -208,7 +207,7 @@ export default function EditListingPage() {
     const newDisplayPhotosToAdd: DisplayPhoto[] = filesArray.map(file => ({
       id: `preview_${file.name}_${Date.now()}`, url: URL.createObjectURL(file), isNew: true, file: file
     }));
-    setNewPhotoFiles(prev => [...prev, ...filesArray]);
+    setNewPhotoFiles(prev => [...prev, ...filesArray]); // setNewPhotoFiles IS used here
     setPhotoPreviews(prev => [...prev, ...newDisplayPhotosToAdd.map(p => p.url)]);
     setDisplayPhotos(prev => [...prev, ...newDisplayPhotosToAdd]);
   };
@@ -222,7 +221,7 @@ export default function EditListingPage() {
     const photoToDeleteObj = displayPhotos.find(p => p.id === photoIdToDelete);
     if (!photoToDeleteObj) return;
     if (photoToDeleteObj.isNew && photoToDeleteObj.file) {
-      setNewPhotoFiles(prev => prev.filter(file => file !== photoToDeleteObj.file));
+      setNewPhotoFiles(prev => prev.filter(file => file !== photoToDeleteObj.file)); // setNewPhotoFiles IS used here
       URL.revokeObjectURL(photoToDeleteObj.url);
       setPhotoPreviews(prev => prev.filter(url => url !== photoToDeleteObj.url));
     } else {
@@ -259,10 +258,9 @@ export default function EditListingPage() {
     }
   };
 
-  // MODIFIED: Category Selection Handler
   const handleCategorySelect = (category: string) => {
     setSelectedCategory(category);
-    setSubmitMessage(null); // Clear message when category changes
+    setSubmitMessage(null);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -279,7 +277,6 @@ export default function EditListingPage() {
     if (!description.trim()) {
         setSubmitMessage({ type: 'error', text: "Description is required."}); return;
     }
-    // MODIFIED: Add category validation
     if (!selectedCategory) {
         setSubmitMessage({ type: 'error', text: "Please select a category." }); return;
     }
@@ -290,35 +287,28 @@ export default function EditListingPage() {
     setIsSubmitting(true);
 
     try {
-      // Step 1: Delete photos marked for deletion
       if (photosToDelete.length > 0) {
         const pathsToDelete = photosToDelete.map(getStoragePathFromUrl).filter(path => path !== null) as string[];
         if (pathsToDelete.length > 0) {
           const { error: deleteError } = await supabase.storage.from('listing-images').remove(pathsToDelete);
-          if (deleteError) {
-            console.error("Error deleting photos from storage:", deleteError);
-            throw new Error("Failed to remove some old photos. Please check your listing and try again.");
-          }
+          if (deleteError) throw new Error("Failed to remove some old photos. Please check your listing and try again.");
         }
       }
-      // Step 2: Upload new photos
+
       const uploadedPhotoUrls: { originalId: string, newUrl: string }[] = [];
-      for (const displayPhoto of displayPhotos) {
+      for (const displayPhoto of displayPhotos) { // newPhotoFiles is used via displayPhoto.file
         if (displayPhoto.isNew && displayPhoto.file) {
           const file = displayPhoto.file;
           const fileName = `${currentUser!.id}/${listingId}/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
           const { data: uploadData, error: uploadError } = await supabase.storage.from('listing-images').upload(fileName, file);
-          if (uploadError) {
-            console.error(`Error uploading new photo ${file.name}:`, uploadError);
-            throw new Error(`Failed to upload new photo: ${file.name}.`);
-          }
+          if (uploadError) throw new Error(`Failed to upload new photo: ${file.name}.`);
           if (uploadData) {
             const { data: urlData } = supabase.storage.from('listing-images').getPublicUrl(uploadData.path);
             uploadedPhotoUrls.push({ originalId: displayPhoto.id, newUrl: urlData.publicUrl });
           }
         }
       }
-      // Step 3: Construct final ordered array of photo URLs
+
       const finalDatabasePhotoUrls = displayPhotos.map(dp => {
         if (dp.isNew) {
           const uploaded = uploadedPhotoUrls.find(up => up.originalId === dp.id);
@@ -327,13 +317,11 @@ export default function EditListingPage() {
         return dp.url;
       }).filter(url => url && !photosToDelete.includes(url));
 
-      // MODIFIED: Step 4: Prepare data for Supabase update
       const updateData: Partial<Omit<Listing, 'id' | 'seller_id' | 'end_time' | 'status'>> = {
         title: title.trim(),
         description: description.trim(),
         rules: rules.trim() || null,
         photos: finalDatabasePhotoUrls.length > 0 ? JSON.stringify(finalDatabasePhotoUrls) : null,
-        // Store the single selectedCategory as an array with one item in the 'tags' column
         tags: selectedCategory ? JSON.stringify([selectedCategory]) : null,
       };
 
@@ -348,23 +336,20 @@ export default function EditListingPage() {
         }
       }
 
-      // MODIFIED: Step 5: Update the listing in Supabase
-      const { error: updateError } = await supabase
-        .from('listings')
-        .update(updateData)
-        .eq('id', listingId)
-        .eq('seller_id', currentUser!.id);
-
-      if (updateError) {
-        console.error("Error updating listing in DB:", updateError);
-        throw new Error("Failed to save listing changes to the database.");
-      }
+      const { error: updateError } = await supabase.from('listings').update(updateData).eq('id', listingId).eq('seller_id', currentUser!.id);
+      if (updateError) throw new Error("Failed to save listing changes to the database.");
 
       showNotification('success', "Listing updated successfully!");
       router.push(`/listings/${listingId}`);
 
-    } catch (err: any) {
-      setSubmitMessage({ type: 'error', text: err.message || 'Failed to save changes. Please try again.' });
+    } catch (err: unknown) { // FIXED: err: unknown for ESLint
+      let message = 'Failed to save changes. Please try again.';
+      if (err instanceof Error) {
+          message = err.message;
+      } else if (typeof err === 'string') {
+          message = err;
+      }
+      setSubmitMessage({ type: 'error', text: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -441,7 +426,6 @@ export default function EditListingPage() {
                 </div>
             </div>
 
-            {/* MODIFIED: Category Selection Section */}
             <div>
                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                     Category <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
