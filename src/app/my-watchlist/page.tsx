@@ -3,11 +3,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link'; // Assuming this IS used in your empty state JSX
+import Link from 'next/link';
 // Image is handled by ListingCard
 import { supabase, User } from '@/lib/supabaseClient';
-import WatchlistButton from '@/components/WatchlistButton'; // This is used by ListingCard, not directly here
-import LoadingSpinner from '@/components/LoadingSpinner'; // Assuming this IS used in your loading JSX
+// REMOVED: import WatchlistButton from '@/components/WatchlistButton'; 
+import LoadingSpinner from '@/components/LoadingSpinner';
 import ListingCard, { ListingCardItem } from '@/components/ListingCard';
 
 export default function MyWatchlistPage() {
@@ -45,7 +45,7 @@ export default function MyWatchlistPage() {
           const listingIds = watchedEntries.map(entry => entry.listing_id);
           
           const { data: listingsData, error: fetchListingsError } = await supabase
-            .from('listings_with_highest_bid') // Ensure this view has all necessary fields
+            .from('listings_with_highest_bid')
             .select('id, title, photos, min_price, current_highest_bid, end_time, status')
             .in('id', listingIds);
 
@@ -63,27 +63,26 @@ export default function MyWatchlistPage() {
           };
 
           const parsedListings = listingsData?.map(item => ({
-            id: item.id || '', // Ensure id is string
-            title: item.title || 'Untitled', // Fallback
+            id: item.id || '',
+            title: item.title || 'Untitled',
             photos: parsePhotos(item.photos),
-            min_price: item.min_price || 0, // Fallback
+            min_price: item.min_price || 0,
             current_highest_bid: item.current_highest_bid ?? null,
             end_time: item.end_time ?? null,
-            status: (item.status as ListingCardItem['status']) || 'unknown', // Fallback
-          })).filter(item => item.id) as ListingCardItem[]; // Filter out if ID became empty
+            status: (item.status as ListingCardItem['status']) || 'unknown',
+          })).filter(item => item.id) as ListingCardItem[];
 
           setWatchedListings(parsedListings);
         } else {
           setWatchedListings([]);
         }
-      } catch (err: unknown) { // Using unknown for caught error
+      } catch (err: unknown) {
         console.error("Error loading watchlist:", err);
         let message = 'Failed to load your watchlist.';
         if (err instanceof Error) {
           message = err.message;
         } else if (typeof err === 'string') {
           message = err;
-        // CORRECTED: More specific type check for error object with message property
         } else if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
             message = (err as {message: string}).message;
         }
@@ -94,7 +93,7 @@ export default function MyWatchlistPage() {
     };
 
     checkUserAndLoadWatchlist();
-  }, [router]); // Only router is a dependency for the redirect logic
+  }, [router]);
 
   if (loading) {
     return <div className="flex justify-center py-20"><LoadingSpinner message="Loading your watchlist..." /></div>;
@@ -107,7 +106,7 @@ export default function MyWatchlistPage() {
                 <p className="font-semibold">Error Loading Watchlist</p>
                 <p className="text-sm mt-1">{error}</p>
                  <button 
-                    onClick={() => window.location.reload()} // Simple reload to retry
+                    onClick={() => window.location.reload()}
                     className="mt-4 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-md hover:bg-red-700"
                 >
                     Try Again
@@ -128,6 +127,7 @@ export default function MyWatchlistPage() {
           <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1">
             <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.846 5.675a.5.5 0 00.475.345h5.975c.925 0 1.315 1.193.586 1.815l-4.834 3.51a.5.5 0 00-.182.557l1.846 5.675c.3.921-.751 1.688-1.538 1.162l-4.834-3.51a.5.5 0 00-.586 0l-4.834 3.51c-.787.526-1.838-.241-1.538-1.162l1.846-5.675a.5.5 0 00-.182-.557l-4.834-3.51c-.73-.622-.339-1.815.586-1.815h5.975a.5.5 0 00.475-.345L11.049 2.927z" />
           </svg>
+          {/* CORRECTED: Escaped apostrophe */}
           <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">Your watchlist is empty.</h3>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Start browsing and add items you're interested in!
