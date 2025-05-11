@@ -1,10 +1,10 @@
 // src/components/AuthWatchlistManager.tsx
 'use client';
 
-import { useEffect } from 'react'; // REMOVED useCallback
-import { supabase } from '@/lib/supabaseClient';
+import { useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient'; // User type will be inferred from store actions
 import { useWatchlistStore } from '@/stores/watchlistStore';
-import type { User } from '@supabase/supabase-js'; // It's good to be explicit with User type from Supabase
+// REMOVED: import type { User } from '@supabase/supabase-js'; // This import is not needed here
 
 export default function AuthWatchlistManager() {
   const fetchWatchedListings = useWatchlistStore(state => state.fetchWatchedListings);
@@ -21,15 +21,15 @@ export default function AuthWatchlistManager() {
           console.error("AuthWM: Error getting session:", sessionError.message);
           clearWatchlist(); return;
         }
-        const currentUser = session?.user ?? null;
+        const currentUser = session?.user ?? null; // currentUser will be of type User | null from Supabase
         // console.log('AuthWM: getInitialUserAndWatchlist - User ID:', currentUser?.id);
         if (currentUser) {
-          await fetchWatchedListings(currentUser);
+          await fetchWatchedListings(currentUser); // fetchWatchedListings in store expects User | null
         } else {
           clearWatchlist();
         }
         // console.log('AuthWM: getInitialUserAndWatchlist - END');
-      } catch (e: unknown) { // Explicitly type catch error
+      } catch (e: unknown) {
         console.error("AuthWM: CATCH in getInitialUserAndWatchlist", e instanceof Error ? e.message : String(e));
         clearWatchlist();
       }
@@ -40,7 +40,7 @@ export default function AuthWatchlistManager() {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         // console.log('AuthWM: onAuthStateChange event:', event, 'Session user ID:', session?.user?.id);
-        const currentUser = session?.user ?? null;
+        const currentUser = session?.user ?? null; // currentUser will be of type User | null
 
         if (event === 'SIGNED_IN' && currentUser) {
           // console.log('AuthWM: SIGNED_IN - fetching watchlist');
