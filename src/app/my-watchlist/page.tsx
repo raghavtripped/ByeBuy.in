@@ -20,7 +20,7 @@ export default function MyWatchlistPage() {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError || !session?.user) {
-        console.log("MyWatchlistPage: No user session, redirecting to login.");
+        // console.log("MyWatchlistPage: No user session, redirecting to login.");
         router.push('/auth?redirect=/my-watchlist');
         return;
       }
@@ -43,7 +43,7 @@ export default function MyWatchlistPage() {
           const listingIds = watchedEntries.map(entry => entry.listing_id);
           
           const { data: listingsData, error: fetchListingsError } = await supabase
-            .from('listings_with_highest_bid')
+            .from('listings_with_highest_bid') // Ensure this view has all necessary fields
             .select('id, title, photos, min_price, current_highest_bid, end_time, status')
             .in('id', listingIds);
 
@@ -62,12 +62,12 @@ export default function MyWatchlistPage() {
 
           const parsedListings = listingsData?.map(item => ({
             id: item.id || '',
-            title: item.title || 'Untitled',
+            title: item.title || 'Untitled Listing', // Fallback for title
             photos: parsePhotos(item.photos),
-            min_price: item.min_price || 0,
+            min_price: item.min_price || 0, // Fallback for min_price
             current_highest_bid: item.current_highest_bid ?? null,
             end_time: item.end_time ?? null,
-            status: (item.status as ListingCardItem['status']) || 'unknown',
+            status: (item.status as ListingCardItem['status']) || 'unknown', // Fallback for status
           })).filter(item => item.id) as ListingCardItem[];
 
           setWatchedListings(parsedListings);
@@ -91,7 +91,7 @@ export default function MyWatchlistPage() {
     };
 
     checkUserAndLoadWatchlist();
-  }, [router]);
+  }, [router]); // router is a dependency for the redirect logic
 
   if (loading) {
     return <div className="flex justify-center py-20"><LoadingSpinner message="Loading your watchlist..." /></div>;
@@ -127,7 +127,7 @@ export default function MyWatchlistPage() {
           </svg>
           <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">Your watchlist is empty.</h3>
           {/* ===================================================================== */}
-          {/* THE ONLY LINE CHANGED TO FIX THE react/no-unescaped-entities ERROR  */}
+          {/*                  ENSURED APOSTROPHE IS ESCAPED                      */}
           {/* ===================================================================== */}
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Start browsing and add items you're interested in!
