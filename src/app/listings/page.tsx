@@ -185,7 +185,7 @@ export default function ListingsPage() {
 
       <div className="mb-6 sm:mb-8">
         <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2 whitespace-nowrap">Filter by Category:</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2 whitespace-nowrap">Category:</span>
           {PREDEFINED_CATEGORIES.map(category => (
             <button
               key={category}
