@@ -19,13 +19,14 @@ import {
 } from '@/lib/timeUtils';
 import { formatCurrency } from '@/lib/formatUtils';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import WatchlistButton from '@/components/WatchlistButton'; // Adjust path if necessary
+import WatchlistButton from '@/components/WatchlistButton';
+import ListingChat from '@/components/ListingChat'; // Import ListingChat
 
 // --- Type Definitions ---
 type Listing = {
   id: string;
   title: string;
-  description: string;
+  description: string; 
   min_price: number;
   photos: string[] | null;
   end_time?: string | null;
@@ -47,7 +48,7 @@ type Bid = {
   bidder_email?: string | null;
 };
 
-type ListingTablePayload = Partial<Omit<Listing, 'photos' | 'tags'> & { photos: string | string[] | null, tags: string | string[] | null }> & { id: string };
+type ListingTablePayload = Partial<Omit<Listing, 'photos' | 'tags'> & { photos: string | string[] | null, tags?: string | string[] | null }> & { id: string };
 type BidTablePayload = Partial<Bid> & { item_id?: string; id?: string };
 
 // --- Helper Icons ---
@@ -72,7 +73,7 @@ export default function ListingDetails() {
   const [listing, setListing] = useState<Listing | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [price, setPrice] = useState('');
-  const [user, setUser] = useState<User | null>(null); // This is your currentUser
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bidStatusMessage, setBidStatusMessage] = useState<string | null>(null);
@@ -97,7 +98,7 @@ export default function ListingDetails() {
     setLoading(true); setError(null); setBids([]); setPrice(''); setWinnerEmail(null);
 
     try {
-      let fetchedListingData: Partial<Listing> & { id: string, status: Listing['status'] } | null = null;
+      let fetchedListingData: Partial<Listing> & { id: string, status: Listing['status'], description: string } | null = null;
       const { data: archivedData, error: archivedError } = await supabase
         .from('archived_listings_details').select('*').eq('id', id).maybeSingle();
 
@@ -106,6 +107,7 @@ export default function ListingDetails() {
       if (archivedData) {
           fetchedListingData = {
               ...archivedData, photos: parseListingPhotos(archivedData.photos),
+              description: archivedData.description || '', 
               status: archivedData.status as Listing['status'], final_sale_price: archivedData.final_sale_price,
           };
           if (archivedData.winner_email) setWinnerEmail(archivedData.winner_email);
@@ -116,7 +118,12 @@ export default function ListingDetails() {
               .eq('id', id).maybeSingle();
           if (lError) throw lError;
           if (!lData) { setError('Listing not found.'); setLoading(false); return; }
-          fetchedListingData = { ...lData, photos: parseListingPhotos(lData.photos), status: lData.status as Listing['status'] };
+          fetchedListingData = { 
+              ...lData, 
+              photos: parseListingPhotos(lData.photos), 
+              description: lData.description || '', 
+              status: lData.status as Listing['status'] 
+            };
           if (fetchedListingData.status === 'closed' && fetchedListingData.winning_bidder_id) {
               if (fetchedListingData.winning_bid_id) {
                   const {data: WBidData} = await supabase.from('bids').select('bid_price').eq('id', fetchedListingData.winning_bid_id).single();
@@ -127,56 +134,81 @@ export default function ListingDetails() {
           }
       }
       if (!fetchedListingData) { setError('Listing not found after all attempts.'); setLoading(false); return; }
-      setListing(fetchedListingData as Listing);
+      setListing(fetchedListingData as Listing); // Cast to full Listing type
 
       const { data: bData, error: bError } = await supabase.from('bids_with_bidder_email').select('*').eq('item_id', id).order('timestamp', { ascending: false });
       if (bError) throw bError;
       setBids(bData ?? []);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Data loading error:", err);
-      setError(`Error loading details: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      let message = 'Error loading details.';
+      if (err instanceof Error) message = err.message;
+      else if (typeof err === 'string') message = err;
+      setError(message);
     } finally { setLoading(false); }
   }, [id]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
     loadData();
-    const bidsChannel = supabase.channel(`listing-bids-${id}`);
+    
+    const bidsChannelName = `listing-bids-${id}`;
+    const bidsChannel = supabase.channel(bidsChannelName);
     bidsChannel.on<BidTablePayload>(
         'postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` },
         async (payload) => {
           if (payload.new?.id) {
             const { data: newBid } = await supabase.from('bids_with_bidder_email').select('*').eq('id', payload.new.id).single();
-            if (newBid) setBids((cb) => [newBid as Bid, ...cb.filter((b) => b.id !== newBid.id)]);
+            if (newBid) setBids((cb) => {
+                // Prevent duplicate if already present (e.g. from initial load + RT)
+                if (cb.find(b => b.id === newBid.id)) return cb;
+                return [newBid as Bid, ...cb];
+            });
           }
         }
-      ).subscribe();
-    const listingChannel = supabase.channel(`listing-details-status-${id}`);
+      ).subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR') console.error(`Bids RT Channel Error (${bidsChannelName}):`, err);
+        else if (status === 'TIMED_OUT') console.warn(`Bids RT Channel Timeout (${bidsChannelName})`);
+      });
+
+    const listingChannelName = `listing-details-status-${id}`;
+    const listingChannel = supabase.channel(listingChannelName);
     listingChannel.on<ListingTablePayload>(
         'postgres_changes', { event: 'UPDATE', schema: 'public', table: 'listings', filter: `id=eq.${id}` },
         (payload) => { 
           const updated = payload.new; if (!updated) return;
+          console.log("ListingDetailsPage: Realtime update received for listing:", id, updated);
           setListing(prev => {
-            if (!prev) return null;
-            let needsFullReload = false;
+            if (!prev) return null; // Should not happen if listing was loaded
+            // Check for status change or winner change to trigger full reload
             if ((updated.status && prev.status !== updated.status) ||
                 (updated.winning_bidder_id !== undefined && prev.winning_bidder_id !== updated.winning_bidder_id) ||
                 (updated.winning_bid_id !== undefined && prev.winning_bid_id !== updated.winning_bid_id)) {
-                needsFullReload = true;
+                console.log("ListingDetailsPage: Realtime update triggered full reload due to status/winner change for listing:", id);
+                loadData(); // Reload all data for consistency on major status changes
+                return prev; // Return current state, loadData will update it
             }
-            if (needsFullReload) { loadData(); return prev; }
+            // For other minor updates, update granularly
             const newPartial: Partial<Listing> = {};
             if (updated.title !== undefined && prev.title !== updated.title) newPartial.title = updated.title;
-            if (updated.description !== undefined && prev.description !== updated.description) newPartial.description = updated.description;
+            if (updated.description !== undefined && prev.description !== updated.description) newPartial.description = updated.description || '';
             if (updated.min_price !== undefined && prev.min_price !== updated.min_price) newPartial.min_price = updated.min_price;
             if (updated.upper_cap !== undefined && prev.upper_cap !== updated.upper_cap) newPartial.upper_cap = updated.upper_cap;
             if (updated.rules !== undefined && prev.rules !== updated.rules) newPartial.rules = updated.rules;
             if (updated.photos !== undefined) newPartial.photos = parseListingPhotos(updated.photos);
+            
             return Object.keys(newPartial).length > 0 ? { ...prev, ...newPartial } : prev;
           });
         }
-      ).subscribe();
-    return () => { supabase.removeChannel(bidsChannel); supabase.removeChannel(listingChannel); };
+      ).subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR') console.error(`Listing RT Channel Error (${listingChannelName}):`, err);
+        else if (status === 'TIMED_OUT') console.warn(`Listing RT Channel Timeout (${listingChannelName})`);
+      });
+
+    return () => { 
+        supabase.removeChannel(bidsChannel).catch(err => console.error("Error removing bidsChannel", err)); 
+        supabase.removeChannel(listingChannel).catch(err => console.error("Error removing listingChannel", err));
+    };
   }, [id, loadData]);
 
   const auctionEnded = !!(listing && (listing.status === 'closed' || listing.status === 'cancelled'));
@@ -187,10 +219,8 @@ export default function ListingDetails() {
     if (!listing || auctionEnded) return { sliderMin: 1, sliderMax: 100, sliderStep: 1, displaySlider: false };
     const nextValidBid = Math.max(listing.min_price, currentHighestBidVal + 1);
     if (listing.upper_cap && nextValidBid >= listing.upper_cap) return { sliderMin: nextValidBid, sliderMax: nextValidBid, sliderStep: 1, displaySlider: false };
-    
     const sMin = nextValidBid;
     let sMax: number;
-
     if (listing.upper_cap && listing.upper_cap > sMin) { sMax = listing.upper_cap - 1; }
     else {
       const base = currentHighestBidVal || listing.min_price;
@@ -200,7 +230,6 @@ export default function ListingDetails() {
     if (sMax <= sMin) sMax = sMin + Math.max(100, Math.ceil(sMin * 0.1));
     if (listing.upper_cap && sMax >= listing.upper_cap) sMax = listing.upper_cap - 1;
     if (sMax <= sMin) return { sliderMin: sMin, sliderMax: sMin, sliderStep: 1, displaySlider: false };
-    
     let sStep = 1; const range = sMax - sMin;
     if (range <= 100) sStep = 1; else if (range <= 500) sStep = 5; else if (range <= 2000) sStep = 10;
     else if (range <= 10000) sStep = 50; else if (range <= 50000) sStep = 100; else sStep = 250;
@@ -209,42 +238,38 @@ export default function ListingDetails() {
 
   useEffect(() => {
       if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) {
-          setCountdown(null);
-          return;
+          setCountdown(null); return;
       }
-
       const updateTimer = (): boolean => {
           if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) {
-              setCountdown(null);
-              return true; 
+              setCountdown(null); return true; 
           }
           const remaining = formatCountdown(listing.end_time);
           setCountdown(remaining);
-          if (remaining === null) {
-              return true; 
+          if (remaining === "Auction Ended") {
+            if (!auctionEnded) { // If local auctionEnded state isn't yet true
+                console.log("ListingDetailsPage: Countdown timer ended, triggering data reload for listing:", id);
+                loadData(); // Re-fetch to get confirmed closed status
+            }
+            return true;
           }
           return false;
       };
-
       if (updateTimer()) return;
-
-      const intervalId = window.setInterval(() => {
-          if (updateTimer()) {
-              clearInterval(intervalId);
-          }
-      }, 1000);
-
-      return () => {
-          clearInterval(intervalId);
-      };
-  }, [listing?.end_time, listing?.status, auctionEnded]);
+      const intervalId = window.setInterval(() => { if (updateTimer()) clearInterval(intervalId); }, 1000);
+      return () => clearInterval(intervalId);
+  }, [listing?.end_time, listing?.status, auctionEnded, loadData, id]); // Added id to dependencies as it's used in log
 
 
   const placeBid = async () => {
     setBidStatusMessage(null);
-    if (!user) { router.push('/auth'); return; }
+    if (!user) { router.push('/auth?redirect=/listings/' + id); return; } // Add redirect back to current page
     if (!listing) return;
-    if (auctionEnded || (listing.end_time && isPast(listing.end_time))) { setBidStatusMessage('⚠️ Auction has ended.'); loadData(); return; }
+    if (auctionEnded || (listing.end_time && isPast(listing.end_time))) { 
+        setBidStatusMessage('⚠️ Auction has ended.'); 
+        if (!auctionEnded) loadData(); // If local state isn't updated, refresh
+        return; 
+    }
     if (user.id === listing.seller_id) { setBidStatusMessage('⚠️ You cannot bid on your own item.'); return; }
     const amt = parseInt(price, 10);
     if (isNaN(amt) || amt <= 0) { setBidStatusMessage('⚠️ Enter a valid positive whole number bid.'); return; }
@@ -254,19 +279,20 @@ export default function ListingDetails() {
     try {
       const { error: insertError } = await supabase.from('bids').insert({ item_id: id, bidder_id: user.id, bid_price: amt });
       if (insertError) throw insertError;
-      setPrice(''); setBidStatusMessage('✅ Bid placed successfully!'); setTimeout(() => setBidStatusMessage(null), 4000);
+      setPrice(''); 
+      setBidStatusMessage('✅ Bid placed successfully!'); 
+      setTimeout(() => setBidStatusMessage(null), 4000);
     } catch (err: unknown) {
         console.error("Bid failed:", err);
         let userMessage = '❌ Bid failed: An unexpected error occurred.';
         if (err instanceof Error) {
             userMessage = `❌ Bid failed: ${err.message.substring(0, 100)}`;
-            if (typeof err === 'object' && err !== null) {
-                const potentialError = err as { code?: string; details?: string; message?: string };
-                if (potentialError.code === '23514' || potentialError.details?.includes('violates check constraint')) {
-                    userMessage = '❌ Bid failed: The bid amount is invalid or violates auction rules.';
-                } else if (potentialError.message?.toLowerCase().includes('row-level security policy')) {
-                    userMessage = '❌ Bid failed: You do not have permission to place this bid.';
-                }
+            // More specific error checking for Supabase/Postgres errors
+            const potentialError = err as { code?: string; details?: string; message?: string };
+            if (potentialError.code === '23514' || potentialError.details?.includes('violates check constraint')) { // Check constraint violation
+                userMessage = '❌ Bid failed: The bid amount is invalid or violates auction rules.';
+            } else if (potentialError.message?.toLowerCase().includes('row-level security policy')) { // RLS violation
+                userMessage = '❌ Bid failed: You do not have permission to place this bid.';
             }
         }
         setBidStatusMessage(userMessage);
@@ -277,9 +303,14 @@ export default function ListingDetails() {
   if (error) return <p className="p-6 text-center text-red-600 dark:text-red-400 font-medium">{error}</p>;
   if (!listing) return <p className="p-6 text-center text-gray-700 dark:text-gray-300">Listing details could not be loaded.</p>;
 
-  const timeDisplay = auctionEnded ? (listing.end_time ? `Ended ${formatRelativeTime(listing.end_time)}` : 'Auction Ended')
-    : countdown !== null ? `Ends in: ${countdown}` : (listing.end_time ? `Ends ${formatRelativeTime(listing.end_time)}` : 'No end time set');
-  const sliderSettings = { dots: false, infinite: photos.length > 1, speed: 500, slidesToShow: 1, slidesToScroll: 1, arrows: true, adaptiveHeight: true };
+  const timeDisplay = auctionEnded 
+    ? (listing.end_time ? `Ended ${formatRelativeTime(listing.end_time)}` : 'Auction Ended')
+    : countdown === "Auction Ended" 
+    ? "Processing end..." 
+    : countdown !== null ? `Ends in: ${countdown}` 
+    : (listing.end_time ? `Ends ${formatRelativeTime(listing.end_time)}` : 'No end time set');
+    
+  const sliderSettings = { dots: false, infinite: photos.length > 1, speed: 500, slidesToShow: 1, slidesToScroll: 1, arrows: photos.length > 1, adaptiveHeight: true }; // Hide arrows if only 1 photo
   const typedPriceNum = parseInt(price);
   const showExceedsSliderNote = displaySlider && !isNaN(typedPriceNum) && typedPriceNum > sliderMax && typedPriceNum >= sliderMin && (listing.upper_cap ? typedPriceNum < listing.upper_cap : true);
 
@@ -300,18 +331,17 @@ export default function ListingDetails() {
         </div>
 
         <div className={`w-full ${photos.length > 0 ? 'md:w-1/2' : ''} space-y-4`}>
-            {/* MODIFIED/NEW: Flex container for title and watchlist button */}
             <div className="flex items-center space-x-3">
               <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100 break-words">
                 {listing.title}
               </h1>
-              {/* NEW: WatchlistButton integration */}
-              {user !== undefined && listing && ( // Only render if user state is determined and listing is loaded
+              {/* WatchlistButton integration */}
+              {user !== undefined && listing && ( 
                 <WatchlistButton
                   listingId={listing.id}
-                  userId={user?.id} // Pass current user's ID, or undefined if not logged in
+                  userId={user?.id} 
                   size="md" 
-                  className="flex-shrink-0 mt-1" 
+                  className="flex-shrink-0 mt-1 sm:mt-0" 
                 />
               )}
             </div>
@@ -371,6 +401,7 @@ export default function ListingDetails() {
         </div>
       </section>
 
+      {/* Section 2: "Place Your Bid" Card */}
       {!auctionEnded && (
         <section className="my-8 py-6 bg-gray-100 dark:bg-gray-800/40 rounded-xl shadow-inner">
             <div className="max-w-lg mx-auto bg-white dark:bg-gray-800 shadow-xl rounded-lg p-6 sm:p-8">
@@ -419,12 +450,13 @@ export default function ListingDetails() {
                 ) : user && user.id === listing.seller_id ? (
                     <div className="p-3 border border-yellow-300 dark:border-yellow-700 rounded-md bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 text-center text-sm">You cannot place bids on your own listing.</div>
                 ) : (
-                    <div className="p-3 border border-blue-200 dark:border-blue-700 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-center text-sm">Please{' '} <Link href="/auth" className="font-bold underline hover:text-blue-900 dark:hover:text-blue-200">log in</Link>{' '} to place a bid.</div>
+                    <div className="p-3 border border-blue-200 dark:border-blue-700 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-center text-sm">Please{' '} <Link href={`/auth?redirect=/listings/${id}`} className="font-bold underline hover:text-blue-900 dark:hover:text-blue-200">log in</Link>{' '} to place a bid.</div>
                 )}
             </div>
         </section>
       )}
 
+      {/* Section 3: Description */}
       <section>
           <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Description</h3>
           <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800">
@@ -432,6 +464,7 @@ export default function ListingDetails() {
           </div>
       </section>
 
+      {/* Section 4: Rules (if any) */}
       {listing.rules && (
         <section>
              <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Auction Rules</h3>
@@ -441,6 +474,14 @@ export default function ListingDetails() {
         </section>
       )}
 
+      {/* NEW: Section for Listing Chat - PLACED HERE, BELOW RULES */}
+      <section className="pt-8 border-t border-gray-200 dark:border-gray-700">
+        {id && user !== undefined && ( // Render only if listing ID and user state are determined
+            <ListingChat listingId={id} currentUser={user} />
+        )}
+      </section>
+
+      {/* Section 5: Bid History */}
       <section className="pt-8 border-t border-gray-200 dark:border-gray-700">
          <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-white"> Bid History ({bids.length}) </h2>
          {bids.length === 0 ? ( <p className="text-gray-600 dark:text-gray-400">No bids have been placed yet.</p> ) : (
@@ -455,7 +496,9 @@ export default function ListingDetails() {
          )}
       </section>
 
+      {/* Global Styles for Slick Slider & Custom Scrollbar */}
       <style jsx global>{`
+        /* Slick Slider Arrow Styling */
         .slick-prev, .slick-next {
            position: absolute !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 10 !important;
            width: 40px !important; height: 40px !important; background-color: rgba(0, 0, 0, 0.3) !important;
@@ -469,19 +512,20 @@ export default function ListingDetails() {
             font-family: 'slick' !important; font-size: 18px !important; color: white !important;
             opacity: 1 !important; line-height: normal !important; display: block !important;
         }
-        .slick-dots { display: none !important; }
+        .slick-dots { display: none !important; } /* Hiding dots as per original */
         @media (max-width: 640px) {
              .slick-prev { left: 5px !important; } .slick-next { right: 5px !important; }
              .slick-prev, .slick-next { width: 32px !important; height: 32px !important; }
              .slick-prev:before, .slick-next:before { font-size: 14px !important; }
         }
 
+        /* Optional Custom Scrollbar for Bid History */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #4a5568; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #718096; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; /* Tailwind gray-300 */ }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; /* Tailwind gray-400 */ }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #4b5563; /* Tailwind gray-600 */ }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #374151; /* Tailwind gray-700 */ }
       `}</style>
     </main>
   );
