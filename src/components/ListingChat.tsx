@@ -1,11 +1,11 @@
 // src/components/ListingChat.tsx
 'use client';
 
-import { useState, useEffect, FormEvent, ChangeEvent, useRef } from 'react';
-import { supabase, User } from '@/lib/supabaseClient'; // Assuming User type is needed/used
+import { useState, useEffect, FormEvent, ChangeEvent, useRef, useCallback } from 'react'; // Added useCallback
+import { supabase, User } from '@/lib/supabaseClient';
 import { formatRelativeTime } from '@/lib/timeUtils';
 import Link from 'next/link';
-// REMOVED: import type { RealtimeChannel } from '@supabase/supabase-js'; 
+// Removed RealtimeChannel import as realtime is currently disabled
 
 interface ChatMessage {
   id: string;
@@ -13,11 +13,8 @@ interface ChatMessage {
   sender_id: string | null;
   content: string;
   created_at: string;
-  sender_email?: string | null; // From the view 'listing_chats_with_sender_email'
+  sender_email?: string | null;
 }
-
-// REMOVED: RawChatMessagePayload as realtime subscription is removed
-// type RawChatMessagePayload = { ... };
 
 interface ListingChatProps {
   listingId: string;
@@ -30,7 +27,9 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const messagesEndRef = useRef<null | HTMLDivElement>(null);
+  
+  // MODIFIED: Ref for the scrollable message container div
+  const messageContainerRef = useRef<null | HTMLDivElement>(null); 
 
   const showNotification = (type: 'success' | 'error', message: string) => {
     if (typeof window !== 'undefined') {
@@ -40,8 +39,8 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
     console.log(`ListingChat Notification (${type}): ${message}`);
   };
 
-  // Renamed to make it callable for re-fetching after send
-  const fetchInitialMessages = async () => {
+  // Wrapped fetchInitialMessages in useCallback as it's in useEffect dependency array
+  const fetchInitialMessages = useCallback(async () => {
     if (!listingId) {
       setLoadingMessages(false);
       setError("No listing ID provided for chat.");
@@ -53,7 +52,7 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
     setError(null);
     try {
       const { data, error: fetchError } = await supabase
-        .from('listing_chats_with_sender_email') // Uses the view
+        .from('listing_chats_with_sender_email')
         .select('*')
         .eq('listing_id', listingId)
         .order('created_at', { ascending: true });
@@ -76,30 +75,21 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
     } finally {
       setLoadingMessages(false);
     }
-  };
+  }, [listingId]); // listingId is the dependency
 
-  // Fetch initial messages on mount or when listingId changes
   useEffect(() => {
     fetchInitialMessages();
-  }, [listingId]); // Re-fetch if listingId changes
+  }, [fetchInitialMessages]); // Now fetchInitialMessages is a stable dependency
 
 
-  // REMOVED: Realtime subscription useEffect block
-  // useEffect(() => {
-  //   if (!listingId) return;
-  //   ... (realtime logic was here) ...
-  //   return () => {
-  //     if (channel) { ... supabase.removeChannel(channel) ... }
-  //   };
-  // }, [listingId]);
-
-
-  // Auto-scrolling
+  // MODIFIED: Auto-scrolling for the message container
   useEffect(() => {
-    if (messages.length) {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messageContainerRef.current;
+    if (container) {
+      // Scroll to the bottom of the container
+      container.scrollTop = container.scrollHeight;
     }
-  }, [messages]);
+  }, [messages]); // Scroll whenever messages array updates
 
   const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault();
@@ -124,10 +114,9 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
       if (insertError) {
         throw insertError;
       }
-      // MODIFIED: Notification text
       showNotification('success', 'Message sent! Refresh the page to see your message and any new replies.');
-      // Optionally, to show user's own message immediately without full page refresh:
-      // await fetchInitialMessages(); // This will refetch all messages including the new one
+      // To show user's own message immediately without full page refresh:
+      // await fetchInitialMessages(); // This will refetch all messages
     } catch (err: unknown) {
       console.error("ListingChat: Error sending message:", err);
       showNotification('error', `Failed to send message: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -171,12 +160,15 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
     <div className="mt-8 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow">
       <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-100">Listing Chat</h3>
       
-      {/* NEW: Message prompting refresh, placed above the message list */}
       <p className="text-xs text-center text-gray-500 dark:text-gray-400 mb-3 italic">
         New messages may not appear in real-time. Refresh the page to see the latest.
       </p>
 
-      <div className="h-64 max-h-[40vh] overflow-y-auto mb-4 space-y-3 pr-2 custom-scrollbar border-b border-gray-200 dark:border-gray-700 pb-2">
+      {/* MODIFIED: This div is now the scrollable container and has the ref */}
+      <div 
+        ref={messageContainerRef}
+        className="h-64 max-h-[40vh] overflow-y-auto mb-4 space-y-3 pr-2 custom-scrollbar border-b border-gray-200 dark:border-gray-700 pb-2"
+      >
         {messages.length === 0 && !loadingMessages ? (
           <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">No messages yet. Be the first to chat!</p>
         ) : (
@@ -198,7 +190,7 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
             </div>
           ))
         )}
-        <div ref={messagesEndRef} />
+        {/* REMOVED: messagesEndRef div as we scroll the container directly */}
       </div>
 
       {currentUser ? (
