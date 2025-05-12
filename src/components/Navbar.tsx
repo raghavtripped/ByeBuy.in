@@ -1,78 +1,79 @@
 // src/components/Navbar.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import Image from 'next/image'; // Assuming you still want the image logo
+import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase, type User } from '@/lib/supabaseClient';
 
 export default function Navbar() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  /* ───────── state ───────── */
+  const [user, setUser]           = useState<User | null>(null);
+  const [loading, setLoading]     = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const router = useRouter();
-  const pathname = usePathname();
-  const menuRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // --- Auth State ---
+  const router     = useRouter();
+  const pathname   = usePathname();
+  const buttonRef  = useRef<HTMLButtonElement>(null);
+  const menuRef    = useRef<HTMLDivElement>(null);
+
+  /* ───────── ONE-TIME auth listener ───────── */
   useEffect(() => {
-    const getSessionAndUser = async () => {
+    let mounted = true;
+
+    const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-    getSessionAndUser();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-      if (!session?.user && isMobileMenuOpen) {
-        setIsMobileMenuOpen(false);
+      if (mounted) {
+        setUser(session?.user ?? null);
+        setLoading(false);
       }
+    };
+    init();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      if (!mounted) return;
+      setUser(session?.user ?? null);
+      if (!session?.user) setIsMobileMenuOpen(false);          // auto-close on logout
     });
+
     return () => {
-      authListener?.subscription?.unsubscribe();
+      mounted = false;
+      sub?.subscription.unsubscribe();
     };
-  }, [isMobileMenuOpen]); // isMobileMenuOpen added for the close logic
+  }, []);                                                       // ← runs once
 
-  // --- Mobile Menu Logic ---
+  /* ───────── close mobile menu on route change ───────── */
   useEffect(() => {
-    if (isMobileMenuOpen) {
-      setIsMobileMenuOpen(false); // Close menu when path changes
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]); // Only run when pathname changes
+    if (isMobileMenuOpen) setIsMobileMenuOpen(false);
+  }, [pathname]);
 
+  /* ───────── esc key closes mobile menu ───────── */
   useEffect(() => {
-    const handleEscapeKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isMobileMenuOpen) {
-        setIsMobileMenuOpen(false);
-        buttonRef.current?.focus();
-      }
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMobileMenuOpen(false);
     };
-    document.addEventListener('keydown', handleEscapeKey);
-    return () => {
-      document.removeEventListener('keydown', handleEscapeKey);
-    };
-  }, [isMobileMenuOpen]);
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, []);
 
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
-  };
+  /* ───────── handlers ───────── */
+  const toggleMobileMenu = useCallback(
+    () => setIsMobileMenuOpen((v) => !v),
+    []
+  );
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     setIsMobileMenuOpen(false);
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Logout error:', error.message);
       return alert(`Logout failed: ${error.message}`);
     }
-    router.push('/'); // Redirect to homepage after logout
-  };
+    router.push('/');
+  }, [router]);
 
-  // --- Loading Skeleton ---
+  /* ───────── loading skeleton ───────── */
   if (loading) {
     return (
       <nav className="bg-gray-800 h-14 shadow-md sticky top-0 z-50">
@@ -81,8 +82,8 @@ export default function Navbar() {
             <div className="h-8 w-8 bg-gray-700 rounded-full animate-pulse" />
             <div className="h-6 w-20 bg-gray-700 rounded animate-pulse hidden sm:block" />
           </div>
-           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
-            <div className="h-6 w-16 bg-gray-700 rounded animate-pulse"></div>
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
+            <div className="h-6 w-16 bg-gray-700 rounded animate-pulse" />
           </div>
           <div className="hidden md:flex space-x-4 animate-pulse">
             <div className="h-6 bg-gray-700 w-24 rounded" />
@@ -98,82 +99,85 @@ export default function Navbar() {
     );
   }
 
-  // --- Link Styling Functions ---
-  const navLinkClasses = (href: string): string => {
-    const isActive = pathname === href;
-    return `transition-colors duration-150 ease-in-out text-sm rounded-md px-3 py-2 font-medium ${
-      isActive
+  /* ───────── helper class builders ───────── */
+  const navLinkClasses = (href: string) =>
+    `transition-colors duration-150 ease-in-out text-sm rounded-md px-3 py-2 font-medium ${
+      pathname === href
         ? 'bg-gray-900 text-white'
         : 'text-gray-300 hover:bg-gray-700 hover:text-white'
     }`;
-  };
 
-  const mobileNavLinkClasses = (href: string): string => {
-    const isActive = pathname === href;
-    return `block px-4 py-3 text-base font-medium rounded-md transition-colors ${
-      isActive
+  const mobileNavLinkClasses = (href: string) =>
+    `block px-4 py-3 text-base font-medium rounded-md transition-colors ${
+      pathname === href
         ? 'bg-indigo-500 text-white'
         : 'text-gray-300 hover:bg-gray-700 hover:text-white'
     }`;
-  };
 
-  // --- Define Link Structures ---
+  /* ───────── nav link definitions ───────── */
   const commonNavLinks = [
-    // Assuming '/' is your active auctions page, as per your original Navbar.
-    // If /listings is the active auctions page, change href to /listings here.
-    { href: '/', text: 'Active Auctions' }, 
+    { href: '/', text: 'Active Auctions' },
     { href: '/listings/archive', text: 'Auction Archive' },
   ];
 
   const userNavLinks = user
     ? [
-        { href: '/my-watchlist', text: 'My Watchlist' }, // "My Watchlist" inserted here
+        { href: '/my-watchlist', text: 'My Watchlist' },
         { href: '/my-listings', text: 'My Listings' },
-        { href: '/my-bids', text: 'My Bids' },
+        { href: '/my-bids',     text: 'My Bids' },
       ]
     : [];
 
-  // --- Main Navbar JSX ---
+  /* ───────── render ───────── */
   return (
     <>
       <nav className="bg-gray-800 text-white shadow-md sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between relative">
-          {/* Logo Section */}
+          {/* logo */}
           <div className="flex items-center flex-shrink-0">
             <Link href="/" className="flex items-center space-x-2 group">
               <Image
-                src="/bidly-logo.svg" alt="ByeBuy logo" width={32} height={32} priority
+                src="/bidly-logo.svg"
+                alt="ByeBuy logo"
+                width={32}
+                height={32}
+                priority
                 className="h-8 w-auto group-hover:opacity-90 transition-opacity"
               />
               <span className="text-lg font-semibold hidden md:inline group-hover:text-indigo-300 transition-colors">
-                ByeBuy {/* CORRECTED to ByeBuy */}
+                ByeBuy
               </span>
             </Link>
           </div>
 
-          {/* Centered Mobile Logo/Title */}
+          {/* centered title on mobile */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
-            <Link href="/" className="text-lg font-semibold text-white hover:text-indigo-300 transition-colors">
-              ByeBuy {/* CORRECTED to ByeBuy */}
+            <Link
+              href="/"
+              className="text-lg font-semibold text-white hover:text-indigo-300 transition-colors"
+            >
+              ByeBuy
             </Link>
           </div>
 
-          {/* Desktop Navigation Links */}
+          {/* desktop links */}
           <div className="hidden md:flex items-center space-x-1 flex-grow justify-start ml-4">
-            {commonNavLinks.map((link) => (
-              <Link key={link.text} href={link.href} className={navLinkClasses(link.href)}>
-                {link.text}
+            {commonNavLinks.map((l) => (
+              <Link key={l.text} href={l.href} className={navLinkClasses(l.href)}>
+                {l.text}
               </Link>
             ))}
-            {user && userNavLinks.map((link) => (
-              <Link key={link.text} href={link.href} className={navLinkClasses(link.href)}>
-                {link.text}
-              </Link>
-            ))}
+            {user &&
+              userNavLinks.map((l) => (
+                <Link key={l.text} href={l.href} className={navLinkClasses(l.href)}>
+                  {l.text}
+                </Link>
+              ))}
           </div>
 
-          {/* Right Aligned Actions (Desktop and Mobile Hamburger) */}
+          {/* right-side actions */}
           <div className="flex items-center flex-shrink-0">
+            {/* desktop buttons */}
             <div className="hidden md:flex items-center space-x-2 sm:space-x-3">
               {user ? (
                 <>
@@ -181,7 +185,14 @@ export default function Navbar() {
                     href="/listings/new"
                     className="text-gray-200 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-1.5"><path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" /></svg>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 16 16"
+                      fill="currentColor"
+                      className="w-4 h-4 mr-1.5"
+                    >
+                      <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
+                    </svg>
                     List Item
                   </Link>
                   <button
@@ -201,7 +212,7 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Mobile Menu Button */}
+            {/* mobile hamburger */}
             <div className="md:hidden">
               <button
                 ref={buttonRef}
@@ -212,9 +223,37 @@ export default function Navbar() {
                 className="inline-flex items-center justify-center p-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
               >
                 {isMobileMenuOpen ? (
-                  <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  <svg
+                    className="block h-6 w-6"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
                 ) : (
-                  <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                  <svg
+                    className="block h-6 w-6"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
+                  </svg>
                 )}
               </button>
             </div>
@@ -222,64 +261,117 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* Mobile Menu Panel */}
+      {/* mobile overlay & panel */}
       {isMobileMenuOpen && (
-          <div
-              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden"
-              onClick={() => setIsMobileMenuOpen(false)}
-              aria-hidden="true"
-          ></div>
+        <div
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
+        ></div>
       )}
+
       <div
         id="mobile-menu-panel"
         ref={menuRef}
-        className={`fixed top-0 right-0 h-full w-64 sm:w-72 bg-gray-800 shadow-xl p-5 transform transition-transform duration-300 ease-in-out z-50 md:hidden
-                    ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`fixed top-0 right-0 h-full w-64 sm:w-72 bg-gray-800 shadow-xl p-5 transform transition-transform duration-300 ease-in-out z-50 md:hidden ${
+          isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="mobile-menu-heading"
       >
         <div className="flex justify-between items-center mb-6">
-            <h2 id="mobile-menu-heading" className="text-lg font-semibold text-white">Menu</h2>
-            <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="p-1 text-gray-300 hover:text-white rounded-md hover:bg-gray-700"
-                aria-label="Close menu"
+          <h2 id="mobile-menu-heading" className="text-lg font-semibold text-white">
+            Menu
+          </h2>
+          <button
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="p-1 text-gray-300 hover:text-white rounded-md hover:bg-gray-700"
+            aria-label="Close menu"
+          >
+            <svg
+              className="h-6 w-6"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
-                <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
         </div>
+
         <nav className="space-y-2">
-          {commonNavLinks.map((link) => (
-             <Link key={`mobile-${link.text}`} href={link.href} onClick={() => setIsMobileMenuOpen(false)}
-                className={mobileNavLinkClasses(link.href)}>
-                {link.text}
-             </Link>
+          {commonNavLinks.map((l) => (
+            <Link
+              key={`mobile-${l.text}`}
+              href={l.href}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={mobileNavLinkClasses(l.href)}
+            >
+              {l.text}
+            </Link>
           ))}
-          
+
           {user && (
             <>
               <hr className="border-gray-700 my-3" />
-              {userNavLinks.map((link) => (
-                 <Link key={`mobile-${link.text}`} href={link.href} onClick={() => setIsMobileMenuOpen(false)}
-                    className={mobileNavLinkClasses(link.href)}>
-                    {link.text}
-                 </Link>
+              {userNavLinks.map((l) => (
+                <Link
+                  key={`mobile-${l.text}`}
+                  href={l.href}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={mobileNavLinkClasses(l.href)}
+                >
+                  {l.text}
+                </Link>
               ))}
             </>
           )}
 
           <hr className="border-gray-700 my-3" />
+
           {user ? (
             <>
-              <Link href="/listings/new" onClick={() => setIsMobileMenuOpen(false)} className={`${mobileNavLinkClasses("/listings/new")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>
-                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-2"><path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" /></svg>
+              <Link
+                href="/listings/new"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`${mobileNavLinkClasses(
+                  '/listings/new'
+                )} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  className="w-4 h-4 mr-2"
+                >
+                  <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
+                </svg>
                 Create New Listing
               </Link>
-              <button onClick={handleLogout} className="block w-full text-left px-4 py-3 text-base font-medium rounded-md text-red-300 hover:bg-red-700 hover:text-white transition-colors">Logout</button>
+              <button
+                onClick={handleLogout}
+                className="block w-full text-left px-4 py-3 text-base font-medium rounded-md text-red-300 hover:bg-red-700 hover:text-white transition-colors"
+              >
+                Logout
+              </button>
             </>
           ) : (
-            <Link href="/auth" onClick={() => setIsMobileMenuOpen(false)} className={`${mobileNavLinkClasses("/auth")} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}>Login / Sign Up</Link>
+            <Link
+              href="/auth"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={`${mobileNavLinkClasses(
+                '/auth'
+              )} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}
+            >
+              Login / Sign Up
+            </Link>
           )}
         </nav>
       </div>
