@@ -1,120 +1,119 @@
 // src/components/Navbar.tsx
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase, type User } from '@/lib/supabaseClient';
 
 export default function Navbar() {
-  /* ───────── state ───────── */
-  const [user, setUser]           = useState<User | null>(null);
-  const [loading, setLoading]     = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
-  const router     = useRouter();
-  const pathname   = usePathname();
-  const buttonRef  = useRef<HTMLButtonElement>(null);
-  const menuRef    = useRef<HTMLDivElement>(null);
-
-  /* ───────── ONE-TIME auth listener ───────── */
   useEffect(() => {
-    let mounted = true;
-
-    const init = async () => {
+    const getSessionAndUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (mounted) {
-        setUser(session?.user ?? null);
-        setLoading(false);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    };
+    getSessionAndUser();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+      if (!session?.user && isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+      }
+    });
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
+  }, [isMobileMenuOpen]);
+
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      setIsMobileMenuOpen(false);
+    }
+  }, [pathname, isMobileMenuOpen]); // CORRECTED: Added isMobileMenuOpen
+
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+        buttonRef.current?.focus();
       }
     };
-    init();
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
-      if (!mounted) return;
-      setUser(session?.user ?? null);
-      if (!session?.user) setIsMobileMenuOpen(false);          // auto-close on logout
-    });
-
+    document.addEventListener('keydown', handleEscapeKey);
     return () => {
-      mounted = false;
-      sub?.subscription.unsubscribe();
+      document.removeEventListener('keydown', handleEscapeKey);
     };
-  }, []);                                                       // ← runs once
+  }, [isMobileMenuOpen]);
 
-  /* ───────── close mobile menu on route change ───────── */
-  useEffect(() => {
-    if (isMobileMenuOpen) setIsMobileMenuOpen(false);
-  }, [pathname]);
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
 
-  /* ───────── esc key closes mobile menu ───────── */
-  useEffect(() => {
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsMobileMenuOpen(false);
-    };
-    document.addEventListener('keydown', onEsc);
-    return () => document.removeEventListener('keydown', onEsc);
-  }, []);
-
-  /* ───────── handlers ───────── */
-  const toggleMobileMenu = useCallback(
-    () => setIsMobileMenuOpen((v) => !v),
-    []
-  );
-
-  const handleLogout = useCallback(async () => {
+  const handleLogout = async () => {
     setIsMobileMenuOpen(false);
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Logout error:', error.message);
+      // Consider using a more user-friendly notification if you have one globally
       return alert(`Logout failed: ${error.message}`);
     }
     router.push('/');
-  }, [router]);
+  };
 
-  /* ───────── loading skeleton ───────── */
   if (loading) {
     return (
       <nav className="bg-gray-800 h-14 shadow-md sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 h-full flex items-center justify-between relative">
           <div className="flex items-center space-x-4">
             <div className="h-8 w-8 bg-gray-700 rounded-full animate-pulse" />
-            <div className="h-6 w-20 bg-gray-700 rounded animate-pulse hidden sm:block" />
+            <div className="h-6 w-20 bg-gray-700 rounded animate-pulse hidden sm:block" /> {/* ByeBuy text */}
           </div>
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
-            <div className="h-6 w-16 bg-gray-700 rounded animate-pulse" />
+           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
+            <div className="h-6 w-16 bg-gray-700 rounded animate-pulse"></div> {/* ByeBuy text mobile */}
           </div>
           <div className="hidden md:flex space-x-4 animate-pulse">
-            <div className="h-6 bg-gray-700 w-24 rounded" />
-            <div className="h-6 bg-gray-700 w-28 rounded" />
-            <div className="h-6 bg-gray-700 w-28 rounded" />
-            <div className="h-6 bg-gray-700 w-24 rounded" />
-            <div className="h-6 bg-gray-700 w-20 rounded" />
-            <div className="h-7 bg-gray-700 w-24 rounded-md" />
+            <div className="h-6 bg-gray-700 w-24 rounded" /> {/* Active Auctions */}
+            <div className="h-6 bg-gray-700 w-28 rounded" /> {/* Auction Archive */}
+            {/* Assuming user might be logged in for skeleton */}
+            <div className="h-6 bg-gray-700 w-28 rounded" /> {/* My Watchlist */}
+            <div className="h-6 bg-gray-700 w-24 rounded" /> {/* My Listings */}
+            <div className="h-6 bg-gray-700 w-20 rounded" /> {/* My Bids */}
+            <div className="h-7 bg-gray-700 w-24 rounded-md" /> {/* List Item / Login */}
           </div>
-          <div className="md:hidden h-7 w-7 bg-gray-700 rounded animate-pulse" />
+          <div className="md:hidden h-7 w-7 bg-gray-700 rounded animate-pulse" /> {/* Hamburger */}
         </div>
       </nav>
     );
   }
 
-  /* ───────── helper class builders ───────── */
-  const navLinkClasses = (href: string) =>
-    `transition-colors duration-150 ease-in-out text-sm rounded-md px-3 py-2 font-medium ${
-      pathname === href
+  const navLinkClasses = (href: string): string => {
+    const isActive = pathname === href;
+    return `transition-colors duration-150 ease-in-out text-sm rounded-md px-3 py-2 font-medium ${
+      isActive
         ? 'bg-gray-900 text-white'
         : 'text-gray-300 hover:bg-gray-700 hover:text-white'
     }`;
+  };
 
-  const mobileNavLinkClasses = (href: string) =>
-    `block px-4 py-3 text-base font-medium rounded-md transition-colors ${
-      pathname === href
+  const mobileNavLinkClasses = (href: string): string => {
+    const isActive = pathname === href;
+    return `block px-4 py-3 text-base font-medium rounded-md transition-colors ${
+      isActive
         ? 'bg-indigo-500 text-white'
         : 'text-gray-300 hover:bg-gray-700 hover:text-white'
     }`;
+  };
 
-  /* ───────── nav link definitions ───────── */
   const commonNavLinks = [
     { href: '/', text: 'Active Auctions' },
     { href: '/listings/archive', text: 'Auction Archive' },
@@ -128,16 +127,14 @@ export default function Navbar() {
       ]
     : [];
 
-  /* ───────── render ───────── */
   return (
     <>
       <nav className="bg-gray-800 text-white shadow-md sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between relative">
-          {/* logo */}
           <div className="flex items-center flex-shrink-0">
             <Link href="/" className="flex items-center space-x-2 group">
               <Image
-                src="/bidly-logo.svg"
+                src="/bidly-logo.svg" // Assuming this is your generic logo, alt text is "ByeBuy"
                 alt="ByeBuy logo"
                 width={32}
                 height={32}
@@ -150,17 +147,12 @@ export default function Navbar() {
             </Link>
           </div>
 
-          {/* centered title on mobile */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
-            <Link
-              href="/"
-              className="text-lg font-semibold text-white hover:text-indigo-300 transition-colors"
-            >
+            <Link href="/" className="text-lg font-semibold text-white hover:text-indigo-300 transition-colors">
               ByeBuy
             </Link>
           </div>
 
-          {/* desktop links */}
           <div className="hidden md:flex items-center space-x-1 flex-grow justify-start ml-4">
             {commonNavLinks.map((l) => (
               <Link key={l.text} href={l.href} className={navLinkClasses(l.href)}>
@@ -175,9 +167,7 @@ export default function Navbar() {
               ))}
           </div>
 
-          {/* right-side actions */}
           <div className="flex items-center flex-shrink-0">
-            {/* desktop buttons */}
             <div className="hidden md:flex items-center space-x-2 sm:space-x-3">
               {user ? (
                 <>
@@ -185,14 +175,7 @@ export default function Navbar() {
                     href="/listings/new"
                     className="text-gray-200 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 16 16"
-                      fill="currentColor"
-                      className="w-4 h-4 mr-1.5"
-                    >
-                      <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-1.5"><path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" /></svg>
                     List Item
                   </Link>
                   <button
@@ -212,7 +195,6 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* mobile hamburger */}
             <div className="md:hidden">
               <button
                 ref={buttonRef}
@@ -223,37 +205,9 @@ export default function Navbar() {
                 className="inline-flex items-center justify-center p-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
               >
                 {isMobileMenuOpen ? (
-                  <svg
-                    className="block h-6 w-6"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
+                  <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 ) : (
-                  <svg
-                    className="block h-6 w-6"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 6h16M4 12h16M4 18h16"
-                    />
-                  </svg>
+                  <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
                 )}
               </button>
             </div>
@@ -261,7 +215,6 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* mobile overlay & panel */}
       {isMobileMenuOpen && (
         <div
           className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden"
@@ -281,39 +234,19 @@ export default function Navbar() {
         aria-labelledby="mobile-menu-heading"
       >
         <div className="flex justify-between items-center mb-6">
-          <h2 id="mobile-menu-heading" className="text-lg font-semibold text-white">
-            Menu
-          </h2>
+          <h2 id="mobile-menu-heading" className="text-lg font-semibold text-white">Menu</h2>
           <button
             onClick={() => setIsMobileMenuOpen(false)}
             className="p-1 text-gray-300 hover:text-white rounded-md hover:bg-gray-700"
             aria-label="Close menu"
           >
-            <svg
-              className="h-6 w-6"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
         <nav className="space-y-2">
           {commonNavLinks.map((l) => (
-            <Link
-              key={`mobile-${l.text}`}
-              href={l.href}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className={mobileNavLinkClasses(l.href)}
-            >
+            <Link key={`mobile-${l.text}`} href={l.href} onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClasses(l.href)} >
               {l.text}
             </Link>
           ))}
@@ -322,12 +255,7 @@ export default function Navbar() {
             <>
               <hr className="border-gray-700 my-3" />
               {userNavLinks.map((l) => (
-                <Link
-                  key={`mobile-${l.text}`}
-                  href={l.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={mobileNavLinkClasses(l.href)}
-                >
+                <Link key={`mobile-${l.text}`} href={l.href} onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClasses(l.href)} >
                   {l.text}
                 </Link>
               ))}
@@ -338,38 +266,20 @@ export default function Navbar() {
 
           {user ? (
             <>
-              <Link
-                href="/listings/new"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`${mobileNavLinkClasses(
-                  '/listings/new'
-                )} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 16 16"
-                  fill="currentColor"
-                  className="w-4 h-4 mr-2"
-                >
+              <Link href="/listings/new" onClick={() => setIsMobileMenuOpen(false)}
+                className={`${mobileNavLinkClasses('/listings/new')} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`} >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-2" >
                   <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
                 </svg>
                 Create New Listing
               </Link>
-              <button
-                onClick={handleLogout}
-                className="block w-full text-left px-4 py-3 text-base font-medium rounded-md text-red-300 hover:bg-red-700 hover:text-white transition-colors"
-              >
+              <button onClick={handleLogout} className="block w-full text-left px-4 py-3 text-base font-medium rounded-md text-red-300 hover:bg-red-700 hover:text-white transition-colors" >
                 Logout
               </button>
             </>
           ) : (
-            <Link
-              href="/auth"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className={`${mobileNavLinkClasses(
-                '/auth'
-              )} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}
-            >
+            <Link href="/auth" onClick={() => setIsMobileMenuOpen(false)}
+              className={`${mobileNavLinkClasses('/auth')} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`} >
               Login / Sign Up
             </Link>
           )}
