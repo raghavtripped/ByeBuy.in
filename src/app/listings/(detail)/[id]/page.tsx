@@ -19,14 +19,14 @@ import {
 } from '@/lib/timeUtils';
 import { formatCurrency } from '@/lib/formatUtils';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import WatchlistButton from '@/components/WatchlistButton';
+// import WatchlistButton from '@/components/WatchlistButton'; // COMMENTED OUT
 import ListingChat from '@/components/ListingChat'; // Import ListingChat
 
 // --- Type Definitions ---
 type Listing = {
   id: string;
   title: string;
-  description: string; 
+  description: string;
   min_price: number;
   photos: string[] | null;
   end_time?: string | null;
@@ -107,7 +107,7 @@ export default function ListingDetails() {
       if (archivedData) {
           fetchedListingData = {
               ...archivedData, photos: parseListingPhotos(archivedData.photos),
-              description: archivedData.description || '', 
+              description: archivedData.description || '',
               status: archivedData.status as Listing['status'], final_sale_price: archivedData.final_sale_price,
           };
           if (archivedData.winner_email) setWinnerEmail(archivedData.winner_email);
@@ -118,11 +118,11 @@ export default function ListingDetails() {
               .eq('id', id).maybeSingle();
           if (lError) throw lError;
           if (!lData) { setError('Listing not found.'); setLoading(false); return; }
-          fetchedListingData = { 
-              ...lData, 
-              photos: parseListingPhotos(lData.photos), 
-              description: lData.description || '', 
-              status: lData.status as Listing['status'] 
+          fetchedListingData = {
+              ...lData,
+              photos: parseListingPhotos(lData.photos),
+              description: lData.description || '',
+              status: lData.status as Listing['status']
             };
           if (fetchedListingData.status === 'closed' && fetchedListingData.winning_bidder_id) {
               if (fetchedListingData.winning_bid_id) {
@@ -151,7 +151,7 @@ export default function ListingDetails() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
     loadData();
-    
+
     const bidsChannelName = `listing-bids-${id}`;
     const bidsChannel = supabase.channel(bidsChannelName);
     bidsChannel.on<BidTablePayload>(
@@ -175,7 +175,7 @@ export default function ListingDetails() {
     const listingChannel = supabase.channel(listingChannelName);
     listingChannel.on<ListingTablePayload>(
         'postgres_changes', { event: 'UPDATE', schema: 'public', table: 'listings', filter: `id=eq.${id}` },
-        (payload) => { 
+        (payload) => {
           const updated = payload.new; if (!updated) return;
           console.log("ListingDetailsPage: Realtime update received for listing:", id, updated);
           setListing(prev => {
@@ -196,7 +196,7 @@ export default function ListingDetails() {
             if (updated.upper_cap !== undefined && prev.upper_cap !== updated.upper_cap) newPartial.upper_cap = updated.upper_cap;
             if (updated.rules !== undefined && prev.rules !== updated.rules) newPartial.rules = updated.rules;
             if (updated.photos !== undefined) newPartial.photos = parseListingPhotos(updated.photos);
-            
+
             return Object.keys(newPartial).length > 0 ? { ...prev, ...newPartial } : prev;
           });
         }
@@ -205,8 +205,8 @@ export default function ListingDetails() {
         else if (status === 'TIMED_OUT') console.warn(`Listing RT Channel Timeout (${listingChannelName})`);
       });
 
-    return () => { 
-        supabase.removeChannel(bidsChannel).catch(err => console.error("Error removing bidsChannel", err)); 
+    return () => {
+        supabase.removeChannel(bidsChannel).catch(err => console.error("Error removing bidsChannel", err));
         supabase.removeChannel(listingChannel).catch(err => console.error("Error removing listingChannel", err));
     };
   }, [id, loadData]);
@@ -242,7 +242,7 @@ export default function ListingDetails() {
       }
       const updateTimer = (): boolean => {
           if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) {
-              setCountdown(null); return true; 
+              setCountdown(null); return true;
           }
           const remaining = formatCountdown(listing.end_time);
           setCountdown(remaining);
@@ -265,10 +265,10 @@ export default function ListingDetails() {
     setBidStatusMessage(null);
     if (!user) { router.push('/auth?redirect=/listings/' + id); return; } // Add redirect back to current page
     if (!listing) return;
-    if (auctionEnded || (listing.end_time && isPast(listing.end_time))) { 
-        setBidStatusMessage('⚠️ Auction has ended.'); 
+    if (auctionEnded || (listing.end_time && isPast(listing.end_time))) {
+        setBidStatusMessage('⚠️ Auction has ended.');
         if (!auctionEnded) loadData(); // If local state isn't updated, refresh
-        return; 
+        return;
     }
     if (user.id === listing.seller_id) { setBidStatusMessage('⚠️ You cannot bid on your own item.'); return; }
     const amt = parseInt(price, 10);
@@ -279,8 +279,8 @@ export default function ListingDetails() {
     try {
       const { error: insertError } = await supabase.from('bids').insert({ item_id: id, bidder_id: user.id, bid_price: amt });
       if (insertError) throw insertError;
-      setPrice(''); 
-      setBidStatusMessage('✅ Bid placed successfully!'); 
+      setPrice('');
+      setBidStatusMessage('✅ Bid placed successfully!');
       setTimeout(() => setBidStatusMessage(null), 4000);
     } catch (err: unknown) {
         console.error("Bid failed:", err);
@@ -303,13 +303,13 @@ export default function ListingDetails() {
   if (error) return <p className="p-6 text-center text-red-600 dark:text-red-400 font-medium">{error}</p>;
   if (!listing) return <p className="p-6 text-center text-gray-700 dark:text-gray-300">Listing details could not be loaded.</p>;
 
-  const timeDisplay = auctionEnded 
+  const timeDisplay = auctionEnded
     ? (listing.end_time ? `Ended ${formatRelativeTime(listing.end_time)}` : 'Auction Ended')
-    : countdown === "Auction Ended" 
-    ? "Processing end..." 
-    : countdown !== null ? `Ends in: ${countdown}` 
+    : countdown === "Auction Ended"
+    ? "Processing end..."
+    : countdown !== null ? `Ends in: ${countdown}`
     : (listing.end_time ? `Ends ${formatRelativeTime(listing.end_time)}` : 'No end time set');
-    
+
   const sliderSettings = { dots: false, infinite: photos.length > 1, speed: 500, slidesToShow: 1, slidesToScroll: 1, arrows: photos.length > 1, adaptiveHeight: true }; // Hide arrows if only 1 photo
   const typedPriceNum = parseInt(price);
   const showExceedsSliderNote = displaySlider && !isNaN(typedPriceNum) && typedPriceNum > sliderMax && typedPriceNum >= sliderMin && (listing.upper_cap ? typedPriceNum < listing.upper_cap : true);
@@ -335,15 +335,15 @@ export default function ListingDetails() {
               <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100 break-words">
                 {listing.title}
               </h1>
-              {/* WatchlistButton integration */}
-              {user !== undefined && listing && ( 
+              {/* WatchlistButton integration - COMMENTED OUT */}
+              {/* {user !== undefined && listing && (
                 <WatchlistButton
                   listingId={listing.id}
-                  userId={user?.id} 
-                  size="md" 
-                  className="flex-shrink-0 mt-1 sm:mt-0" 
+                  userId={user?.id}
+                  size="md"
+                  className="flex-shrink-0 mt-1 sm:mt-0"
                 />
-              )}
+              )} */}
             </div>
 
             {listing.seller_id && listing.seller_email ? (
@@ -408,7 +408,7 @@ export default function ListingDetails() {
                 {user && user.id !== listing.seller_id ? (
                     <>
                         <h3 className="text-xl font-semibold mb-4 text-center text-gray-800 dark:text-white">Place Your Bid</h3>
-                        
+
                         {displaySlider && (
                             <p className="text-xs text-center text-gray-500 dark:text-gray-400 mb-3">
                                 Suggested bid range: {formatCurrency(sliderMin)} - {formatCurrency(sliderMax)}
