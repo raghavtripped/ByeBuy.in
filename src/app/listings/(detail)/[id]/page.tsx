@@ -382,14 +382,14 @@ export default function ListingDetails() {
                 </h1>
                 {/* WatchlistButton was previously commented out in your provided code, I'm keeping it that way. */}
                 {/* If you want it active, uncomment it and ensure the import is also active. */}
-                {/* {user !== undefined && listing && ( 
+                {user !== undefined && listing && ( 
                   <WatchlistButton
                     listingId={listing.id}
                     userId={user?.id}
                     size="md" 
                     className="flex-shrink-0 mt-1 sm:mt-0" 
                   />
-                )} */}
+                )}
               </div>
 
               {listing.seller_id && listing.seller_email ? (

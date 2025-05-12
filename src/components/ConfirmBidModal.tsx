@@ -33,7 +33,7 @@ export default function ConfirmBidModal({
     }
   };
 
-  const referenceBid = currentHighestBid && currentHighestBid > 0 ? currentHighestBid : minimumBid;
+  
 
   return (
     <div
