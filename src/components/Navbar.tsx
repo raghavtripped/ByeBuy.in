@@ -1,7 +1,7 @@
 // src/components/Navbar.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react'; // Added useCallback
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
@@ -16,35 +16,71 @@ export default function Navbar() {
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
+  // Effect 1: Initial session and user fetch (runs once on mount)
   useEffect(() => {
+    // console.log("Navbar: Initial session fetch effect RUNNING");
+    let mounted = true; 
+
     const getSessionAndUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error("Navbar: Error getting initial session:", sessionError.message);
+      }
+      if (mounted) {
+        // console.log("Navbar: Initial session user:", session?.user?.id);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
     };
     getSessionAndUser();
+    
+    return () => {
+        mounted = false;
+    }
+  }, []); // Empty dependency array - runs only on mount
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+  // Effect 2: onAuthStateChange listener (runs primarily on mount, re-evaluates if isMobileMenuOpen changes)
+  useEffect(() => {
+    // console.log("Navbar: Setting up onAuthStateChange listener effect RUNNING. isMobileMenuOpen:", isMobileMenuOpen);
+    let mounted = true;
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+      // console.log("Navbar: onAuthStateChange event:", event, "User:", session?.user?.id);
       setUser(session?.user ?? null);
-      setLoading(false);
-      if (!session?.user && isMobileMenuOpen) {
+      // setLoading(false); // Loading is primarily for initial load, auth changes update user
+
+      // If user logs out WHILE mobile menu is open, close it.
+      if (event === 'SIGNED_OUT' && isMobileMenuOpen) {
+        // console.log("Navbar: User signed out, mobile menu was open, closing it.");
         setIsMobileMenuOpen(false);
       }
     });
+
     return () => {
+      mounted = false;
+      // console.log("Navbar: Cleaning up onAuthStateChange listener.");
       authListener?.subscription?.unsubscribe();
     };
-  }, [isMobileMenuOpen]);
+  // isMobileMenuOpen is included because it's used in the callback for a conditional state update.
+  // This means the listener will be re-subscribed if isMobileMenuOpen changes.
+  // If this causes performance issues or unwanted re-subscriptions,
+  // an alternative would be to manage menu closing on logout via a different effect that watches `user`.
+  }, [isMobileMenuOpen]); 
 
+  // Effect 3: Close mobile menu on route change
   useEffect(() => {
     if (isMobileMenuOpen) {
+      // console.log("Navbar: Pathname changed, closing mobile menu.");
       setIsMobileMenuOpen(false);
     }
-  }, [pathname, isMobileMenuOpen]); // CORRECTED: Added isMobileMenuOpen
+  }, [pathname]); // Only depends on pathname
 
+  // Effect 4: Escape key closes mobile menu
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isMobileMenuOpen) {
+        // console.log("Navbar: Escape key pressed, closing mobile menu.");
         setIsMobileMenuOpen(false);
         buttonRef.current?.focus();
       }
@@ -53,49 +89,51 @@ export default function Navbar() {
     return () => {
       document.removeEventListener('keydown', handleEscapeKey);
     };
-  }, [isMobileMenuOpen]);
+  }, [isMobileMenuOpen]); // Depends on isMobileMenuOpen to add/remove listener
 
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
-  };
+  // --- handlers (useCallback for stable references if passed as props, good practice) ---
+  const toggleMobileMenu = useCallback(() => {
+    setIsMobileMenuOpen((prev) => !prev);
+  }, []);
 
-  const handleLogout = async () => {
-    setIsMobileMenuOpen(false);
+  const handleLogout = useCallback(async () => {
+    setIsMobileMenuOpen(false); 
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Logout error:', error.message);
-      // Consider using a more user-friendly notification if you have one globally
-      return alert(`Logout failed: ${error.message}`);
+      alert(`Logout failed: ${error.message}`); // Using alert as per original
+      return;
     }
     router.push('/');
-  };
+  }, [router]); // router is a stable dependency from next/navigation
 
+  // --- Loading Skeleton ---
   if (loading) {
     return (
       <nav className="bg-gray-800 h-14 shadow-md sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 h-full flex items-center justify-between relative">
           <div className="flex items-center space-x-4">
             <div className="h-8 w-8 bg-gray-700 rounded-full animate-pulse" />
-            <div className="h-6 w-20 bg-gray-700 rounded animate-pulse hidden sm:block" /> {/* ByeBuy text */}
+            <div className="h-6 w-20 bg-gray-700 rounded animate-pulse hidden sm:block" />
           </div>
            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
-            <div className="h-6 w-16 bg-gray-700 rounded animate-pulse"></div> {/* ByeBuy text mobile */}
+            <div className="h-6 w-16 bg-gray-700 rounded animate-pulse"></div>
           </div>
           <div className="hidden md:flex space-x-4 animate-pulse">
             <div className="h-6 bg-gray-700 w-24 rounded" /> {/* Active Auctions */}
             <div className="h-6 bg-gray-700 w-28 rounded" /> {/* Auction Archive */}
-            {/* Assuming user might be logged in for skeleton */}
             <div className="h-6 bg-gray-700 w-28 rounded" /> {/* My Watchlist */}
             <div className="h-6 bg-gray-700 w-24 rounded" /> {/* My Listings */}
             <div className="h-6 bg-gray-700 w-20 rounded" /> {/* My Bids */}
             <div className="h-7 bg-gray-700 w-24 rounded-md" /> {/* List Item / Login */}
           </div>
-          <div className="md:hidden h-7 w-7 bg-gray-700 rounded animate-pulse" /> {/* Hamburger */}
+          <div className="md:hidden h-7 w-7 bg-gray-700 rounded animate-pulse" />
         </div>
       </nav>
     );
   }
 
+  // --- Link Styling Functions ---
   const navLinkClasses = (href: string): string => {
     const isActive = pathname === href;
     return `transition-colors duration-150 ease-in-out text-sm rounded-md px-3 py-2 font-medium ${
@@ -114,6 +152,7 @@ export default function Navbar() {
     }`;
   };
 
+  // --- Define Link Structures ---
   const commonNavLinks = [
     { href: '/', text: 'Active Auctions' },
     { href: '/listings/archive', text: 'Auction Archive' },
@@ -127,14 +166,16 @@ export default function Navbar() {
       ]
     : [];
 
+  // --- Main Navbar JSX ---
   return (
     <>
       <nav className="bg-gray-800 text-white shadow-md sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between relative">
+          {/* Logo Section */}
           <div className="flex items-center flex-shrink-0">
             <Link href="/" className="flex items-center space-x-2 group">
               <Image
-                src="/bidly-logo.svg" // Assuming this is your generic logo, alt text is "ByeBuy"
+                src="/bidly-logo.svg"
                 alt="ByeBuy logo"
                 width={32}
                 height={32}
@@ -147,12 +188,14 @@ export default function Navbar() {
             </Link>
           </div>
 
+          {/* Centered Mobile Logo/Title */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
             <Link href="/" className="text-lg font-semibold text-white hover:text-indigo-300 transition-colors">
               ByeBuy
             </Link>
           </div>
 
+          {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center space-x-1 flex-grow justify-start ml-4">
             {commonNavLinks.map((l) => (
               <Link key={l.text} href={l.href} className={navLinkClasses(l.href)}>
@@ -167,7 +210,9 @@ export default function Navbar() {
               ))}
           </div>
 
+          {/* Right Aligned Actions (Desktop and Mobile Hamburger) */}
           <div className="flex items-center flex-shrink-0">
+            {/* desktop buttons */}
             <div className="hidden md:flex items-center space-x-2 sm:space-x-3">
               {user ? (
                 <>
@@ -175,7 +220,14 @@ export default function Navbar() {
                     href="/listings/new"
                     className="text-gray-200 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-1.5"><path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" /></svg>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 16 16"
+                      fill="currentColor"
+                      className="w-4 h-4 mr-1.5"
+                    >
+                      <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
+                    </svg>
                     List Item
                   </Link>
                   <button
@@ -195,6 +247,7 @@ export default function Navbar() {
               )}
             </div>
 
+            {/* mobile hamburger */}
             <div className="md:hidden">
               <button
                 ref={buttonRef}
@@ -205,9 +258,37 @@ export default function Navbar() {
                 className="inline-flex items-center justify-center p-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
               >
                 {isMobileMenuOpen ? (
-                  <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  <svg
+                    className="block h-6 w-6"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
                 ) : (
-                  <svg className="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                  <svg
+                    className="block h-6 w-6"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
+                  </svg>
                 )}
               </button>
             </div>
@@ -215,6 +296,7 @@ export default function Navbar() {
         </div>
       </nav>
 
+      {/* mobile overlay & panel */}
       {isMobileMenuOpen && (
         <div
           className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden"
@@ -240,13 +322,31 @@ export default function Navbar() {
             className="p-1 text-gray-300 hover:text-white rounded-md hover:bg-gray-700"
             aria-label="Close menu"
           >
-            <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            <svg
+              className="h-6 w-6"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
 
         <nav className="space-y-2">
           {commonNavLinks.map((l) => (
-            <Link key={`mobile-${l.text}`} href={l.href} onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClasses(l.href)} >
+            <Link
+              key={`mobile-${l.text}`}
+              href={l.href}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={mobileNavLinkClasses(l.href)}
+            >
               {l.text}
             </Link>
           ))}
@@ -255,7 +355,12 @@ export default function Navbar() {
             <>
               <hr className="border-gray-700 my-3" />
               {userNavLinks.map((l) => (
-                <Link key={`mobile-${l.text}`} href={l.href} onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClasses(l.href)} >
+                <Link
+                  key={`mobile-${l.text}`}
+                  href={l.href}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={mobileNavLinkClasses(l.href)}
+                >
                   {l.text}
                 </Link>
               ))}
@@ -266,20 +371,38 @@ export default function Navbar() {
 
           {user ? (
             <>
-              <Link href="/listings/new" onClick={() => setIsMobileMenuOpen(false)}
-                className={`${mobileNavLinkClasses('/listings/new')} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`} >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-2" >
+              <Link
+                href="/listings/new"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`${mobileNavLinkClasses(
+                  '/listings/new'
+                )} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  className="w-4 h-4 mr-2"
+                >
                   <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
                 </svg>
                 Create New Listing
               </Link>
-              <button onClick={handleLogout} className="block w-full text-left px-4 py-3 text-base font-medium rounded-md text-red-300 hover:bg-red-700 hover:text-white transition-colors" >
+              <button
+                onClick={handleLogout}
+                className="block w-full text-left px-4 py-3 text-base font-medium rounded-md text-red-300 hover:bg-red-700 hover:text-white transition-colors"
+              >
                 Logout
               </button>
             </>
           ) : (
-            <Link href="/auth" onClick={() => setIsMobileMenuOpen(false)}
-              className={`${mobileNavLinkClasses('/auth')} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`} >
+            <Link
+              href="/auth"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={`${mobileNavLinkClasses(
+                '/auth'
+              )} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}
+            >
               Login / Sign Up
             </Link>
           )}
