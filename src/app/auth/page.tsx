@@ -6,56 +6,97 @@ import { useRouter } from 'next/navigation';
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/lib/supabaseClient';
-// Removed LoadingSpinner import
 
 export default function AuthPage() {
   const router = useRouter();
-  const [isMounted, setIsMounted] = useState(false); // Still useful for client-side URL generation
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-      setIsMounted(true); // Indicate component has mounted client-side
+      setIsMounted(true); 
 
-      // Listener to handle REDIRECT AFTER magic link or state change
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
           (_event, session) => {
-              console.log("Auth page: Auth state changed.", session ? "Got session" : "No session");
+              // console.log("Auth page: Auth state changed.", session ? "Got session" : "No session", "Event:", _event);
               if (session) {
-                  // If a session becomes active, redirect to listings.
-                  console.log("Auth page: Session detected in listener, redirecting to /listings");
-                  router.push('/listings');
+                  // Avoid redirecting if on specific auth callback paths
+                  const currentPath = window.location.pathname + window.location.search + window.location.hash;
+                  if (!currentPath.includes('/auth/callback') && !window.location.hash.includes('type=recovery') && !window.location.search.includes('code=')) {
+                      const urlParams = new URLSearchParams(window.location.search);
+                      const nextPath = urlParams.get('redirect') || '/listings';
+                      // console.log(`Auth page: Session detected in listener, redirecting to ${nextPath}`);
+                      router.push(nextPath);
+                  }
               }
-              // No explicit action needed if session is null (user remains on auth page)
           }
       );
 
-      // Initial check - optional, listener handles active session redirect anyway
-      // We can check just to potentially log info, but don't need isLoading state now
-      supabase.auth.getSession().then(({ data }) => {
-          console.log("Auth page: Initial session check complete. Session exists:", !!data.session);
+      // Initial check for existing session
+      supabase.auth.getSession().then(({ data: { session } }) => {
+          // console.log("Auth page: Initial session check. Session exists:", !!session);
+          if (session) {
+              const currentPath = window.location.pathname + window.location.search + window.location.hash;
+              if (!currentPath.includes('/auth/callback') && !window.location.hash.includes('type=recovery') && !window.location.search.includes('code=')) {
+                   const urlParams = new URLSearchParams(window.location.search);
+                   const nextPath = urlParams.get('redirect') || '/listings';
+                   // console.log(`Auth page: Initial session exists, redirecting to ${nextPath}`);
+                   router.push(nextPath);
+              }
+          }
       });
 
-
-      return () => subscription.unsubscribe();
-  // Add router to dependency array because it's used in the effect's listener
+      return () => subscription?.unsubscribe();
   }, [router]);
 
-  // Construct redirect URL (for actions within Auth component like password recovery, etc.)
-  const getRedirectUrl = () => {
-      if (!isMounted) return undefined;
-      return `${window.location.origin}/listings`;
+  const getRedirectUrlClientSide = (): string | undefined => {
+      if (!isMounted) return undefined; 
+      // This URL is for Supabase internal redirects like magic links, password recovery.
+      // OAuth final redirect is configured in Supabase project settings (Site URL).
+      const urlParams = new URLSearchParams(window.location.search);
+      const nextPath = urlParams.get('next'); // A 'next' param for post-auth redirect
+      if (nextPath) {
+          // Ensure nextPath is a relative path within your app for security
+          if (nextPath.startsWith('/')) {
+              return `${window.location.origin}${nextPath}`;
+          }
+      }
+      return `${window.location.origin}/listings`; // Default redirect
   }
 
-  // Directly render the Auth UI. The listener handles redirecting away if needed.
-  // If user visits while logged in, they see this briefly before listener redirects.
   return (
-    <div className="max-w-sm mx-auto py-16">
-      <Auth
-        supabaseClient={supabase}
-        appearance={{ theme: ThemeSupa }}
-        providers={[]}
-        theme="dark"
-        redirectTo={getRedirectUrl()} // Point to /listings for Auth component actions
-      />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8 p-8 sm:p-10 bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
+            <div>
+                <img
+                    className="mx-auto h-12 w-auto"
+                    src="/bidly-logo.svg" 
+                    alt="ByeBuy"
+                />
+                <h2 className="mt-6 text-center text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white">
+                    Sign in to your account
+                </h2>
+                <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+                    Or start bidding on awesome campus deals!
+                </p>
+            </div>
+            <Auth
+                supabaseClient={supabase}
+                appearance={{ 
+                    theme: ThemeSupa,
+                    variables: {
+                        default: {
+                            colors: {
+                                brand: 'rgb(79, 70, 229)', 
+                                brandAccent: 'rgb(101, 91, 239)',
+                            },
+                        },
+                    },
+                }}
+                providers={['google']} 
+                socialLayout="horizontal" 
+                theme="dark" 
+                redirectTo={getRedirectUrlClientSide()} // Good to provide for non-OAuth methods in Auth UI
+            />
+        </div>
     </div>
   );
 }
