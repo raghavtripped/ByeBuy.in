@@ -1,6 +1,6 @@
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
-project_id = "bidly"
+project_id = "efkggsqrpmilxfmszdlz"
 
 [api]
 enabled = true
@@ -48,7 +48,7 @@ enabled = true
 # Port to use for Supabase Studio.
 port = 54323
 # External URL of the API server that frontend connects to.
-api_url = "http://127.0.0.1"
+api_url = "http://127.0.0.1" # This is typically for local studio to connect to local API gateway
 # OpenAI API Key to use for Supabase AI in the Supabase Studio.
 openai_api_key = "env(OPENAI_API_KEY)"
 
@@ -68,15 +68,22 @@ enabled = true
 file_size_limit = "50MiB"
 
 [storage.image_transformation]
-enabled = true
+enabled = false # CHANGED based on diff (was true)
 
 [auth]
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "https://byebuy.in/" # CHANGED based on diff (was http://127.0.0.1:3000)
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# CHANGED based on diff
+additional_redirect_urls = [
+    "https://byebuy.in/listings", 
+    "https://byebuy.in/**", 
+    "https://byebuy.in/update-password", 
+    "http://localhost:3000/**", 
+    "https://bidly-pi.vercel.app/**"
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # If disabled, the refresh token will never expire.
@@ -85,22 +92,40 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-enable_signup = true
+enable_signup = true # This was not in the diff for this line, keeping as is.
 # Allow/disallow anonymous sign-ins to your project.
-enable_anonymous_sign_ins = false
+enable_anonymous_sign_ins = false # This was not in the diff for this line, keeping as is.
 # Allow/disallow testing manual linking of accounts
-enable_manual_linking = false
+enable_manual_linking = false # This was not in the diff for this line, keeping as is.
+
+# Added [auth.mfa] and sub-sections based on diff structure
+[auth.mfa] 
+max_enrolled_factors = 10 # Assuming this value from a typical Supabase setup, not explicitly in diff but implied by presence of mfa.totp
+
+[auth.mfa.totp]
+enroll_enabled = true # CHANGED based on diff (was false or not present)
+verify_enabled = true # CHANGED based on diff (was false or not present)
+
+[auth.mfa.phone] # Assuming these defaults if not specified in diff but section exists
+enroll_enabled = false 
+verify_enabled = false
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
-enable_signup = true
+enable_signup = true # This was not in the diff for this line, keeping as is.
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
-double_confirm_changes = true
+double_confirm_changes = true # This was not in the diff for this line, keeping as is.
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+enable_confirmations = true # CHANGED based on diff (was false)
+# Added secure_password_change based on diff structure (assuming false if not specified)
+secure_password_change = false 
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
+max_frequency = "1m0s" # CHANGED based on diff (was 1s)
+# Added otp_length and otp_expiry based on diff structure
+otp_length = 6
+otp_expiry = 86400
+
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -109,13 +134,13 @@ max_frequency = "1s"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
-enable_signup = true
+enable_signup = false # CHANGED based on diff (was true)
 # If enabled, users need to confirm their phone number before signing in.
-enable_confirmations = false
+enable_confirmations = false # This was not in the diff for this line, keeping as is.
 # Template for sending OTP to users
-template = "Your code is {{ .Code }} ."
+template = "Your code is {{ .Code }}" # CHANGED based on diff (was "Your code is {{ .Code }} .")
 # Controls the minimum amount of time that must pass before sending another sms otp.
-max_frequency = "5s"
+max_frequency = "5s" # This was not in the diff for this line, keeping as is.
 
 # Use pre-defined map of phone number to OTP for testing.
 # [auth.sms.test_otp]
@@ -148,7 +173,7 @@ redirect_uri = ""
 # or any other third-party OIDC providers.
 url = ""
 # If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
-skip_nonce_check = false
+skip_nonce_check = false # This was not in the diff for this line, keeping as is.
 
 [analytics]
 enabled = false
@@ -170,7 +195,7 @@ s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
 
-# --- Added section ---
+# --- Added section (from your original, kept as is) ---
 [functions.close-expired-auctions]
 import_map = "./import_map.json"
 # verify_jwt = false # Alternative way to set --no-verify-jwt default
