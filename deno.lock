@@ -61,7 +61,8 @@
         "npm:react@19",
         "npm:slick-carousel@^1.8.1",
         "npm:tailwindcss@^3.4.17",
-        "npm:typescript@5"
+        "npm:typescript@5",
+        "npm:zustand@^5.0.4"
       ]
     }
   }
