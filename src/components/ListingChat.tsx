@@ -5,24 +5,26 @@ import { useState, useEffect, FormEvent, ChangeEvent, useRef, useCallback } from
 import { supabase, User } from '@/lib/supabaseClient';
 import { formatRelativeTime } from '@/lib/timeUtils';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // <<<<<<<<<<<< IMPORT useRouter - ENSURE THIS IS PRESENT
 
 // Interface defining the structure of a chat message
 interface ChatMessage {
   id: string;
   listing_id: string;
-  sender_id: string | null; // Can be null if, for example, system messages were ever a thing
+  sender_id: string | null; 
   content: string;
   created_at: string;
-  sender_email?: string | null; // Populated by the 'listing_chats_with_sender_email' view
+  sender_email?: string | null; 
 }
 
 // Interface for the component's props
 interface ListingChatProps {
   listingId: string;
-  currentUser: User | null; // The currently logged-in user
+  currentUser: User | null; 
 }
 
 export default function ListingChat({ listingId, currentUser }: ListingChatProps) {
+  const router = useRouter(); // <<<<<<<<<<<< INITIALIZE useRouter - ENSURE THIS IS PRESENT
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(true);
@@ -31,16 +33,14 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
   
   const messageContainerRef = useRef<null | HTMLDivElement>(null); 
 
-  // Simple notification function (consider replacing with a toast system later)
   const showNotification = (type: 'success' | 'error', message: string) => {
     if (typeof window !== 'undefined') {
-      if (type === 'success') alert(`Success: ${message}`); // Keep for now, per our flow
-      else alert(`Error: ${message}`); // Keep for now
+      if (type === 'success') alert(`Success: ${message}`);
+      else alert(`Error: ${message}`);
     }
     console.log(`ListingChat Notification (${type}): ${message}`);
   };
 
-  // Fetches the initial set of messages for the listing
   const fetchInitialMessages = useCallback(async () => {
     if (!listingId) {
       setLoadingMessages(false);
@@ -48,12 +48,12 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
       setMessages([]);
       return;
     }
-    // console.log(`ListingChat: Fetching initial messages for listingId: ${listingId}`);
+    // console.log(`ListingChat: Fetching messages for listingId: ${listingId}`);
     setLoadingMessages(true);
     setError(null);
     try {
       const { data, error: fetchError } = await supabase
-        .from('listing_chats_with_sender_email') // Use view to get sender_email
+        .from('listing_chats_with_sender_email')
         .select('*')
         .eq('listing_id', listingId)
         .order('created_at', { ascending: true });
@@ -62,9 +62,9 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
         throw fetchError;
       }
       setMessages(data || []);
-      // console.log(`ListingChat: Fetched ${data?.length || 0} initial messages.`);
+      // console.log(`ListingChat: Fetched ${data?.length || 0} messages.`);
     } catch (err: unknown) {
-      console.error("ListingChat: Error fetching initial messages:", err);
+      console.error("ListingChat: Error fetching messages:", err);
       let message = 'Failed to load chat messages.';
       if (err instanceof Error) message = err.message;
       else if (typeof err === 'string') message = err;
@@ -76,40 +76,32 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
     } finally {
       setLoadingMessages(false);
     }
-  }, [listingId]); // Dependency is listingId
+  }, [listingId]); 
 
-  // Effect for initial data load and setting up Realtime subscription
   useEffect(() => {
     if (!listingId) {
-      // console.log("ListingChat: No listingId in effect, clearing messages and skipping setup.");
       setMessages([]);
-      setLoadingMessages(false); // Ensure loading stops if listingId is not present
-      setError(null); // Clear any previous errors
+      setLoadingMessages(false); 
+      setError(null); 
       return;
     }
 
-    fetchInitialMessages(); // Load initial messages
+    fetchInitialMessages(); 
 
-    // console.log(`ListingChat: Setting up Realtime channel for listing-chat-${listingId}`);
     const channel = supabase
-      .channel(`listing-chat-${listingId}`) // Unique channel name per listing
-      .on<ChatMessage>( // Specify the expected payload type for 'postgres_changes'
+      .channel(`listing-chat-${listingId}`) 
+      .on<ChatMessage>( 
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'listing_chats', // Listen to the base table for inserts
-          filter: `listing_id=eq.${listingId}`, // Server-side filter
+          table: 'listing_chats', 
+          filter: `listing_id=eq.${listingId}`, 
         },
         async (payload) => {
-          // console.log('ListingChat: Realtime INSERT received!', payload);
-          
-          // When a new message is inserted, its payload.new will be from 'listing_chats'
-          // which might not have sender_email. We need to fetch the full detail.
           if (payload.new && payload.new.id) {
-            // console.log(`ListingChat RT: New message ID ${payload.new.id}. Fetching details...`);
             const { data: newMessageDetails, error: fetchDetailsError } = await supabase
-              .from('listing_chats_with_sender_email') // Fetch from view to get email
+              .from('listing_chats_with_sender_email') 
               .select('*')
               .eq('id', payload.new.id)
               .single();
@@ -120,9 +112,7 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
             }
 
             if (newMessageDetails) {
-              // console.log("ListingChat RT: Successfully fetched new message details:", newMessageDetails);
               setMessages((prevMessages) => {
-                // Prevent adding duplicate if somehow already present
                 if (prevMessages.find(m => m.id === newMessageDetails.id)) {
                   return prevMessages;
                 }
@@ -132,7 +122,7 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
           }
         }
       )
-      .subscribe((status, err) => { // Handle subscription status changes
+      .subscribe((status, err) => { 
         if (status === 'SUBSCRIBED') {
           // console.log(`ListingChat: Realtime SUBSCRIBED to listing-chat-${listingId}`);
         } else if (status === 'CHANNEL_ERROR') {
@@ -141,39 +131,33 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
         } else if (status === 'TIMED_OUT') {
           console.warn(`ListingChat: Realtime TIMED_OUT for listing-chat-${listingId}.`);
           setError("Chat connection timed out. Live updates might be delayed.");
-        } else {
-          // console.log(`ListingChat: Realtime status for listing-chat-${listingId}: ${status}`);
         }
       });
 
-    // Cleanup function to remove the channel subscription when component unmounts or listingId changes
     return () => {
-      // console.log(`ListingChat: Cleaning up Realtime channel for listing-chat-${listingId}`);
       if (channel) {
         supabase.removeChannel(channel)
           .catch(removeError => console.error("ListingChat: Error removing Realtime channel:", removeError));
       }
     };
-  }, [listingId, fetchInitialMessages]); // Dependencies for this effect
+  }, [listingId, fetchInitialMessages]); 
 
-  // Effect for auto-scrolling to the bottom of the message container
   useEffect(() => {
     const container = messageContainerRef.current;
     if (container) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [messages]); // Scroll whenever the messages array updates
+  }, [messages]); 
 
-  // Handles sending a new message
   const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) {
         showNotification('error', 'Message cannot be empty.');
         return;
     }
-    if (!currentUser) {
+    if (!currentUser) { 
         showNotification('error', 'You must be logged in to send a message.');
-        router.push(`/auth?redirect=/listings/${listingId}`); // Redirect to login
+        router.push(`/auth?redirect=/listings/${listingId}`); // router is now defined
         return;
     }
     if (!listingId) {
@@ -186,7 +170,7 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
     
     try {
       const { error: insertError } = await supabase
-        .from('listing_chats') // Insert into the base table
+        .from('listing_chats') 
         .insert({
           listing_id: listingId,
           sender_id: currentUser.id,
@@ -196,20 +180,15 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
       if (insertError) {
         throw insertError;
       }
-      setNewMessage(''); // Clear input field on successful send
-      // The message will appear via the real-time subscription, no need to manually add or refetch here
-      // console.log("ListingChat: Message insert successful. Realtime should pick it up.");
+      setNewMessage(''); 
     } catch (err: unknown) {
       console.error("ListingChat: Error sending message:", err);
       showNotification('error', `Failed to send message: ${err instanceof Error ? err.message : 'An unknown error occurred'}`);
-      // Optionally, put the message back in the input if send failed so user doesn't lose it.
-      // setNewMessage(messageContent); 
     } finally {
       setIsSending(false);
     }
   };
   
-  // Helper to get display name for a message sender
   const getSenderDisplayName = (message: ChatMessage): string => {
     if (message.sender_id === currentUser?.id) {
       return "You";
@@ -217,12 +196,15 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
     if (message.sender_email) {
       return message.sender_email.includes('@') ? message.sender_email.split('@')[0] : message.sender_email;
     }
-    return "Anonymous"; // Fallback if sender_email is somehow not available
+    return "Anonymous"; 
   };
 
   // --- Render Logic ---
+  // This is the part that was likely truncated in my previous "full code" response.
+  // I'm ensuring the loading, error, empty, and message mapping JSX is now complete,
+  // based on the structure from the version of your code I analyzed before the real-time changes.
 
-  if (!listingId) { // Initial state if listingId isn't ready
+  if (!listingId) { 
     return (
         <div className="mt-8 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow">
              <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-100">Listing Chat</h3>
@@ -237,7 +219,6 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
         <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-100">Listing Chat</h3>
         <div className="h-64 flex items-center justify-center">
             <p className="text-sm text-gray-500 dark:text-gray-400">Loading chat messages...</p>
-            {/* Consider adding a small spinner here too */}
         </div>
       </div>
     );
@@ -264,7 +245,7 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
     <div className="mt-8 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow">
       <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-100">Listing Chat</h3>
       
-      {/* Removed the "refresh to see new messages" note as it's now real-time */}
+      {/* Removed "refresh page" note */}
 
       <div 
         ref={messageContainerRef}
@@ -280,7 +261,7 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
                   ? 'bg-indigo-500 text-white rounded-br-none' 
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-none'
               }`}>
-                {msg.sender_id !== currentUser?.id && ( // Only show sender name if it's not the current user
+                {msg.sender_id !== currentUser?.id && (
                     <p className="text-xs font-semibold mb-0.5 opacity-80">{getSenderDisplayName(msg)}</p>
                 )}
                 <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
