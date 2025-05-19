@@ -125,6 +125,7 @@ export default function Navbar() {
             <div className="h-6 bg-gray-700 w-28 rounded" /> {/* My Watchlist */}
             <div className="h-6 bg-gray-700 w-24 rounded" /> {/* My Listings */}
             <div className="h-6 bg-gray-700 w-20 rounded" /> {/* My Bids */}
+            <div className="h-6 bg-gray-700 w-24 rounded" /> {/* My Account */}
             <div className="h-7 bg-gray-700 w-24 rounded-md" /> {/* List Item / Login */}
           </div>
           <div className="md:hidden h-7 w-7 bg-gray-700 rounded animate-pulse" />
@@ -152,19 +153,20 @@ export default function Navbar() {
     }`;
   };
 
-  // --- Define Link Structures ---
-  const commonNavLinks = [
-    { href: '/', text: 'Active Auctions' },
-    { href: '/listings/archive', text: 'Auction Archive' },
-  ];
+// --- Define Link Structures ---
+const commonNavLinks = [
+  { href: '/', text: 'Active Auctions' },
+  { href: '/listings/archive', text: 'Auction Archive' },
+];
 
-  const userNavLinks = user
-    ? [
-        { href: '/my-watchlist', text: 'My Watchlist' },
-        { href: '/my-listings', text: 'My Listings' },
-        { href: '/my-bids',     text: 'My Bids' },
-      ]
-    : [];
+const userNavLinks = user
+  ? [
+      { href: '/my-watchlist', text: 'My Watchlist' },
+      { href: '/my-listings', text: 'My Listings' },
+      { href: '/my-bids',     text: 'My Bids' },
+      { href: '/account/settings', text: 'My Account' }, // <-- ADDED THIS LINE
+    ]
+  : [];
 
   // --- Main Navbar JSX ---
   return (
