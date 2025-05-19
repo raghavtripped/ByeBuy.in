@@ -74,7 +74,7 @@ export default function Navbar() {
       // console.log("Navbar: Pathname changed, closing mobile menu.");
       setIsMobileMenuOpen(false);
     }
-  }, [pathname]); // Only depends on pathname
+  }, [isMobileMenuOpen, pathname]); // Only depends on pathname
 
   // Effect 4: Escape key closes mobile menu
   useEffect(() => {
