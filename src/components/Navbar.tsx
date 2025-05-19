@@ -1,7 +1,7 @@
 // src/components/Navbar.tsx
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react'; // Added useCallback
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
@@ -35,26 +35,19 @@ export default function Navbar() {
     getSessionAndUser();
     
     return () => {
-        mounted = false;
+        mounted = false; // To prevent state updates if component unmounts before async op completes
     }
   }, []); // Empty dependency array - runs only on mount
 
-  // Effect 2: onAuthStateChange listener (runs primarily on mount, re-evaluates if isMobileMenuOpen changes)
+  // Effect 2: onAuthStateChange listener (MODIFIED - only handles auth state changes)
   useEffect(() => {
-    // console.log("Navbar: Setting up onAuthStateChange listener effect RUNNING. isMobileMenuOpen:", isMobileMenuOpen);
+    // console.log("Navbar: Setting up onAuthStateChange listener effect RUNNING.");
     let mounted = true;
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => { // event is not directly used here
       if (!mounted) return;
       // console.log("Navbar: onAuthStateChange event:", event, "User:", session?.user?.id);
       setUser(session?.user ?? null);
-      // setLoading(false); // Loading is primarily for initial load, auth changes update user
-
-      // If user logs out WHILE mobile menu is open, close it.
-      if (event === 'SIGNED_OUT' && isMobileMenuOpen) {
-        // console.log("Navbar: User signed out, mobile menu was open, closing it.");
-        setIsMobileMenuOpen(false);
-      }
     });
 
     return () => {
@@ -62,19 +55,25 @@ export default function Navbar() {
       // console.log("Navbar: Cleaning up onAuthStateChange listener.");
       authListener?.subscription?.unsubscribe();
     };
-  // isMobileMenuOpen is included because it's used in the callback for a conditional state update.
-  // This means the listener will be re-subscribed if isMobileMenuOpen changes.
-  // If this causes performance issues or unwanted re-subscriptions,
-  // an alternative would be to manage menu closing on logout via a different effect that watches `user`.
-  }, [isMobileMenuOpen]); 
+  }, []); // MODIFIED: Empty dependency array - listener set up once, callback handles changes
 
-  // Effect 3: Close mobile menu on route change
+  // Effect 2.1: NEW - Close mobile menu on user sign-out if it's open
+  useEffect(() => {
+    // This effect specifically watches for the user state changing to null (logged out)
+    // and if the mobile menu is open at that time, it closes it.
+    if (!user && isMobileMenuOpen) {
+      // console.log("Navbar: User signed out (detected by user state change), mobile menu was open, closing it.");
+      setIsMobileMenuOpen(false);
+    }
+  }, [user, isMobileMenuOpen]); // Depends on user and isMobileMenuOpen
+
+  // Effect 3: Close mobile menu on route change (MODIFIED dependency array)
   useEffect(() => {
     if (isMobileMenuOpen) {
       // console.log("Navbar: Pathname changed, closing mobile menu.");
       setIsMobileMenuOpen(false);
     }
-  }, [isMobileMenuOpen, pathname]); // Only depends on pathname
+  }, [pathname, isMobileMenuOpen]); // MODIFIED: Added isMobileMenuOpen as it's read in the effect
 
   // Effect 4: Escape key closes mobile menu
   useEffect(() => {
@@ -82,30 +81,31 @@ export default function Navbar() {
       if (event.key === 'Escape' && isMobileMenuOpen) {
         // console.log("Navbar: Escape key pressed, closing mobile menu.");
         setIsMobileMenuOpen(false);
-        buttonRef.current?.focus();
+        buttonRef.current?.focus(); // Return focus to the hamburger button
       }
     };
     document.addEventListener('keydown', handleEscapeKey);
     return () => {
       document.removeEventListener('keydown', handleEscapeKey);
     };
-  }, [isMobileMenuOpen]); // Depends on isMobileMenuOpen to add/remove listener
+  }, [isMobileMenuOpen]); // Correctly depends on isMobileMenuOpen
 
-  // --- handlers (useCallback for stable references if passed as props, good practice) ---
+  // --- handlers ---
   const toggleMobileMenu = useCallback(() => {
     setIsMobileMenuOpen((prev) => !prev);
   }, []);
 
   const handleLogout = useCallback(async () => {
-    setIsMobileMenuOpen(false); 
+    setIsMobileMenuOpen(false); // Close menu immediately on logout action
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Logout error:', error.message);
-      alert(`Logout failed: ${error.message}`); // Using alert as per original
+      // Replace alert with a better notification system (Item #8 on our list)
+      alert(`Logout failed: ${error.message}`); 
       return;
     }
-    router.push('/');
-  }, [router]); // router is a stable dependency from next/navigation
+    router.push('/'); // Redirect to homepage after logout
+  }, [router]); 
 
   // --- Loading Skeleton ---
   if (loading) {
@@ -153,20 +153,20 @@ export default function Navbar() {
     }`;
   };
 
-// --- Define Link Structures ---
-const commonNavLinks = [
-  { href: '/', text: 'Active Auctions' },
-  { href: '/listings/archive', text: 'Auction Archive' },
-];
+  // --- Define Link Structures ---
+  const commonNavLinks = [
+    { href: '/', text: 'Active Auctions' },
+    { href: '/listings/archive', text: 'Auction Archive' },
+  ];
 
-const userNavLinks = user
-  ? [
-      { href: '/my-watchlist', text: 'My Watchlist' },
-      { href: '/my-listings', text: 'My Listings' },
-      { href: '/my-bids',     text: 'My Bids' },
-      { href: '/account/settings', text: 'My Account' }, // <-- ADDED THIS LINE
-    ]
-  : [];
+  const userNavLinks = user
+    ? [
+        { href: '/my-watchlist', text: 'My Watchlist' },
+        { href: '/my-listings', text: 'My Listings' },
+        { href: '/my-bids',     text: 'My Bids' },
+        { href: '/account/settings', text: 'My Account' }, // My Account link is present
+      ]
+    : [];
 
   // --- Main Navbar JSX ---
   return (
@@ -346,7 +346,7 @@ const userNavLinks = user
             <Link
               key={`mobile-${l.text}`}
               href={l.href}
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => setIsMobileMenuOpen(false)} // Close menu on link click
               className={mobileNavLinkClasses(l.href)}
             >
               {l.text}
@@ -356,11 +356,11 @@ const userNavLinks = user
           {user && (
             <>
               <hr className="border-gray-700 my-3" />
-              {userNavLinks.map((l) => (
+              {userNavLinks.map((l) => ( // This will now include "My Account"
                 <Link
                   key={`mobile-${l.text}`}
                   href={l.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  onClick={() => setIsMobileMenuOpen(false)} // Close menu on link click
                   className={mobileNavLinkClasses(l.href)}
                 >
                   {l.text}
@@ -375,7 +375,7 @@ const userNavLinks = user
             <>
               <Link
                 href="/listings/new"
-                onClick={() => setIsMobileMenuOpen(false)}
+                onClick={() => setIsMobileMenuOpen(false)} // Close menu on link click
                 className={`${mobileNavLinkClasses(
                   '/listings/new'
                 )} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}
@@ -391,7 +391,7 @@ const userNavLinks = user
                 Create New Listing
               </Link>
               <button
-                onClick={handleLogout}
+                onClick={handleLogout} // handleLogout already calls setIsMobileMenuOpen(false)
                 className="block w-full text-left px-4 py-3 text-base font-medium rounded-md text-red-300 hover:bg-red-700 hover:text-white transition-colors"
               >
                 Logout
@@ -400,7 +400,7 @@ const userNavLinks = user
           ) : (
             <Link
               href="/auth"
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => setIsMobileMenuOpen(false)} // Close menu on link click
               className={`${mobileNavLinkClasses(
                 '/auth'
               )} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}
