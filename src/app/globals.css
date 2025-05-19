@@ -1,149 +1,306 @@
-/* Import Tailwind directives */
+/* src/app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Custom CSS starts here */
-
-/* Root variables for light and dark modes */
-:root {
-  --background-light: #ffffff; /* Light mode background */
-  --foreground-light: #111827; /* Light mode text color */
-
-  --background-dark: #111827; /* Dark mode background */
-  --foreground-dark: #F3F4F6; /* Dark mode text color */
-
-  --primary-button-bg: #4F46E5; /* Indigo color for primary buttons */
-  --primary-button-hover: #4338CA; /* Hover state for primary buttons */
-
-  --secondary-button-bg: #F3F4F6; /* Light gray for secondary buttons */
-  --secondary-button-text: #111827; /* Dark text for secondary buttons */
-
-  --danger-button-bg: #DC2626; /* Red color for danger buttons */
-  --danger-button-hover: #B91C1C; /* Hover state for danger buttons */
-
-  --link-color: #4F46E5; /* Indigo color for links */
-  --link-hover: #4338CA; /* Hover state for links */
-
-  --icon-color: #6B7280; /* Default gray for icons */
-  --icon-hover: #4F46E5; /* Hover state for icons */
-}
-
-/* Media query for dark mode */
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: var(--background-dark); /* Set dark mode background */
-    --foreground: var(--foreground-dark); /* Set dark mode text */
+    /* Base Colors */
+    --background: 0 0% 100%; /* White */
+    --foreground: 222.2 84% 4.9%; /* Almost Black */
+    
+    /* Card */
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    
+    /* Button Colors */
+    --primary: 235 69% 55%; /* Indigo-ish */
+    --primary-foreground: 210 40% 98%; /* Very Light Gray / Off-White */
+    
+    --secondary: 210 40% 96.1%; /* Light Gray */
+    --secondary-foreground: 222.2 47.4% 11.2%; /* Dark Gray */
+    
+    --destructive: 0 84.2% 60.2%; /* Red */
+    --destructive-foreground: 210 40% 98%;
+    
+    /* States & Supporting Colors */
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%; /* Muted Gray */
+    
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    
+    /* UI Elements */
+    --border: 214.3 31.8% 91.4%; /* Light Gray Border */
+    --input: 214.3 31.8% 91.4%;  /* Light Gray Input Border */
+    --ring: 235 69% 55%; /* Indigo-ish Ring for Focus */
+    
+    /* Success & Info */
+    --success: 142 76% 36%; /* Green */
+    --success-foreground: 210 40% 98%;
+    
+    --info: 214 100% 60%; /* Blue */
+    --info-foreground: 210 40% 98%;
+    
+    /* Radius & Shadow */
+    --radius: 0.5rem; /* e.g., for rounded-lg */
+    --shadow-color: 215 25% 27%;
+    --shadow-strength: 1%;
+  }
+  
+  .dark {
+    /* Base Colors */
+    --background: 222.2 84% 4.9%; /* Almost Black */
+    --foreground: 210 40% 98%; /* Very Light Gray / Off-White */
+    
+    /* Card */
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    
+    /* Popover */
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    
+    /* Button Colors */
+    --primary: 235 69% 60%; /* Slightly Lighter Indigo for Dark Mode */
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 217.2 32.6% 17.5%; /* Darker Gray */
+    --secondary-foreground: 210 40% 98%;
+    
+    --destructive: 0 74% 42%; /* Darker Red */
+    --destructive-foreground: 210 40% 98%;
+    
+    /* States & Supporting Colors */
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%; /* Lighter Muted Gray */
+    
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    
+    /* UI Elements */
+    --border: 217.2 32.6% 17.5%; /* Darker Border */
+    --input: 217.2 32.6% 17.5%;  /* Darker Input Border */
+    --ring: 235 69% 60%; /* Lighter Indigo Ring for Dark Mode */
+    
+    /* Success & Info */
+    --success: 142 69% 42%; /* Darker Green */
+    --success-foreground: 210 40% 98%;
+    
+    --info: 214 95% 65%; /* Lighter Blue */
+    --info-foreground: 210 40% 98%;
+    
+    /* Shadow */
+    --shadow-color: 220 40% 2%;
+    --shadow-strength: 25%;
   }
 }
 
-/* Global body styles */
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  transition: background-color 0.3s, color 0.3s; /* Smooth transition for color schemes */
+@layer base {
+  * {
+    @apply border-border; /* Applies default border color to all elements (can be overridden) */
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    /* Enables common OpenType font features for better typography */
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1; 
+  }
+  
+  /* Custom Focus Styles for better accessibility */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
 }
 
-/* Button Styles */
-.button-primary {
-  @apply bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
-  background-color: var(--primary-button-bg);
-}
-.button-primary:hover {
-  background-color: var(--primary-button-hover);
+@layer components {
+  /* Button Base */
+  .btn {
+    @apply inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+  }
+  
+  /* Button Variants */
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+  
+  .btn-outline {
+    @apply border border-input bg-background hover:bg-accent hover:text-accent-foreground;
+  }
+  
+  .btn-ghost {
+    @apply hover:bg-accent hover:text-accent-foreground;
+  }
+  
+  .btn-destructive {
+    @apply bg-destructive text-destructive-foreground hover:bg-destructive/90;
+  }
+  
+  .btn-success {
+    @apply bg-success text-success-foreground hover:bg-success/90;
+  }
+  
+  .btn-info {
+    @apply bg-info text-info-foreground hover:bg-info/90;
+  }
+  
+  /* Button Sizes */
+  .btn-sm {
+    @apply h-8 px-3 text-xs;
+  }
+  
+  .btn-lg {
+    @apply h-12 px-6 text-base;
+  }
+  
+  .btn-icon {
+    @apply h-9 w-9 p-0; /* For icon-only buttons */
+  }
+  
+  /* Card Styles */
+  .card {
+    @apply rounded-lg border bg-card text-card-foreground shadow-sm;
+  }
+  
+  .card-header {
+    @apply flex flex-col space-y-1.5 p-6;
+  }
+  
+  .card-title {
+    @apply text-xl font-semibold leading-none tracking-tight; /* Adjusted from text-2xl to text-xl for typical card title */
+  }
+  
+  .card-description {
+    @apply text-sm text-muted-foreground;
+  }
+  
+  .card-content {
+    @apply p-6 pt-0;
+  }
+  
+  .card-footer {
+    @apply flex items-center p-6 pt-0;
+  }
+  
+  /* Link Styles */
+  .link { /* More specific than just applying to <a> for targeted use */
+    @apply text-primary underline-offset-4 hover:underline focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+  }
+  
+  /* Input Styles */
+  .input {
+    @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  
+  /* Badge Styles */
+  .badge {
+    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+  }
+  
+  .badge-primary {
+    @apply border-transparent bg-primary text-primary-foreground hover:bg-primary/80; /* Added border-transparent for solid badges */
+  }
+  
+  .badge-secondary {
+    @apply border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+  
+  .badge-destructive {
+    @apply border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80;
+  }
+  
+  .badge-outline {
+    @apply text-foreground; /* Removed hover:bg-accent hover:text-accent-foreground as it might conflict with border */
+  }
+  
+  /* Box shadow utility */
+  .shadow-subtle {
+    box-shadow: 0 1px 3px 0 hsl(var(--shadow-color) / calc(var(--shadow-strength) + 5%)),
+                0 1px 2px -1px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 9%));
+  }
+  
+  .shadow-medium {
+    box-shadow: 0 4px 6px -1px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 4%)),
+                0 2px 4px -2px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 4%));
+  }
+  
+  .shadow-strong {
+    box-shadow: 0 10px 15px -3px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 2%)),
+                0 4px 6px -4px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 4%));
+  }
+  
+  /* Animation utilities */
+  .animate-fade {
+    animation: fadeIn 0.5s ease-out;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  .animate-slide-down {
+    animation: slideDown 0.3s ease-out;
+  }
+  
+  .animate-slide-left {
+    animation: slideLeft 0.3s ease-out;
+  }
+  
+  .animate-slide-right {
+    animation: slideRight 0.3s ease-out;
+  }
+  
+  /* Icon styling */
+  .icon-btn { /* For icon-only buttons, ensuring consistent sizing and alignment */
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+  }
+  
+  .icon-btn-ghost {
+    @apply hover:bg-accent hover:text-accent-foreground;
+  }
 }
 
-.button-secondary {
-  @apply bg-gray-100 text-gray-900 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
-  background-color: var(--secondary-button-bg);
-  color: var(--secondary-button-text);
-}
-
-.button-danger {
-  @apply bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
-  background-color: var(--danger-button-bg);
-}
-.button-danger:hover {
-  background-color: var(--danger-button-hover);
-}
-
-/* Link Styles */
-.link {
-  @apply text-indigo-600 hover:text-indigo-700;
-  color: var(--link-color);
-}
-.link:hover {
-  color: var(--link-hover);
-}
-
-/* Icon Styles */
-.icon {
-  @apply text-gray-500 hover:text-indigo-600;
-  color: var(--icon-color);
-}
-.icon:hover {
-  color: var(--icon-hover);
-}
-
-/* Card Styles */
-.card {
-  @apply bg-gray-100 border-gray-200;
-  background-color: var(--background-light);
-  border-color: #E5E7EB;
-}
-
-/* Dark Mode Styles */
-.dark body {
-  background: var(--background-dark);
-  color: var(--foreground-dark);
-}
-
-.dark .card {
-  @apply bg-gray-800 border-gray-700;
-  background-color: var(--background-dark);
-  border-color: var(--foreground-dark);
-}
-
-.dark .button-primary {
-  @apply bg-indigo-600 text-white hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
-  background-color: var(--primary-button-bg);
-}
-.dark .button-primary:hover {
-  background-color: var(--primary-button-hover);
-}
-
-.dark .button-secondary {
-  @apply bg-gray-700 text-gray-100 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
-  background-color: #374151;
-  color: #F3F4F6;
-}
-
-.dark .button-danger {
-  @apply bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
-  background-color: var(--danger-button-bg);
-}
-.dark .button-danger:hover {
-  background-color: var(--danger-button-hover);
-}
-
-.dark .link {
-  @apply text-indigo-400 hover:text-indigo-500;
-  color: var(--link-color);
-}
-.dark .link:hover {
-  color: var(--link-hover);
-}
-
-.dark .icon {
-  @apply text-gray-400 hover:text-indigo-400;
-  color: var(--icon-color);
-}
-.dark .icon:hover {
-  color: var(--icon-hover);
-}
-
-/* Transition for smooth color changes between light and dark modes */
-body, .button-primary, .button-secondary, .button-danger, .link, .icon, .card {
-  transition: all 0.3s ease-in-out;
+@layer utilities {
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes slideUp {
+    from { transform: translateY(10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  
+  @keyframes slideDown {
+    from { transform: translateY(-10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  
+  @keyframes slideLeft {
+    from { transform: translateX(10px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  
+  @keyframes slideRight {
+    from { transform: translateX(-10px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  
+  .glassmorphism {
+    /* Be careful with browser support and performance for backdrop-blur */
+    @apply bg-background/80 backdrop-blur-lg border border-border/50; 
+  }
+  
+  .text-balance {
+    text-wrap: balance; /* For better headline wrapping, browser support varies */
+  }
 }
