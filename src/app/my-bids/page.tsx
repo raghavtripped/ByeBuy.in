@@ -11,36 +11,25 @@ import EmptyState from '@/components/EmptyState';
 import { formatCurrency } from '@/lib/formatUtils';
 import { formatRelativeTime, formatCountdown, isPast } from '@/lib/timeUtils';
 
-// ---------- Helper Functions ---------------------------------------
+// ---------- Helper Functions (parsePhotosJson remains the same) ------------------
 const parsePhotosJson = (photosInput: string | string[] | null | undefined): string[] | null => {
-  if (photosInput === null || photosInput === undefined) {
-    return null;
-  }
+  if (photosInput === null || photosInput === undefined) return null;
   if (Array.isArray(photosInput)) {
-    if (photosInput.every(item => typeof item === 'string')) {
-      return photosInput as string[];
-    }
-    // console.warn('Photos input is an array but not uniformly strings:', photosInput);
-    return null;
+    return photosInput.every(item => typeof item === 'string') ? photosInput as string[] : null;
   }
   if (typeof photosInput === 'string') {
     try {
       const parsed = JSON.parse(photosInput);
-      if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) {
-        return parsed as string[];
-      }
-      // console.warn('Parsed photos JSON string is not an array of strings:', parsed);
-      return null;
-    } catch (_error) { // LINT FIX: Prefixed error with underscore as it's only used for logging
+      return (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) ? parsed as string[] : null;
+    } catch (_error) {
       console.error('Failed to parse photos JSON string:', photosInput, _error);
       return null;
     }
   }
-  // console.warn('Unexpected type for photosInput, cannot parse:', typeof photosInput, photosInput);
   return null;
 };
 
-// ---------- Types --------------------------------------------------
+// ---------- Types (MyBidDisplayItem, RawListingFromDB, RawBid, ViewFilter remain the same) ---
 type MyBidDisplayItem = {
   listingId: string;
   listingTitle: string;
@@ -63,8 +52,19 @@ type RawListingFromDB = {
     winning_bidder_id: string | null;
 };
 
-type RawBid = { item_id: string; bidder_id: string; bid_price: number; };
+type RawBid = { 
+    id: string; // Assuming bids have an ID
+    item_id: string; 
+    bidder_id: string; 
+    bid_price: number; 
+    timestamp: string; // Assuming bids have a timestamp
+};
 type ViewFilter = 'active' | 'past';
+
+// NEW: Types for Realtime Payloads
+type ListingPayload = Partial<RawListingFromDB> & { id: string }; // For listings table changes
+type BidPayload = Partial<RawBid> & { id: string, item_id: string }; // For bids table changes
+
 
 // ---------- Component ---------------------------------------------
 export default function MyBidsPage() {
@@ -72,66 +72,196 @@ export default function MyBidsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [allBidItems, setAllBidItems] = useState<MyBidDisplayItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null); // This 'error' state IS used for displaying errors to the user.
+  const [error, setError] = useState<string | null>(null);
   const [activeCountdownTimers, setActiveCountdownTimers] = useState<Record<string, string | null>>({});
   const [viewFilter, setViewFilter] = useState<ViewFilter>('active');
+  const [listingIdsUserBidOn, setListingIdsUserBidOn] = useState<string[]>([]); // Store listing IDs
 
   const fetchMyBidData = useCallback(async (currentUser: User) => {
-    setLoading(true); setError(null); setAllBidItems([]);
+    setLoading(true); setError(null); setAllBidItems([]); setListingIdsUserBidOn([]);
     try {
       const { data: distinctListingIdsData, error: rpcError } = await supabase.rpc(
         'get_distinct_listing_ids_for_bidder', { p_bidder_id: currentUser.id }
       );
       if (rpcError) throw new Error(`RPC Error: ${rpcError.message}`);
-      if (!distinctListingIdsData || distinctListingIdsData.length === 0) { setLoading(false); return; }
-      const listingIds: string[] = distinctListingIdsData.map((row: {item_id: string}) => row.item_id);
+      if (!distinctListingIdsData || distinctListingIdsData.length === 0) { 
+        setLoading(false); 
+        setListingIdsUserBidOn([]); // Ensure it's empty
+        return; 
+      }
+      const fetchedListingIds: string[] = distinctListingIdsData.map((row: {item_id: string}) => row.item_id);
+      setListingIdsUserBidOn(fetchedListingIds); // Store for realtime subscriptions
 
       const { data: listingsDataRaw, error: listingsError } = await supabase
         .from('listings').select('id, title, photos, end_time, status, winning_bidder_id')
-        .in('id', listingIds).returns<RawListingFromDB[]>();
+        .in('id', fetchedListingIds).returns<RawListingFromDB[]>();
       if (listingsError) throw new Error(`Listings Fetch Error: ${listingsError.message}`);
       if (!listingsDataRaw) { setLoading(false); return; }
 
       const listingsData = listingsDataRaw.map(listing => ({ ...listing, photos: parsePhotosJson(listing.photos) }));
 
+      // Fetch all bids for these listings to determine current highest bid and user's highest bid
       const { data: allBidsForListings, error: allBidsError } = await supabase
-        .from('bids').select('item_id, bidder_id, bid_price').in('item_id', listingIds)
-        .order('bid_price', { ascending: false }).returns<RawBid[]>();
+        .from('bids').select('id, item_id, bidder_id, bid_price, timestamp').in('item_id', fetchedListingIds) // Added id, timestamp
+        .order('bid_price', { ascending: false })
+        .order('timestamp', { ascending: true }) // Earliest highest bid wins ties
+        .returns<RawBid[]>();
       if (allBidsError) throw new Error(`Bids Fetch Error: ${allBidsError.message}`);
 
       const processedItems: MyBidDisplayItem[] = [];
       const listingsMap = new Map(listingsData.map(l => [l.id, l]));
 
-      for (const listingId of listingIds) {
+      for (const listingId of fetchedListingIds) {
         const listing = listingsMap.get(listingId);
         if (!listing) continue;
+        
         const bidsOnThisItem = allBidsForListings?.filter(b => b.item_id === listingId) || [];
+        // Sort bids on this item to easily find the highest
+        bidsOnThisItem.sort((a, b) => b.bid_price - a.bid_price || new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
         const userBidsOnThisItem = bidsOnThisItem.filter(b => b.bidder_id === currentUser.id);
         const userHighestBid = userBidsOnThisItem.length > 0 ? Math.max(...userBidsOnThisItem.map(b => b.bid_price)) : null;
-        const overallHighestBidObject = bidsOnThisItem[0];
+        
+        const overallHighestBidObject = bidsOnThisItem[0]; // Highest bid after sorting
+
         processedItems.push({
           listingId: listing.id, listingTitle: listing.title, listingPhotos: listing.photos,
           listingEndTime: listing.end_time, listingStatus: listing.status as MyBidDisplayItem['listingStatus'],
           listingWinningBidderId: listing.winning_bidder_id, userHighestBidOnItem: userHighestBid,
-          currentOverallHighestBid: overallHighestBidObject?.bid_price || null,
-          currentOverallHighestBidderId: overallHighestBidObject?.bidder_id || null,
+          currentOverallHighestBid: overallHighestBidObject?.bid_price ?? null,
+          currentOverallHighestBidderId: overallHighestBidObject?.bidder_id ?? null,
           isEffectivelyEnded: listing.status === 'closed' || listing.status === 'cancelled' || (listing.end_time ? isPast(listing.end_time) : false),
         });
       }
       setAllBidItems(processedItems);
-    } catch (err) { // This 'err' IS used
+    } catch (err) { 
       console.error("Error in fetchMyBidData:", err);
       setError(err instanceof Error ? `Failed to load your bids: ${err.message}` : 'An unknown error occurred.');
     } finally { setLoading(false); }
   }, []);
 
+  // Effect for initial user fetch and data load
   useEffect(() => {
     supabase.auth.getUser().then(({ data: userData, error: userError }) => {
       if (userError || !userData?.user) { router.push('/auth?redirect=/my-bids'); return; }
-      setUser(userData.user); fetchMyBidData(userData.user);
+      setUser(userData.user); 
+      fetchMyBidData(userData.user);
     });
   }, [router, fetchMyBidData]);
 
+  // **********************************************************************
+  // NEW: useEffect for Real-Time Subscriptions
+  // **********************************************************************
+  useEffect(() => {
+    if (!user || listingIdsUserBidOn.length === 0) {
+      return; // No user or no listings to watch
+    }
+
+    console.log("MyBidsPage RT: Setting up subscriptions for listing IDs:", listingIdsUserBidOn.join(', '));
+
+    // 1. Listen for new bids on the listings this user has bid on
+    const bidsChannel = supabase
+      .channel(`my-bids-page-bids-feed-${user.id}`) // Unique channel name
+      .on<BidPayload>(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'bids',
+          filter: `item_id=in.(${listingIdsUserBidOn.join(',')})`, // Filter for relevant listings
+        },
+        async (payload) => {
+          console.log('MyBidsPage RT: New bid received for a watched listing!', payload);
+          const newBid = payload.new;
+          if (newBid && newBid.item_id) {
+            // Refetch data for the specific listing that received a new bid
+            // to update currentOverallHighestBid and currentOverallHighestBidderId
+            // This is simpler than trying to merge just the bid, as highest bid logic can be complex.
+            // Alternatively, for more optimization, you could update just the affected item in allBidItems.
+            
+            // Find the item in our state
+            const itemToUpdate = allBidItems.find(item => item.listingId === newBid.item_id);
+            if (itemToUpdate) {
+                // Fetch latest bids for this specific item
+                const { data: latestBidsForItem, error: bidsError } = await supabase
+                    .from('bids')
+                    .select('bidder_id, bid_price, timestamp') // Select necessary fields
+                    .eq('item_id', newBid.item_id)
+                    .order('bid_price', { ascending: false })
+                    .order('timestamp', { ascending: true });
+
+                if (bidsError) {
+                    console.error("MyBidsPage RT: Error fetching latest bids for item", newBid.item_id, bidsError);
+                    return;
+                }
+                
+                const overallHighestBidObject = latestBidsForItem?.[0];
+
+                setAllBidItems(prevItems =>
+                    prevItems.map(item =>
+                        item.listingId === newBid.item_id
+                            ? {
+                                ...item,
+                                currentOverallHighestBid: overallHighestBidObject?.bid_price ?? item.currentOverallHighestBid,
+                                currentOverallHighestBidderId: overallHighestBidObject?.bidder_id ?? item.currentOverallHighestBidderId,
+                              }
+                            : item
+                    )
+                );
+            }
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR') console.error('MyBidsPage RT Bids Channel Error:', err);
+        else if (status === 'SUBSCRIBED') console.log('MyBidsPage RT Bids Channel Subscribed');
+      });
+
+    // 2. Listen for status changes on the listings this user has bid on
+    const listingsChannel = supabase
+      .channel(`my-bids-page-listings-feed-${user.id}`) // Unique channel name
+      .on<ListingPayload>(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'listings',
+          filter: `id=in.(${listingIdsUserBidOn.join(',')})`, // Filter for relevant listings
+        },
+        (payload) => {
+          console.log('MyBidsPage RT: Listing update received!', payload);
+          const updatedListing = payload.new;
+          if (updatedListing && updatedListing.id) {
+            setAllBidItems(prevItems =>
+              prevItems.map(item =>
+                item.listingId === updatedListing.id
+                  ? {
+                      ...item,
+                      listingStatus: (updatedListing.status as MyBidDisplayItem['listingStatus']) || item.listingStatus,
+                      listingWinningBidderId: updatedListing.winning_bidder_id === undefined ? item.listingWinningBidderId : updatedListing.winning_bidder_id,
+                      listingEndTime: updatedListing.end_time === undefined ? item.listingEndTime : updatedListing.end_time,
+                      // Re-evaluate if effectively ended based on new status/end_time
+                      isEffectivelyEnded: (updatedListing.status === 'closed' || updatedListing.status === 'cancelled' || (updatedListing.end_time ? isPast(updatedListing.end_time) : item.isEffectivelyEnded)),
+                    }
+                  : item
+              )
+            );
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR') console.error('MyBidsPage RT Listings Channel Error:', err);
+        else if (status === 'SUBSCRIBED') console.log('MyBidsPage RT Listings Channel Subscribed');
+      });
+
+    return () => {
+      console.log("MyBidsPage RT: Cleaning up subscriptions");
+      if (bidsChannel) supabase.removeChannel(bidsChannel).catch(console.error);
+      if (listingsChannel) supabase.removeChannel(listingsChannel).catch(console.error);
+    };
+  }, [user, listingIdsUserBidOn, allBidItems]); // Added allBidItems to re-evaluate if needed for update logic
+
+  // Countdown timer useEffect remains the same
   useEffect(() => {
     const intervalIds: NodeJS.Timeout[] = [];
     const itemsNeedingTimers = allBidItems.filter(item => item.listingStatus === 'active' && item.listingEndTime && !isPast(item.listingEndTime));
@@ -140,19 +270,25 @@ export default function MyBidsPage() {
         const updateTimer = () => {
           const countdownStr = formatCountdown(item.listingEndTime);
           setActiveCountdownTimers(prev => ({ ...prev, [item.listingId]: countdownStr }));
-          if (countdownStr === null && item.listingId) {
+          if (countdownStr === null && item.listingId) { // Auction ended via timer
              setAllBidItems(prevItems => prevItems.map(prevItem => 
                 prevItem.listingId === item.listingId ? {...prevItem, isEffectivelyEnded: true } : prevItem
              ));
+             // Optionally, trigger a refetch for this specific item to get final status from DB
+             // This might be useful if the backend close_auction function takes a moment
           }
         };
-        updateTimer(); const intervalId = setInterval(updateTimer, 1000); intervalIds.push(intervalId);
+        updateTimer(); 
+        const intervalId = setInterval(updateTimer, 1000); 
+        intervalIds.push(intervalId);
       });
     }
     return () => { intervalIds.forEach(clearInterval); };
-  }, [allBidItems]);
+  }, [allBidItems]); // Depends on allBidItems to re-evaluate timers
 
+  // useMemo for categorized items remains the same
   const { activeWinningItems, activeLosingItems, pastWonItems, pastLostItems } = useMemo(() => {
+    // ... (same logic as before)
     if (!user) return { activeWinningItems: [], activeLosingItems: [], pastWonItems: [], pastLostItems: [] };
     const active = allBidItems.filter(item => !item.isEffectivelyEnded && item.listingStatus === 'active');
     const past = allBidItems.filter(item => item.isEffectivelyEnded || item.listingStatus === 'closed' || item.listingStatus === 'cancelled');
@@ -168,17 +304,19 @@ export default function MyBidsPage() {
             if (item.listingStatus === 'closed') {
                 return (item.listingWinningBidderId !== null && item.listingWinningBidderId !== user.id) || item.listingWinningBidderId === null;
             }
-            return false;
+            return false; // Only include items that are explicitly lost or cancelled
         }).sort(sortPast)
     };
   }, [allBidItems, user]);
 
-  const tabClass = (tab: ViewFilter): string => {
+  // tabClass function remains the same
+  const tabClass = (tab: ViewFilter): string => { /* ... same ... */ 
       const base = 'px-4 py-2 rounded-md text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900';
       return `${base} ${viewFilter === tab ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`;
   };
 
-  const renderBidItemCard = (item: MyBidDisplayItem, cardType: 'active-winning' | 'active-losing' | 'past-won' | 'past-lost') => {
+  // renderBidItemCard function remains the same
+  const renderBidItemCard = (item: MyBidDisplayItem, cardType: 'active-winning' | 'active-losing' | 'past-won' | 'past-lost') => { /* ... same ... */ 
       let statusText = '';
       let statusColorClasses = '';
 
@@ -202,11 +340,11 @@ export default function MyBidsPage() {
               } else if (!item.listingWinningBidderId) {
                   statusText = 'Ended (No Winner)';
                   statusColorClasses = 'bg-blue-100 dark:bg-blue-700/30 text-blue-700 dark:text-blue-200 ring-blue-600/30 dark:ring-blue-500/30';
-              } else {
-                  statusText = 'Auction Ended (Verify)'; 
+              } else { // This case should ideally not happen if logic is correct (won items are in pastWonItems)
+                  statusText = 'Auction Ended'; 
                   statusColorClasses = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 ring-gray-500/20 dark:ring-gray-500/30';
               }
-          } else {
+          } else { // Should not happen for 'past-lost' if status is not closed/cancelled
               statusText = item.listingStatus.charAt(0).toUpperCase() + item.listingStatus.slice(1);
               statusColorClasses = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 ring-gray-500/20 dark:ring-gray-500/30';
           }
@@ -240,6 +378,7 @@ export default function MyBidsPage() {
       );
   };
 
+  // Loading, error, and main return JSX remains the same
   if (loading) { return (<div className="max-w-4xl mx-auto p-4 sm:p-8"><h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100 tracking-tight">My Bids</h1><LoadingSpinner message="Loading your bidding activity..." /></div>); }
   if (error) { return (<div className="max-w-4xl mx-auto p-4 sm:p-8"><h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100 tracking-tight">My Bids</h1><div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-600/50 rounded-md text-red-700 dark:text-red-200 text-center">{error}</div></div>); }
   if (!user && !loading) { return (<div className="max-w-4xl mx-auto p-4 sm:p-8"><h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100 tracking-tight">My Bids</h1><p className="text-center text-gray-600 dark:text-gray-400">Please{' '}<Link href="/auth?redirect=/my-bids" className="text-indigo-600 hover:text-indigo-500 underline">log in</Link>{' '}to view your bids.</p></div>); }
