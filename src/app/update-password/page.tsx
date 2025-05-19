@@ -12,29 +12,51 @@ export default function UpdatePasswordPage() {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null); 
+  // const [showForm, setShowForm] = useState(false); // REMOVED UNUSED STATE
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => { // CORRECTED: Removed unused session parameter
+    console.log("UpdatePasswordPage: useEffect running. Current hash:", window.location.hash);
+
+    // Check if the URL hash contains the necessary tokens for password recovery
+    if (window.location.hash.includes('type=recovery') && window.location.hash.includes('access_token=')) {
+      console.log("UpdatePasswordPage: Recovery token found in URL hash. Expecting Auth UI to handle.");
+      // setShowForm(true); // REMOVED
+    } else {
+      const queryParams = new URLSearchParams(window.location.search);
+      const urlError = queryParams.get('error_description') || queryParams.get('error');
+      if (urlError) {
+          console.log("UpdatePasswordPage: Error found in query params:", urlError);
+          setError(decodeURIComponent(urlError));
+          setMessage(null);
+          // setShowForm(false); // REMOVED
+      } else if (!window.location.hash) {
+          console.log("UpdatePasswordPage: No recovery token or error in URL. Likely direct navigation or session issue.");
+          // setShowForm(true); // REMOVED
+      }
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => { // session is available if needed
+      console.log("UpdatePasswordPage: onAuthStateChange event:", event, "Session:", session);
       if (event === 'PASSWORD_RECOVERY') {
+        console.log("UpdatePasswordPage: PASSWORD_RECOVERY event received!");
         setMessage('You can now set your new password.');
         setError(null);
-      } else if (event === 'USER_UPDATED') {
+        // setShowForm(true); // REMOVED
+      } else if (event === 'USER_UPDATED' && session) { 
+        console.log("UpdatePasswordPage: USER_UPDATED event received!");
         setMessage('Password updated successfully! Redirecting to login...');
         setError(null);
+        // setShowForm(false); // REMOVED
         setTimeout(() => {
           router.push('/auth'); 
         }, 3000);
+      } else if (event === 'SIGNED_IN') {
+        console.log("UpdatePasswordPage: SIGNED_IN event received. This is unusual here unless auto-login after recovery.");
       }
     });
 
-    const queryParams = new URLSearchParams(window.location.search);
-    const urlError = queryParams.get('error_description') || queryParams.get('error');
-    if (urlError) {
-        setError(decodeURIComponent(urlError));
-        setMessage(null);
-    }
-
     return () => {
+      console.log("UpdatePasswordPage: Cleaning up subscription.");
       subscription?.unsubscribe();
     };
   }, [router]);
@@ -76,6 +98,8 @@ export default function UpdatePasswordPage() {
           providers={[]} 
           theme="dark" 
         />
+        {/* The "Auth session missing!" message comes from the <Auth> component itself if it decides to show it */}
+
         <p className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
           Remembered your password?{' '}
           <Link href="/auth" className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">
