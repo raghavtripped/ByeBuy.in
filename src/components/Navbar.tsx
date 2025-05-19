@@ -7,105 +7,134 @@ import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase, type User } from '@/lib/supabaseClient';
 
+const LOG_PREFIX = "Navbar DEBUG:"; // For easy filtering
+
+// Custom hook to get the previous value of a prop or state
+function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T>();
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+  return ref.current;
+}
+
 export default function Navbar() {
+  console.log(LOG_PREFIX, "Component RENDERED"); 
+
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const prevPathname = usePrevious(pathname); 
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Effect 1: Initial session and user fetch (runs once on mount)
   useEffect(() => {
-    // console.log("Navbar: Initial session fetch effect RUNNING");
-    let mounted = true; 
+    console.log(LOG_PREFIX, "isMobileMenuOpen STATE CHANGED to:", isMobileMenuOpen);
+  }, [isMobileMenuOpen]);
 
+  // Effect 1: Initial session and user fetch
+  useEffect(() => {
+    console.log(LOG_PREFIX, "Effect 1 (Initial Session) RUNNING");
+    let mounted = true; 
     const getSessionAndUser = async () => {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) {
-        console.error("Navbar: Error getting initial session:", sessionError.message);
+        console.error(LOG_PREFIX, "Error getting initial session:", sessionError.message);
       }
       if (mounted) {
-        // console.log("Navbar: Initial session user:", session?.user?.id);
         setUser(session?.user ?? null);
         setLoading(false);
+        console.log(LOG_PREFIX, "Effect 1 - User set:", session?.user?.id);
       }
     };
     getSessionAndUser();
-    
-    return () => {
-        mounted = false; // To prevent state updates if component unmounts before async op completes
+    return () => { 
+        mounted = false; 
+        console.log(LOG_PREFIX, "Effect 1 - CLEANUP");
     }
-  }, []); // Empty dependency array - runs only on mount
+  }, []);
 
-  // Effect 2: onAuthStateChange listener (MODIFIED - only handles auth state changes)
+  // Effect 2: onAuthStateChange listener (REFACTORED: empty dependency array)
   useEffect(() => {
-    // console.log("Navbar: Setting up onAuthStateChange listener effect RUNNING.");
+    console.log(LOG_PREFIX, "Effect 2 (onAuthStateChange Listener Setup) RUNNING");
     let mounted = true;
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => { // event is not directly used here
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      // The event parameter (_event) is available if needed for more granular logic in the future
       if (!mounted) return;
-      // console.log("Navbar: onAuthStateChange event:", event, "User:", session?.user?.id);
+      console.log(LOG_PREFIX, "Effect 2 - onAuthStateChange FIRED. Event:", _event, "User ID:", session?.user?.id);
       setUser(session?.user ?? null);
     });
 
     return () => {
       mounted = false;
-      // console.log("Navbar: Cleaning up onAuthStateChange listener.");
       authListener?.subscription?.unsubscribe();
+      console.log(LOG_PREFIX, "Effect 2 - CLEANUP onAuthStateChange Listener");
     };
-  }, []); // MODIFIED: Empty dependency array - listener set up once, callback handles changes
+  }, []); // MODIFIED: Empty dependency array - listener set up once
 
-  // Effect 2.1: NEW - Close mobile menu on user sign-out if it's open
+  // Effect 2.1: Close mobile menu on user sign-out if it's open
   useEffect(() => {
-    // This effect specifically watches for the user state changing to null (logged out)
-    // and if the mobile menu is open at that time, it closes it.
-    if (!user && isMobileMenuOpen) {
-      // console.log("Navbar: User signed out (detected by user state change), mobile menu was open, closing it.");
+    console.log(LOG_PREFIX, "Effect 2.1 (Close on SignOut) RUNNING. User:", user?.id, "Menu Open:", isMobileMenuOpen);
+    if (!user && isMobileMenuOpen) { // If user becomes null (logged out) AND menu is open
+      console.log(LOG_PREFIX, "Effect 2.1 - SIGNED OUT & menu open, closing menu.");
       setIsMobileMenuOpen(false);
     }
-  }, [user, isMobileMenuOpen]); // Depends on user and isMobileMenuOpen
+  }, [user, isMobileMenuOpen]); // Correctly depends on user and isMobileMenuOpen
 
-  // Effect 3: Close mobile menu on route change (MODIFIED dependency array)
+  // Effect 3: Close mobile menu ONLY on actual route change
   useEffect(() => {
-    if (isMobileMenuOpen) {
-      // console.log("Navbar: Pathname changed, closing mobile menu.");
+    console.log(LOG_PREFIX, "Effect 3 (Route Change) RUNNING. Pathname:", pathname, "Prev Pathname:", prevPathname, "Menu Open:", isMobileMenuOpen);
+    if (prevPathname !== undefined && pathname !== prevPathname && isMobileMenuOpen) {
+      console.log(LOG_PREFIX, "Effect 3 - Pathname ACTUALLY changed from", prevPathname, "to", pathname, "closing mobile menu.");
       setIsMobileMenuOpen(false);
     }
-  }, [pathname, isMobileMenuOpen]); // MODIFIED: Added isMobileMenuOpen as it's read in the effect
+  }, [pathname, prevPathname, isMobileMenuOpen]); 
 
   // Effect 4: Escape key closes mobile menu
   useEffect(() => {
+    console.log(LOG_PREFIX, "Effect 4 (Escape Key Listener Setup) RUNNING. Menu Open:", isMobileMenuOpen);
     const handleEscapeKey = (event: KeyboardEvent) => {
+      console.log(LOG_PREFIX, "Effect 4 - Keydown event:", event.key);
       if (event.key === 'Escape' && isMobileMenuOpen) {
-        // console.log("Navbar: Escape key pressed, closing mobile menu.");
+        console.log(LOG_PREFIX, "Effect 4 - ESCAPE pressed, closing mobile menu.");
         setIsMobileMenuOpen(false);
-        buttonRef.current?.focus(); // Return focus to the hamburger button
+        buttonRef.current?.focus();
       }
     };
     document.addEventListener('keydown', handleEscapeKey);
     return () => {
       document.removeEventListener('keydown', handleEscapeKey);
+      console.log(LOG_PREFIX, "Effect 4 - CLEANUP Escape Key Listener");
     };
-  }, [isMobileMenuOpen]); // Correctly depends on isMobileMenuOpen
+  }, [isMobileMenuOpen]);
 
-  // --- handlers ---
   const toggleMobileMenu = useCallback(() => {
-    setIsMobileMenuOpen((prev) => !prev);
-  }, []);
+    console.log(LOG_PREFIX, "toggleMobileMenu CALLED. Current state before toggle:", isMobileMenuOpen);
+    setIsMobileMenuOpen((prev) => {
+      console.log(LOG_PREFIX, "toggleMobileMenu - setIsMobileMenuOpen updater. Prev state:", prev, "New state:", !prev);
+      return !prev;
+    });
+  }, [isMobileMenuOpen]); // Keeping isMobileMenuOpen here for now for debugging, can be removed later.
 
   const handleLogout = useCallback(async () => {
-    setIsMobileMenuOpen(false); // Close menu immediately on logout action
+    console.log(LOG_PREFIX, "handleLogout CALLED");
+    // setIsMobileMenuOpen(false); // Effect 2.1 will handle this if menu is open when user becomes null
+    // However, for immediate visual feedback, closing it here is also fine and might feel snappier.
+    // Let's keep it here for immediate feedback.
+    if (isMobileMenuOpen) {
+        setIsMobileMenuOpen(false); 
+        console.log(LOG_PREFIX, "handleLogout - Explicitly closed mobile menu.");
+    }
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.error('Logout error:', error.message);
-      // Replace alert with a better notification system (Item #8 on our list)
-      alert(`Logout failed: ${error.message}`); 
+      console.error(LOG_PREFIX, 'Logout error:', error.message);
+      alert(`Logout failed: ${error.message}`);
       return;
     }
-    router.push('/'); // Redirect to homepage after logout
-  }, [router]); 
+    router.push('/');
+  }, [router, isMobileMenuOpen]); // Added isMobileMenuOpen because it's read for the console log
 
   // --- Loading Skeleton ---
   if (loading) {
@@ -164,7 +193,7 @@ export default function Navbar() {
         { href: '/my-watchlist', text: 'My Watchlist' },
         { href: '/my-listings', text: 'My Listings' },
         { href: '/my-bids',     text: 'My Bids' },
-        { href: '/account/settings', text: 'My Account' }, // My Account link is present
+        { href: '/account/settings', text: 'My Account' },
       ]
     : [];
 
@@ -302,7 +331,10 @@ export default function Navbar() {
       {isMobileMenuOpen && (
         <div
           className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
+          onClick={() => {
+            console.log(LOG_PREFIX, "Overlay CLICKED. Current menu state:", isMobileMenuOpen);
+            setIsMobileMenuOpen(false);
+          }}
           aria-hidden="true"
         ></div>
       )}
@@ -320,7 +352,10 @@ export default function Navbar() {
         <div className="flex justify-between items-center mb-6">
           <h2 id="mobile-menu-heading" className="text-lg font-semibold text-white">Menu</h2>
           <button
-            onClick={() => setIsMobileMenuOpen(false)}
+            onClick={() => {
+              console.log(LOG_PREFIX, "Menu Panel Close Button CLICKED. Current menu state:", isMobileMenuOpen);
+              setIsMobileMenuOpen(false);
+            }}
             className="p-1 text-gray-300 hover:text-white rounded-md hover:bg-gray-700"
             aria-label="Close menu"
           >
@@ -346,7 +381,10 @@ export default function Navbar() {
             <Link
               key={`mobile-${l.text}`}
               href={l.href}
-              onClick={() => setIsMobileMenuOpen(false)} // Close menu on link click
+              onClick={() => {
+                console.log(LOG_PREFIX, "Mobile Nav Link CLICKED:", l.text, "Current menu state:", isMobileMenuOpen);
+                setIsMobileMenuOpen(false);
+              }}
               className={mobileNavLinkClasses(l.href)}
             >
               {l.text}
@@ -356,11 +394,14 @@ export default function Navbar() {
           {user && (
             <>
               <hr className="border-gray-700 my-3" />
-              {userNavLinks.map((l) => ( // This will now include "My Account"
+              {userNavLinks.map((l) => (
                 <Link
                   key={`mobile-${l.text}`}
                   href={l.href}
-                  onClick={() => setIsMobileMenuOpen(false)} // Close menu on link click
+                  onClick={() => {
+                    console.log(LOG_PREFIX, "Mobile User Nav Link CLICKED:", l.text, "Current menu state:", isMobileMenuOpen);
+                    setIsMobileMenuOpen(false);
+                  }}
                   className={mobileNavLinkClasses(l.href)}
                 >
                   {l.text}
@@ -375,7 +416,10 @@ export default function Navbar() {
             <>
               <Link
                 href="/listings/new"
-                onClick={() => setIsMobileMenuOpen(false)} // Close menu on link click
+                onClick={() => {
+                  console.log(LOG_PREFIX, "Mobile Create Listing Link CLICKED. Current menu state:", isMobileMenuOpen);
+                  setIsMobileMenuOpen(false);
+                }}
                 className={`${mobileNavLinkClasses(
                   '/listings/new'
                 )} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}
@@ -391,7 +435,7 @@ export default function Navbar() {
                 Create New Listing
               </Link>
               <button
-                onClick={handleLogout} // handleLogout already calls setIsMobileMenuOpen(false)
+                onClick={handleLogout}
                 className="block w-full text-left px-4 py-3 text-base font-medium rounded-md text-red-300 hover:bg-red-700 hover:text-white transition-colors"
               >
                 Logout
@@ -400,7 +444,10 @@ export default function Navbar() {
           ) : (
             <Link
               href="/auth"
-              onClick={() => setIsMobileMenuOpen(false)} // Close menu on link click
+              onClick={() => {
+                console.log(LOG_PREFIX, "Mobile Login/Signup Link CLICKED. Current menu state:", isMobileMenuOpen);
+                setIsMobileMenuOpen(false);
+              }}
               className={`${mobileNavLinkClasses(
                 '/auth'
               )} bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 flex items-center justify-center`}
