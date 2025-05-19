@@ -11,7 +11,7 @@ const LOG_PREFIX = "Navbar DEBUG:"; // For easy filtering
 
 // Custom hook to get the previous value of a prop or state
 function usePrevious<T>(value: T): T | undefined {
-  const ref = useRef<T>();
+  const ref = useRef<T | undefined>(undefined); // MODIFIED: Initialize useRef with undefined
   useEffect(() => {
     ref.current = value;
   }, [value]);
@@ -56,32 +56,30 @@ export default function Navbar() {
     }
   }, []);
 
-  // Effect 2: onAuthStateChange listener (REFACTORED: empty dependency array)
+  // Effect 2: onAuthStateChange listener
   useEffect(() => {
     console.log(LOG_PREFIX, "Effect 2 (onAuthStateChange Listener Setup) RUNNING");
     let mounted = true;
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      // The event parameter (_event) is available if needed for more granular logic in the future
       if (!mounted) return;
       console.log(LOG_PREFIX, "Effect 2 - onAuthStateChange FIRED. Event:", _event, "User ID:", session?.user?.id);
       setUser(session?.user ?? null);
     });
-
     return () => {
       mounted = false;
       authListener?.subscription?.unsubscribe();
       console.log(LOG_PREFIX, "Effect 2 - CLEANUP onAuthStateChange Listener");
     };
-  }, []); // MODIFIED: Empty dependency array - listener set up once
+  }, []);
 
-  // Effect 2.1: Close mobile menu on user sign-out if it's open
+  // Effect 2.1: Close mobile menu on user sign-out
   useEffect(() => {
     console.log(LOG_PREFIX, "Effect 2.1 (Close on SignOut) RUNNING. User:", user?.id, "Menu Open:", isMobileMenuOpen);
-    if (!user && isMobileMenuOpen) { // If user becomes null (logged out) AND menu is open
+    if (!user && isMobileMenuOpen) {
       console.log(LOG_PREFIX, "Effect 2.1 - SIGNED OUT & menu open, closing menu.");
       setIsMobileMenuOpen(false);
     }
-  }, [user, isMobileMenuOpen]); // Correctly depends on user and isMobileMenuOpen
+  }, [user, isMobileMenuOpen]);
 
   // Effect 3: Close mobile menu ONLY on actual route change
   useEffect(() => {
@@ -116,13 +114,10 @@ export default function Navbar() {
       console.log(LOG_PREFIX, "toggleMobileMenu - setIsMobileMenuOpen updater. Prev state:", prev, "New state:", !prev);
       return !prev;
     });
-  }, [isMobileMenuOpen]); // Keeping isMobileMenuOpen here for now for debugging, can be removed later.
+  }, [isMobileMenuOpen]); 
 
   const handleLogout = useCallback(async () => {
     console.log(LOG_PREFIX, "handleLogout CALLED");
-    // setIsMobileMenuOpen(false); // Effect 2.1 will handle this if menu is open when user becomes null
-    // However, for immediate visual feedback, closing it here is also fine and might feel snappier.
-    // Let's keep it here for immediate feedback.
     if (isMobileMenuOpen) {
         setIsMobileMenuOpen(false); 
         console.log(LOG_PREFIX, "handleLogout - Explicitly closed mobile menu.");
@@ -134,7 +129,7 @@ export default function Navbar() {
       return;
     }
     router.push('/');
-  }, [router, isMobileMenuOpen]); // Added isMobileMenuOpen because it's read for the console log
+  }, [router, isMobileMenuOpen]);
 
   // --- Loading Skeleton ---
   if (loading) {
