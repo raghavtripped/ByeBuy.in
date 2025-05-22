@@ -1,4 +1,3 @@
-
 /* -------------------------------------------------------------------------- */
 /*  src/components/Navbar.tsx                                                 */
 /* -------------------------------------------------------------------------- */
@@ -9,7 +8,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase, type User } from '@/lib/supabaseClient';
-
 
 /* ---------- Helpers ------------------------------------------------------ */
 function usePrevious<T>(value: T): T | undefined {
@@ -23,18 +21,18 @@ function usePrevious<T>(value: T): T | undefined {
 /* ---------- Component ---------------------------------------------------- */
 export default function Navbar() {
   /* ── State ─────────────────────────────────── */
-  const [user, setUser]         = useState<User | null>(null);
-  const prevUser                = usePrevious(user);
-  const [loading, setLoading]   = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const prevUser = usePrevious(user);
+  const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   /* ── Router / Location ──────────────── */
-  const router       = useRouter();
-  const pathname     = usePathname();
+  const router = useRouter();
+  const pathname = usePathname();
   const prevPathname = usePrevious(pathname);
 
   /* ── Refs ───────────────────────────── */
-  const menuRef   = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   /* ── Initial session fetch ──────────── */
@@ -120,12 +118,22 @@ export default function Navbar() {
   if (loading) {
     return (
       <nav className="bg-gray-800 h-14 shadow-md sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 h-full flex items-center justify-between">
-          <div className="flex space-x-4">
+        <div className="max-w-5xl mx-auto px-4 h-full flex items-center justify-between relative"> {/* Added relative here for skeleton centering */}
+          <div className="flex items-center space-x-4"> {/* Left side skeleton */}
             <div className="h-8 w-8 bg-gray-700 rounded-full animate-pulse" />
             <div className="h-6 w-20 bg-gray-700 rounded animate-pulse hidden sm:block" />
           </div>
-          <div className="md:hidden h-7 w-7 bg-gray-700 rounded animate-pulse" />
+          {/* Centered skeleton item for mobile */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
+            <div className="h-6 w-16 bg-gray-700 rounded animate-pulse"></div>
+          </div>
+          {/* Right side skeleton (hamburger for mobile, links for desktop) */}
+          <div className="hidden md:flex space-x-4 animate-pulse"> {/* Desktop links skeleton */}
+            <div className="h-6 bg-gray-700 w-24 rounded" />
+            <div className="h-6 bg-gray-700 w-28 rounded" />
+            {/* Add more desktop link skeletons if needed */}
+          </div>
+          <div className="md:hidden h-7 w-7 bg-gray-700 rounded animate-pulse" /> {/* Mobile hamburger skeleton */}
         </div>
       </nav>
     );
@@ -137,8 +145,8 @@ export default function Navbar() {
       {/* ---------- Top bar ---------- */}
       <nav className="bg-gray-800 text-white shadow-md sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between relative">
-          {/* Brand */}
-          <Link href="/" className="flex items-center space-x-2 group">
+          {/* Brand (Logo and Text for Desktop, Logo only for Mobile on left) */}
+          <Link href="/" className="flex items-center space-x-2 group flex-shrink-0"> {/* Added flex-shrink-0 */}
             <Image
               src="/bidly-logo.svg"
               alt="ByeBuy logo"
@@ -151,6 +159,13 @@ export default function Navbar() {
               ByeBuy
             </span>
           </Link>
+
+          {/* Center brand (mobile only) - THIS IS THE RE-ADDED PART */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
+            <Link href="/" className="text-lg font-semibold text-white hover:text-indigo-300 transition-colors">
+              ByeBuy
+            </Link>
+          </div>
 
           {/* Desktop links */}
           <div className="hidden md:flex items-center space-x-1 flex-grow justify-start ml-4">
@@ -167,56 +182,59 @@ export default function Navbar() {
               ))}
           </div>
 
-          {/* Desktop buttons */}
-          <div className="hidden md:flex items-center space-x-2">
-            {user ? (
-              <>
-                <Link
-                  href="/listings/new"
-                  className="flex items-center px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-md text-sm font-medium transition-colors"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-1.5">
-                    <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
-                  </svg>
-                  List Item
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium transition-colors"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <Link
-                href="/auth"
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-md text-sm font-medium transition-colors"
-              >
-                Login / Sign Up
-              </Link>
-            )}
-          </div>
-
-          {/* Hamburger (mobile only) */}
-          <div className="md:hidden">
-            <button
-              ref={buttonRef}
-              onClick={toggleMobileMenu}
-              aria-label="Toggle menu"
-              aria-expanded={isMobileMenuOpen}
-              aria-controls="mobile-menu-panel"
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
-            >
-              {isMobileMenuOpen ? (
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+          {/* Right-side actions (Desktop buttons and Mobile Hamburger) */}
+          <div className="flex items-center flex-shrink-0"> {/* Added flex-shrink-0 */}
+            {/* Desktop buttons */}
+            <div className="hidden md:flex items-center space-x-2">
+              {user ? (
+                <>
+                  <Link
+                    href="/listings/new"
+                    className="flex items-center px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-md text-sm font-medium transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 mr-1.5">
+                      <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
+                    </svg>
+                    List Item
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded-md text-sm font-medium transition-colors"
+                  >
+                    Logout
+                  </button>
+                </>
               ) : (
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+                <Link
+                  href="/auth"
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-md text-sm font-medium transition-colors"
+                >
+                  Login / Sign Up
+                </Link>
               )}
-            </button>
+            </div>
+
+            {/* Hamburger (mobile only) */}
+            <div className="md:hidden">
+              <button
+                ref={buttonRef}
+                onClick={toggleMobileMenu}
+                aria-label="Toggle menu"
+                aria-expanded={isMobileMenuOpen}
+                aria-controls="mobile-menu-panel"
+                className="inline-flex items-center justify-center p-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+              >
+                {isMobileMenuOpen ? (
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </nav>
@@ -290,4 +308,3 @@ export default function Navbar() {
     </>
   );
 }
-
