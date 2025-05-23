@@ -6,12 +6,12 @@ import './globals.css'; // Ensure this is imported so your CSS variables are loa
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import AuthWatchlistManager from '@/components/AuthWatchlistManager';
-import MobileBottomNav from '@/components/MobileBottomNav'; // <-- IMPORT MobileBottomNav
+import MobileBottomNav from '@/components/MobileBottomNav';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'ByeBuy – Campus Auctions', // Updated to ByeBuy as per previous discussions
+  title: 'ByeBuy – Campus Auctions',
   description: 'Your campus marketplace for timed auctions.',
 };
 
@@ -26,7 +26,8 @@ export default function RootLayout({
         <ThemeScript />
       </head>
       <body
-        className={`${inter.className} bg-gray-50 dark:bg-gray-900 flex flex-col min-h-screen text-gray-900 dark:text-gray-100`}
+        // Updated dark mode classes to use the new custom colors
+        className={`${inter.className} bg-gray-50 dark:bg-bye-dark-bg-primary flex flex-col min-h-screen text-gray-900 dark:text-bye-dark-text-primary`}
       >
         <AuthWatchlistManager />
         <Navbar />
@@ -34,7 +35,7 @@ export default function RootLayout({
             {children}
         </main>
         <Footer />
-        <MobileBottomNav /> {/* <-- ADDED MobileBottomNav HERE */}
+        <MobileBottomNav />
       </body>
     </html>
   );

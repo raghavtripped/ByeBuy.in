@@ -1,20 +1,14 @@
-/* -------------------------------------------------------------------------- */
-/*  src/components/CategoryCard.tsx                                           */
-/* -------------------------------------------------------------------------- */
-
+// src/components/CategoryCard.tsx
 import React from 'react';
 import {
-  ComputerDesktopIcon,        // Electronics & Gadgets
-  HomeModernIcon,             // Furniture & Dorm Essentials
-  BookOpenIcon,               // Textbooks & Study Materials
-  ShoppingBagIcon,            // Apparel & Accessories
-  TrophyIcon,                 // Sports & Hobby Gear
-  SquaresPlusIcon,            // Other
+  ComputerDesktopIcon,
+  HomeModernIcon,
+  BookOpenIcon,
+  ShoppingBagIcon,
+  TrophyIcon,
+  SquaresPlusIcon,
 } from '@heroicons/react/24/outline';
 
-/* -------------------------------------------------------------------------- */
-/*  Public props                                                              */
-/* -------------------------------------------------------------------------- */
 export interface CategoryCardProps {
   categoryName: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
@@ -22,21 +16,18 @@ export interface CategoryCardProps {
   onClick: () => void;
 }
 
-/* More compact icon size                                                             */
 const iconSizeClasses = 'w-5 h-5 sm:w-6 sm:h-6';
 
-/* -------------------------------------------------------------------------- */
-/*  Component                                                                 */
-/* -------------------------------------------------------------------------- */
 const CategoryCard: React.FC<CategoryCardProps> = ({
   categoryName,
   icon: Icon,
   isSelected,
   onClick,
 }) => {
+  // Updated iconColour for new dark mode text colors
   const iconColour = isSelected
-    ? 'text-indigo-600 dark:text-indigo-400'
-    : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300';
+    ? 'text-indigo-600 dark:text-indigo-400' // Selected icon uses Indigo accent
+    : 'text-slate-500 dark:text-bye-dark-text-secondary group-hover:text-slate-600 dark:group-hover:text-bye-dark-text-primary'; // Default/hover uses new dark text
 
   return (
     <button
@@ -46,29 +37,30 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
       title={categoryName}
       className={`
         group flex flex-col items-center justify-center
-        p-2 sm:p-3                                   /* tighter padding   */
+        p-2 sm:p-3
         border-2 rounded-lg
         transition-all duration-200 ease-in-out
-        focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900
-        w-full h-full min-h-[70px] sm:min-h-[90px]    /* shorter height    */
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-bye-dark-bg-primary
+        w-full h-full min-h-[70px] sm:min-h-[90px]
         ${
           isSelected
-            ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-slate-700 shadow-lg focus-visible:ring-indigo-500'
-            : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md focus-visible:ring-slate-500'
+            ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-bye-dark-bg-hover shadow-lg focus-visible:ring-indigo-500' // Selected state: Indigo border, subtle dark bg (bye-dark-bg-hover)
+            : 'border-slate-200 dark:border-bye-dark-border-primary bg-white dark:bg-bye-dark-bg-secondary hover:border-slate-300 dark:hover:border-bye-dark-border-primary dark:hover:bg-bye-dark-bg-hover hover:shadow-md focus-visible:ring-slate-500 dark:focus-visible:ring-bye-dark-text-secondary' // Default state: new dark bg and border
         }
       `}
     >
       <Icon className={`${iconSizeClasses} ${iconColour}`} aria-hidden="true" />
 
+      {/* Updated span text colors for new dark mode */}
       <span
         className={`
-          mt-1 sm:mt-1.5                               /* smaller gap      */
-          text-center text-xs font-medium              /* smaller text     */
+          mt-1 sm:mt-1.5
+          text-center text-xs font-medium
           transition-colors duration-200 ease-in-out
           ${
             isSelected
-              ? 'text-indigo-700 dark:text-indigo-300'
-              : 'text-slate-700 dark:text-slate-200 group-hover:text-slate-800 dark:group-hover:text-slate-100'
+              ? 'text-indigo-700 dark:text-indigo-300' // Selected text uses Indigo accent (lighter shade for dark)
+              : 'text-slate-700 dark:text-bye-dark-text-primary group-hover:text-slate-800 dark:group-hover:text-bye-dark-text-primary' // Default/hover uses new dark primary text
           }
         `}
       >
@@ -80,9 +72,6 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
 
 export default CategoryCard;
 
-/* -------------------------------------------------------------------------- */
-/*  Default mapping (matches DB names)                                        */
-/* -------------------------------------------------------------------------- */
 export const CATEGORIES_WITH_ICONS = [
   { name: 'Electronics & Gadgets',        icon: ComputerDesktopIcon },
   { name: 'Furniture & Dorm Essentials',  icon: HomeModernIcon },

@@ -3,30 +3,29 @@
 import React from 'react';
 import Link from 'next/link';
 
-// Interface defining the component's props.
 interface EmptyStateProps {
-  message: string; // The message to display when no data is available
-  action?: { // Optional action button details
-    href: string; // The URL to navigate to when the button is clicked
-    text: string; // The text for the action button
+  message: string;
+  action?: {
+    href: string;
+    text: string;
   };
-  className?: string; // Optional className for adding extra CSS classes to the wrapper
+  className?: string;
 }
 
 export default function EmptyState({ message, action, className = '' }: EmptyStateProps) {
   return (
+    // Updated container background, border for dark mode
     <div 
-      className={`text-center py-10 px-6 bg-white rounded-lg shadow-sm border border-gray-200 dark:bg-gray-800 dark:border-gray-700 ${className}`} // Container with default styles and dark mode support
+      className={`text-center py-10 px-6 bg-white dark:bg-bye-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-bye-dark-border-primary ${className}`}
     >
-      {/* Empty state icon (generic icon, can be replaced with a custom one) */}
+      {/* Updated icon color for dark mode */}
       <svg
-        className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" // Icon styling (centered, large, gray)
+        className="mx-auto h-12 w-12 text-gray-400 dark:text-bye-dark-text-secondary opacity-75" // Made icon slightly more subtle
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
         aria-hidden="true"
       >
-        {/* Path for a simple "empty box" icon (can be replaced with something more fitting) */}
         <path
           vectorEffect="non-scaling-stroke"
           strokeLinecap="round"
@@ -36,19 +35,20 @@ export default function EmptyState({ message, action, className = '' }: EmptySta
         />
       </svg>
 
-      {/* Display the message */}
-      <p className="mt-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+      {/* Updated message text color for dark mode */}
+      <p className="mt-4 text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary">
         {message}
       </p>
 
-      {/* Optional action button */}
       {action && (
         <div className="mt-6">
+          {/* Updated action button for dark mode (focus ring offset and potentially bg/hover if needed) */}
           <Link
-            href={action.href} // Link to the action page
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            href={action.href}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-bye-dark-bg-secondary focus:ring-indigo-500 dark:focus:ring-indigo-400"
+            // Note: dark:text-gray-100 can be added if needed for button text, but white usually works on indigo-500
           >
-            {action.text} {/* Action button text */}
+            {action.text}
           </Link>
         </div>
       )}

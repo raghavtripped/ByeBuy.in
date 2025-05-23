@@ -33,9 +33,7 @@ interface WatchlistButtonProps {
   className?: string;
 }
 
-// MODIFIED: SupabaseMutationResponse data type changed from any to unknown
 type SupabaseMutationResponse = { data?: unknown | null; error: PostgrestError | null; status?: number };
-
 
 export default function WatchlistButton({ 
   listingId, 
@@ -55,118 +53,84 @@ export default function WatchlistButton({
   }, [isInitiallyWatched]);
 
   const handleToggleWatchlist = async () => {
-    console.log(`WatchlistButton: (${listingId}) handleToggleWatchlist - START`);
     if (!userId) {
       showNotification('error', 'Please log in to add items to your watchlist.');
-      console.log(`WatchlistButton: (${listingId}) No user ID, exiting.`);
       return;
     }
-    if (isLoading) {
-      console.log(`WatchlistButton: (${listingId}) Already loading, exiting.`);
-      return;
-    }
+    if (isLoading) return;
 
     const originallyWatched = isWatched;
+    setIsLoading(true);
+    const newOptimisticIsWatched = !originallyWatched;
+    setIsWatched(newOptimisticIsWatched);
+
+    if (newOptimisticIsWatched) {
+      addToWatchlistLocal(listingId);
+    } else {
+      removeFromWatchlistLocal(listingId);
+    }
+
+    const SUPABASE_OPERATION_TIMEOUT = 10000;
 
     try {
-      setIsLoading(true);
-      console.log(`WatchlistButton: (${listingId}) setIsLoading(true) done.`);
-
-      const newOptimisticIsWatched = !originallyWatched;
-      setIsWatched(newOptimisticIsWatched);
-      console.log(`WatchlistButton: (${listingId}) Optimistically set isWatched to ${newOptimisticIsWatched}.`);
-
       if (newOptimisticIsWatched) {
-        addToWatchlistLocal(listingId);
-        console.log(`WatchlistButton: (${listingId}) Called addToWatchlistLocal.`);
-      } else {
-        removeFromWatchlistLocal(listingId);
-        console.log(`WatchlistButton: (${listingId}) Called removeFromWatchlistLocal.`);
-      }
-
-      const SUPABASE_OPERATION_TIMEOUT = 10000;
-
-      if (newOptimisticIsWatched) {
-        console.log(`WatchlistButton: (${listingId}) PRE-INSERT block for user ${userId}`);
         const insertOperation = supabase
           .from('watched_listings')
           .insert({ user_id: userId, listing_id: listingId });
-        console.log(`WatchlistButton: (${listingId}) Insert operation configured.`);
-
+        
         const timeoutPromise = new Promise<Error>((_, reject) => 
-          setTimeout(() => reject(new Error(`Supabase INSERT timed out after ${SUPABASE_OPERATION_TIMEOUT/1000} seconds`)), SUPABASE_OPERATION_TIMEOUT)
+          setTimeout(() => reject(new Error(`Supabase INSERT timed out`)), SUPABASE_OPERATION_TIMEOUT)
         );
-        console.log(`WatchlistButton: (${listingId}) Timeout promise for INSERT created.`);
         
         const result = await Promise.race([insertOperation, timeoutPromise]);
-        console.log(`WatchlistButton: (${listingId}) Promise.race for INSERT completed. Result:`, result);
         
         if (result instanceof Error) throw result;
         const insertError = (result as SupabaseMutationResponse).error; 
         
-        console.log(`WatchlistButton: (${listingId}) Supabase INSERT result - error:`, insertError);
         if (insertError) {
-          if (insertError.code === '23505') {
-            console.warn(`WatchlistButton: (${listingId}) DB unique violation on insert. Syncing.`);
+          if (insertError.code === '23505') { // Unique violation
             if (!isWatched) setIsWatched(true); 
             if (!useWatchlistStore.getState().isWatched(listingId)) addToWatchlistLocal(listingId);
           } else {
             throw insertError; 
           }
-        } else {
-          console.log(`WatchlistButton: (${listingId}) Supabase INSERT successful.`);
         }
       } else { 
-        console.log(`WatchlistButton: (${listingId}) PRE-DELETE block for user ${userId}`);
         const deleteOperation = supabase
           .from('watched_listings')
           .delete()
           .eq('user_id', userId)
           .eq('listing_id', listingId);
-        console.log(`WatchlistButton: (${listingId}) Delete operation configured.`);
         
         const timeoutPromise = new Promise<Error>((_, reject) => 
-            setTimeout(() => reject(new Error(`Supabase DELETE timed out after ${SUPABASE_OPERATION_TIMEOUT/1000} seconds`)), SUPABASE_OPERATION_TIMEOUT)
+            setTimeout(() => reject(new Error(`Supabase DELETE timed out`)), SUPABASE_OPERATION_TIMEOUT)
         );
-        console.log(`WatchlistButton: (${listingId}) Timeout promise for DELETE created.`);
         
         const result = await Promise.race([deleteOperation, timeoutPromise]);
-        console.log(`WatchlistButton: (${listingId}) Promise.race for DELETE completed. Result:`, result);
 
         if (result instanceof Error) throw result;
         const deleteError = (result as SupabaseMutationResponse).error;
 
-        console.log(`WatchlistButton: (${listingId}) Supabase DELETE result - error:`, deleteError);
         if (deleteError) throw deleteError;
-        console.log(`WatchlistButton: (${listingId}) Supabase DELETE successful.`);
       }
     } catch (error: unknown) {
-      console.error(`WatchlistButton: (${listingId}) CATCH block. Error:`, error);
-      
-      setIsWatched(originallyWatched);
+      setIsWatched(originallyWatched); // Revert optimistic update
       if (originallyWatched) {
         if (!useWatchlistStore.getState().isWatched(listingId)) addToWatchlistLocal(listingId);
       } else {
         if (useWatchlistStore.getState().isWatched(listingId)) removeFromWatchlistLocal(listingId);
       }
-      console.log(`WatchlistButton: (${listingId}) Reverted UI and store to original pre-click state: ${originallyWatched}`);
 
       let message = 'Failed to update watchlist';
-      if (error instanceof Error) {
-        message = error.message; 
-      } else if (typeof error === 'string') {
-        message = error;
-      // MODIFIED: More specific type check for error object with message property
-      } else if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
+      if (error instanceof Error) message = error.message; 
+      else if (typeof error === 'string') message = error;
+      else if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
           message = (error as {message: string}).message;
       }
-      
       showNotification('error', `Update failed: ${message}`);
     } finally {
       setIsLoading(false);
-      console.log(`WatchlistButton: (${listingId}) FINALLY block - setIsLoading(false).`);
     }
-    console.log(`WatchlistButton: (${listingId}) handleToggleWatchlist - END`);
   };
 
   let iconSizeClass = "w-5 h-5";
@@ -177,19 +141,21 @@ export default function WatchlistButton({
     <button
       onClick={handleToggleWatchlist}
       disabled={isLoading || !userId}
-      className={`p-1.5 rounded-full transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 dark:focus:ring-offset-gray-800
+      // Updated dark mode colors and focus ring offset
+      className={`p-1.5 rounded-full transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:ring-offset-1 dark:focus:ring-offset-bye-dark-bg-secondary
                   ${isWatched
-                    ? 'text-yellow-400 hover:text-yellow-500 dark:text-yellow-300 dark:hover:text-yellow-400'
-                    : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
+                    ? 'text-yellow-400 hover:text-yellow-500 dark:text-yellow-300 dark:hover:text-yellow-400' // Watched state (yellow)
+                    : 'text-gray-400 hover:text-gray-600 dark:text-bye-dark-text-secondary dark:hover:text-bye-dark-text-primary' // Not watched state
                   }
-                  ${isLoading ? 'opacity-50 cursor-wait' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}
+                  ${isLoading ? 'opacity-50 cursor-wait' : 'hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover'}
                   ${!userId && 'cursor-not-allowed opacity-60'}
                   ${className}`}
       aria-label={isWatched ? "Remove from watchlist" : "Add to watchlist"}
       title={isWatched ? "Remove from watchlist" : "Add to watchlist"}
     >
       {isLoading ? (
-        <svg className={`animate-spin ${iconSizeClass} text-gray-500 dark:text-gray-400`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        // Updated loading spinner color for dark mode
+        <svg className={`animate-spin ${iconSizeClass} text-gray-500 dark:text-bye-dark-text-secondary`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>

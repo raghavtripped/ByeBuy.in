@@ -5,9 +5,8 @@ import { useState, useEffect, FormEvent, ChangeEvent, useRef, useCallback } from
 import { supabase, User } from '@/lib/supabaseClient';
 import { formatRelativeTime } from '@/lib/timeUtils';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; // <<<<<<<<<<<< IMPORT useRouter - ENSURE THIS IS PRESENT
+import { useRouter } from 'next/navigation';
 
-// Interface defining the structure of a chat message
 interface ChatMessage {
   id: string;
   listing_id: string;
@@ -17,14 +16,13 @@ interface ChatMessage {
   sender_email?: string | null; 
 }
 
-// Interface for the component's props
 interface ListingChatProps {
   listingId: string;
   currentUser: User | null; 
 }
 
 export default function ListingChat({ listingId, currentUser }: ListingChatProps) {
-  const router = useRouter(); // <<<<<<<<<<<< INITIALIZE useRouter - ENSURE THIS IS PRESENT
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(true);
@@ -48,7 +46,6 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
       setMessages([]);
       return;
     }
-    // console.log(`ListingChat: Fetching messages for listingId: ${listingId}`);
     setLoadingMessages(true);
     setError(null);
     try {
@@ -62,7 +59,6 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
         throw fetchError;
       }
       setMessages(data || []);
-      // console.log(`ListingChat: Fetched ${data?.length || 0} messages.`);
     } catch (err: unknown) {
       console.error("ListingChat: Error fetching messages:", err);
       let message = 'Failed to load chat messages.';
@@ -157,7 +153,7 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
     }
     if (!currentUser) { 
         showNotification('error', 'You must be logged in to send a message.');
-        router.push(`/auth?redirect=/listings/${listingId}`); // router is now defined
+        router.push(`/auth?redirect=/listings/${listingId}`);
         return;
     }
     if (!listingId) {
@@ -199,26 +195,23 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
     return "Anonymous"; 
   };
 
-  // --- Render Logic ---
-  // This is the part that was likely truncated in my previous "full code" response.
-  // I'm ensuring the loading, error, empty, and message mapping JSX is now complete,
-  // based on the structure from the version of your code I analyzed before the real-time changes.
-
   if (!listingId) { 
     return (
-        <div className="mt-8 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow">
-             <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-100">Listing Chat</h3>
-             <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">Loading chat information...</p>
+        // Updated container, title, and text colors
+        <div className="mt-8 p-4 border border-gray-200 dark:border-bye-dark-border-primary rounded-lg bg-white dark:bg-bye-dark-bg-secondary shadow">
+             <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-bye-dark-text-primary">Listing Chat</h3>
+             <p className="text-sm text-gray-500 dark:text-bye-dark-text-secondary text-center py-8">Loading chat information...</p>
         </div>
     );
   }
 
   if (loadingMessages && messages.length === 0) {
     return (
-      <div className="mt-8 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow">
-        <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-100">Listing Chat</h3>
+      // Updated container, title, and text colors
+      <div className="mt-8 p-4 border border-gray-200 dark:border-bye-dark-border-primary rounded-lg bg-white dark:bg-bye-dark-bg-secondary shadow">
+        <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-bye-dark-text-primary">Listing Chat</h3>
         <div className="h-64 flex items-center justify-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Loading chat messages...</p>
+            <p className="text-sm text-gray-500 dark:text-bye-dark-text-secondary">Loading chat messages...</p>
         </div>
       </div>
     );
@@ -226,13 +219,15 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
 
   if (error && !loadingMessages) { 
     return (
-        <div className="mt-8 p-4 border border-red-300 dark:border-red-700 rounded-lg bg-red-50 dark:bg-red-900/30 shadow">
+        // Updated error state container, title, and text colors
+        <div className="mt-8 p-4 border border-red-300 dark:border-red-700/50 rounded-lg bg-red-50 dark:bg-red-900/20 shadow"> {/* Made dark error bg more subtle */}
             <h3 className="text-lg font-semibold mb-3 text-red-700 dark:text-red-300">Listing Chat Error</h3>
             <p className="text-sm text-red-600 dark:text-red-200 text-center">{error}</p>
             <div className="text-center mt-2">
+                {/* Ensure button contrasts well */}
                 <button 
                     onClick={fetchInitialMessages} 
-                    className="px-3 py-1 bg-red-600 text-white text-xs font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
+                    className="px-3 py-1 bg-red-600 dark:bg-red-500 text-white dark:text-gray-100 text-xs font-medium rounded-md hover:bg-red-700 dark:hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 dark:focus:ring-offset-red-900/20"
                 >
                     Try Again
                 </button>
@@ -242,30 +237,33 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
   }
 
   return (
-    <div className="mt-8 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow">
-      <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-100">Listing Chat</h3>
+    // Updated main container, title, and border colors
+    <div className="mt-8 p-4 border border-gray-200 dark:border-bye-dark-border-primary rounded-lg bg-white dark:bg-bye-dark-bg-secondary shadow">
+      <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-bye-dark-text-primary">Listing Chat</h3>
       
-      {/* Removed "refresh page" note */}
-
+      {/* Updated message container border and "No messages" text color */}
       <div 
         ref={messageContainerRef}
-        className="h-64 max-h-[40vh] overflow-y-auto mb-4 space-y-3 pr-2 custom-scrollbar border-b border-gray-200 dark:border-gray-700 pb-2"
+        className="h-64 max-h-[40vh] overflow-y-auto mb-4 space-y-3 pr-2 custom-scrollbar border-b border-gray-200 dark:border-bye-dark-border-primary pb-2"
       >
         {messages.length === 0 && !loadingMessages ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">No messages yet. Be the first to chat!</p>
+          <p className="text-sm text-gray-500 dark:text-bye-dark-text-secondary text-center py-8">No messages yet. Be the first to chat!</p>
         ) : (
           messages.map((msg) => (
             <div key={msg.id} className={`flex flex-col ${msg.sender_id === currentUser?.id ? 'items-end' : 'items-start'}`}>
+              {/* Updated message bubble colors */}
               <div className={`max-w-[75%] sm:max-w-[65%] p-2.5 rounded-lg shadow-sm ${
                 msg.sender_id === currentUser?.id 
-                  ? 'bg-indigo-500 text-white rounded-br-none' 
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-none'
+                  ? 'bg-indigo-500 text-white rounded-br-none' // Sender's bubble (Indigo)
+                  : 'bg-gray-100 dark:bg-bye-dark-bg-hover text-gray-800 dark:text-bye-dark-text-primary rounded-bl-none' // Receiver's bubble
               }`}>
                 {msg.sender_id !== currentUser?.id && (
-                    <p className="text-xs font-semibold mb-0.5 opacity-80">{getSenderDisplayName(msg)}</p>
+                    // Updated sender display name color
+                    <p className="text-xs font-semibold mb-0.5 opacity-80 dark:opacity-70 dark:text-bye-dark-text-secondary">{getSenderDisplayName(msg)}</p>
                 )}
-                <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
-                <p className={`text-[10px] sm:text-xs mt-1.5 opacity-70 ${msg.sender_id === currentUser?.id ? 'text-right' : 'text-left'}`}>
+                <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p> {/* Text color inherited from bubble */}
+                {/* Timestamp color updated */}
+                <p className={`text-[10px] sm:text-xs mt-1.5 opacity-70 ${msg.sender_id === currentUser?.id ? 'text-right text-indigo-100 dark:text-indigo-200' : 'text-left dark:text-bye-dark-text-secondary'}`}>
                   {formatRelativeTime(msg.created_at)}
                 </p>
               </div>
@@ -276,19 +274,21 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
 
       {currentUser ? (
         <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+          {/* Updated input field styling for dark mode */}
           <input
             type="text"
             value={newMessage}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setNewMessage(e.target.value)}
             placeholder="Type your message..."
             disabled={isSending}
-            className="flex-grow border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm dark:bg-gray-700/80 dark:text-gray-100 dark:placeholder-gray-500"
+            className="flex-grow border border-gray-300 dark:border-bye-dark-border-primary px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm bg-white dark:bg-bye-dark-bg-hover text-gray-900 dark:text-bye-dark-text-primary dark:placeholder-bye-dark-text-secondary opacity-90 dark:opacity-100"
             aria-label="Chat message input"
           />
+          {/* Send button (Indigo) - ensure contrast */}
           <button
             type="submit"
             disabled={isSending || !newMessage.trim()}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-bye-dark-bg-secondary focus:ring-indigo-500 disabled:opacity-50"
             aria-label={isSending ? "Sending message" : "Send message"}
           >
             {isSending ? (
@@ -301,7 +301,8 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
           </button>
         </form>
       ) : (
-        <p className="text-sm text-center text-gray-500 dark:text-gray-400">
+        // Updated "Log in to chat" text and link colors
+        <p className="text-sm text-center text-gray-500 dark:text-bye-dark-text-secondary">
           <Link href={`/auth?redirect=/listings/${listingId}`} className="text-indigo-600 hover:underline dark:text-indigo-400">Log in</Link> to chat about this listing.
         </p>
       )}
