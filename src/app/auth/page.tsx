@@ -16,29 +16,23 @@ export default function AuthPage() {
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
           (_event, session) => {
-              // console.log("Auth page: Auth state changed.", session ? "Got session" : "No session", "Event:", _event);
               if (session) {
-                  // Avoid redirecting if on specific auth callback paths
                   const currentPath = window.location.pathname + window.location.search + window.location.hash;
                   if (!currentPath.includes('/auth/callback') && !window.location.hash.includes('type=recovery') && !window.location.search.includes('code=')) {
                       const urlParams = new URLSearchParams(window.location.search);
                       const nextPath = urlParams.get('redirect') || '/listings';
-                      // console.log(`Auth page: Session detected in listener, redirecting to ${nextPath}`);
                       router.push(nextPath);
                   }
               }
           }
       );
 
-      // Initial check for existing session
       supabase.auth.getSession().then(({ data: { session } }) => {
-          // console.log("Auth page: Initial session check. Session exists:", !!session);
           if (session) {
               const currentPath = window.location.pathname + window.location.search + window.location.hash;
               if (!currentPath.includes('/auth/callback') && !window.location.hash.includes('type=recovery') && !window.location.search.includes('code=')) {
                    const urlParams = new URLSearchParams(window.location.search);
                    const nextPath = urlParams.get('redirect') || '/listings';
-                   // console.log(`Auth page: Initial session exists, redirecting to ${nextPath}`);
                    router.push(nextPath);
               }
           }
@@ -49,53 +43,83 @@ export default function AuthPage() {
 
   const getRedirectUrlClientSide = (): string | undefined => {
       if (!isMounted) return undefined; 
-      // This URL is for Supabase internal redirects like magic links, password recovery.
-      // OAuth final redirect is configured in Supabase project settings (Site URL).
       const urlParams = new URLSearchParams(window.location.search);
-      const nextPath = urlParams.get('next'); // A 'next' param for post-auth redirect
+      const nextPath = urlParams.get('next');
       if (nextPath) {
-          // Ensure nextPath is a relative path within your app for security
           if (nextPath.startsWith('/')) {
               return `${window.location.origin}${nextPath}`;
           }
       }
-      return `${window.location.origin}/listings`; // Default redirect
+      return `${window.location.origin}/listings`;
   }
 
+  // Supabase Auth UI uses its own dark theme variables, but we can adjust our container.
+  // The 'theme="dark"' prop on Auth component handles its internal dark mode.
+  // We mainly need to style the page background and the card holding the Auth component.
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8 p-8 sm:p-10 bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
+    // Updated page background for dark mode
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-bye-dark-bg-primary py-12 px-4 sm:px-6 lg:px-8">
+        {/* Updated card background for dark mode */}
+        <div className="max-w-md w-full space-y-8 p-8 sm:p-10 bg-white dark:bg-bye-dark-bg-secondary rounded-xl shadow-2xl">
             <div>
+                {/* eslint-disable-next-line @next/next/no-img-element, @next/next/no-img-element */}
                 <img
                     className="mx-auto h-12 w-auto"
                     src="/bidly-logo.svg" 
                     alt="ByeBuy"
                 />
-                <h2 className="mt-6 text-center text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white">
+                {/* Updated title text color for dark mode */}
+                <h2 className="mt-6 text-center text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-bye-dark-text-primary">
                     Sign in to your account
                 </h2>
-                <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+                {/* Updated subtitle text color for dark mode */}
+                <p className="mt-2 text-center text-sm text-gray-600 dark:text-bye-dark-text-secondary">
                     Or start bidding on awesome campus deals!
                 </p>
             </div>
-            <Auth
-                supabaseClient={supabase}
-                appearance={{ 
-                    theme: ThemeSupa,
-                    variables: {
-                        default: {
-                            colors: {
-                                brand: 'rgb(79, 70, 229)', 
-                                brandAccent: 'rgb(101, 91, 239)',
+            {isMounted && ( // Conditionally render Auth UI once isMounted is true to ensure client-side URLs are ready
+                <Auth
+                    supabaseClient={supabase}
+                    appearance={{ 
+                        theme: ThemeSupa, // ThemeSupa handles its own dark/light theming based on the 'theme' prop
+                        variables: {
+                            default: {
+                                colors: {
+                                    brand: 'rgb(79, 70, 229)', // Your app's Indigo
+                                    brandAccent: 'rgb(101, 91, 239)', // A slightly lighter Indigo
+                                    // You can override other ThemeSupa variables here if needed
+                                    // For example, to match our new dark mode more closely:
+                                    // inputBackground: '#2A2A2B', // bye-dark-bg-hover
+                                    // inputBorder: '#343536',    // bye-dark-border-primary
+                                    // inputText: '#D7DADC',      // bye-dark-text-primary
+                                    // ... and so on for anchors, messages, etc.
+                                    // However, ThemeSupa's default dark theme is generally quite good.
+                                },
+                                // Example: If you wanted to make the default font match Inter
+                                // fonts: {
+                                //  bodyFontFamily: `Inter, sans-serif`,
+                                //  buttonFontFamily: `Inter, sans-serif`,
+                                //  labelFontFamily: `Inter, sans-serif`,
+                                // },
                             },
                         },
-                    },
-                }}
-                providers={['google']} 
-                socialLayout="horizontal" 
-                theme="dark" 
-                redirectTo={getRedirectUrlClientSide()} // Good to provide for non-OAuth methods in Auth UI
-            />
+                    }}
+                    providers={['google']} 
+                    socialLayout="horizontal" 
+                    theme="dark" // This tells Supabase Auth UI to use its dark variant.
+                                 // It will pick up OS preference if not set, but 'dark' forces it.
+                                 // You could also make this dynamic based on your ThemeScript:
+                                 // theme={document.documentElement.classList.contains('dark') ? 'dark' : 'light'}
+                                 // (but that requires careful handling of isMounted and theme state)
+                    redirectTo={getRedirectUrlClientSide()}
+                />
+            )}
+            {!isMounted && ( // Optional: Show a simple loader while waiting for mount
+                <div className="text-center py-10">
+                    <p className="text-sm text-gray-500 dark:text-bye-dark-text-secondary">Loading authentication form...</p>
+                </div>
+            )}
         </div>
     </div>
   );
