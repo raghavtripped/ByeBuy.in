@@ -8,28 +8,17 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import EmptyState from '@/components/EmptyState';
 import ListingCard, { ListingCardItem } from '@/components/ListingCard';
 import CategoryCard from '@/components/CategoryCard';
-import CategoryFilterModal from '@/components/CategoryFilterModal'; // Import the modal
+import CategoryFilterModal from '@/components/CategoryFilterModal';
 
-// Import specific icons from Heroicons
-import {
-  ComputerDesktopIcon,
-  HomeModernIcon,
-  BookOpenIcon,
-  ShoppingBagIcon,
-  TrophyIcon,
-  SquaresPlusIcon,
-  FunnelIcon, // For the filter button
-} from '@heroicons/react/24/outline';
+// Import the shared categories data and type
+import { CATEGORIES_DATA } from '@/lib/categories'; // MODIFIED: Import from lib
 
-// This is your existing categories definition
-export const CATEGORIES_WITH_ICONS_ADJUSTED = [ // Export if CategoryFilterModal needs to import it
-  { name: "Electronics & Gadgets",     icon: ComputerDesktopIcon },
-  { name: "Furniture & Dorm Essentials", icon: HomeModernIcon },
-  { name: "Textbooks & Study Materials", icon: BookOpenIcon },
-  { name: "Apparel & Accessories",       icon: ShoppingBagIcon },
-  { name: "Sports & Hobby Gear",         icon: TrophyIcon },
-  { name: "Other",                       icon: SquaresPlusIcon },
-] as const;
+// Import only the icons needed directly by this page component
+import { FunnelIcon } from '@heroicons/react/24/outline'; // For the filter button
+// REMOVED: Direct icon imports for categories (ComputerDesktopIcon, etc.) as they are now encapsulated in CATEGORIES_DATA from lib
+
+// REMOVED: Local definition of CATEGORIES_WITH_ICONS_ADJUSTED
+// const CATEGORIES_WITH_ICONS_ADJUSTED = [ ... ] as const;
 
 
 const parsePhotosJson = (photosInput: string | string[] | null | undefined): string[] | null => {
@@ -128,7 +117,7 @@ export default function ListingsPage() {
       .on<ListingTablePayload>(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'listings' },
-        (_payload) => { // MODIFIED: Renamed payload to _payload to satisfy ESLint if rule is strict
+        (_payload) => {
           let changedItemId: string | undefined = undefined;
           if (_payload.new && typeof _payload.new === 'object' && 'id' in _payload.new) {
             const newId = (_payload.new as { id?: unknown }).id;
@@ -209,7 +198,8 @@ export default function ListingsPage() {
           Explore Categories
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
-          {CATEGORIES_WITH_ICONS_ADJUSTED.map((category) => (
+          {/* MODIFIED: Use CATEGORIES_DATA from import */}
+          {CATEGORIES_DATA.map((category) => (
             <CategoryCard
               key={category.name}
               categoryName={category.name}
@@ -276,7 +266,7 @@ export default function ListingsPage() {
         selectedCategory={selectedCategory}
         onCategorySelect={handleModalCategorySelect}
         onClearFilter={handleModalClearFilter}
-        categories={CATEGORIES_WITH_ICONS_ADJUSTED} 
+        categories={CATEGORIES_DATA} // MODIFIED: Use CATEGORIES_DATA from import
       />
     </div>
   );
