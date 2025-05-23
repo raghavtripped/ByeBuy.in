@@ -7,7 +7,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import Slider from "react-slick";
 
-// Import slick carousel CSS
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
@@ -19,9 +18,9 @@ import {
 } from '@/lib/timeUtils';
 import { formatCurrency } from '@/lib/formatUtils';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import WatchlistButton from '@/components/WatchlistButton'; // Your existing WatchlistButton import
+import WatchlistButton from '@/components/WatchlistButton';
 import ListingChat from '@/components/ListingChat';
-import ConfirmBidModal from '@/components/ConfirmBidModal'; // NEW: Import ConfirmBidModal
+import ConfirmBidModal from '@/components/ConfirmBidModal';
 
 // --- Type Definitions ---
 type Listing = {
@@ -54,12 +53,14 @@ type BidTablePayload = Partial<Bid> & { item_id?: string; id?: string };
 
 // --- Helper Icons ---
 const CheckCircleIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 inline-block mr-1.5 align-text-bottom text-green-600 dark:text-green-500">
+  // Updated icon color for dark mode
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 inline-block mr-1.5 align-text-bottom text-green-600 dark:text-green-400">
     <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.06 0l4.071-5.66Z" clipRule="evenodd" />
   </svg>
 );
 
 const ClockIcon = () => (
+    // Color will be inherited from parent text color
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 inline-block mr-1 align-text-bottom">
         <path fillRule="evenodd" d="M8 1.75a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V2.5A.75.75 0 0 1 8 1.75ZM8 14a.75.75 0 0 1 .75.75v.01a.75.75 0 0 1-1.5 0v-.01A.75.75 0 0 1 8 14ZM4.21 3.97a.75.75 0 0 1 1.06 0l.74.745a.75.75 0 1 1-1.06 1.06l-.745-.74a.75.75 0 0 1 0-1.06Zm6.52 0a.75.75 0 0 1 0 1.06l-.74.745a.75.75 0 1 1-1.06-1.06l.74-.74a.75.75 0 0 1 1.06 0ZM1.75 8a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H2.5a.75.75 0 0 1-.75-.75Zm11.5 0a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5h-.01a.75.75 0 0 1-.75-.75ZM4.21 10.97a.75.75 0 0 1 0 1.06l-.745.74a.75.75 0 1 1-1.06-1.06l.74-.74a.75.75 0 0 1 1.06 0Zm6.52 0a.75.75 0 0 1 1.06 0l.74.74a.75.75 0 1 1-1.06-1.06l-.74-.74a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
         <path d="M8 4.75a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0V5.5a.75.75 0 0 1 .75-.75Z" />
@@ -73,7 +74,7 @@ export default function ListingDetails() {
 
   const [listing, setListing] = useState<Listing | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
-  const [price, setPrice] = useState(''); // Bid input value
+  const [price, setPrice] = useState('');
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +82,6 @@ export default function ListingDetails() {
   const [countdown, setCountdown] = useState<string | null>(null);
   const [winnerEmail, setWinnerEmail] = useState<string | null>(null);
 
-  // NEW: State for modal visibility and bid submission loading
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isPlacingBid, setIsPlacingBid] = useState(false); 
 
@@ -96,6 +96,7 @@ export default function ListingDetails() {
   };
 
   const loadData = useCallback(async () => {
+    // ... (loadData logic remains the same) ...
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!id || !uuidRegex.test(id)) {
       setError('Invalid listing ID format.'); setLoading(false); return;
@@ -157,6 +158,7 @@ export default function ListingDetails() {
   }, [id]);
 
   useEffect(() => {
+    // ... (auth and realtime subscription logic remains the same) ...
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
     loadData();
 
@@ -223,6 +225,7 @@ export default function ListingDetails() {
   const currentHighestBidVal = useMemo(() => bids[0]?.bid_price ?? 0, [bids]);
 
   const { sliderMin, sliderMax, sliderStep, displaySlider } = useMemo(() => {
+    // ... (slider logic remains the same) ...
     if (!listing || auctionEnded) return { sliderMin: 1, sliderMax: 100, sliderStep: 1, displaySlider: false };
     const nextValidBid = Math.max(listing.min_price, currentHighestBidVal + 1);
     if (listing.upper_cap && nextValidBid >= listing.upper_cap) return { sliderMin: nextValidBid, sliderMax: nextValidBid, sliderStep: 1, displaySlider: false };
@@ -244,6 +247,7 @@ export default function ListingDetails() {
   }, [listing, auctionEnded, currentHighestBidVal]);
 
   useEffect(() => {
+    // ... (countdown logic remains the same) ...
       if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) {
           setCountdown(null); return;
       }
@@ -267,8 +271,8 @@ export default function ListingDetails() {
       return () => clearInterval(intervalId);
   }, [listing?.end_time, listing?.status, auctionEnded, loadData, id]);
 
-  // MODIFIED: Renamed original placeBid to executePlaceBid
   const executePlaceBid = async () => {
+    // ... (executePlaceBid logic remains the same) ...
     if (!user || !listing || auctionEnded || isPlacingBid) {
       console.warn("executePlaceBid: Pre-conditions not met or already placing bid.");
       setIsPlacingBid(false); 
@@ -278,7 +282,7 @@ export default function ListingDetails() {
     
     const amt = parseInt(price, 10);
     if (isNaN(amt) || amt <= 0) {
-        setBidStatusMessage('⚠️ Bid amount became invalid during confirmation.'); // Should ideally not happen
+        setBidStatusMessage('⚠️ Bid amount became invalid during confirmation.');
         setIsPlacingBid(false);
         setIsConfirmModalOpen(false);
         return;
@@ -318,8 +322,8 @@ export default function ListingDetails() {
     }
   };
 
-  // NEW: Handler to open the confirmation modal after validation
   const handlePlaceBidClick = () => {
+    // ... (handlePlaceBidClick logic remains the same) ...
     setBidStatusMessage(null);
     if (!user) { router.push(`/auth?redirect=/listings/${id}`); return; }
     if (!listing) { console.error("handlePlaceBidClick: Listing data not available."); return; }
@@ -344,8 +348,9 @@ export default function ListingDetails() {
 
 
   if (loading && !listing) return <div className="flex justify-center py-20"><LoadingSpinner message="Loading listing details..." /></div>;
-  if (error) return <p className="p-6 text-center text-red-600 dark:text-red-400 font-medium">{error}</p>;
-  if (!listing) return <p className="p-6 text-center text-gray-700 dark:text-gray-300">Listing details could not be loaded.</p>;
+  // Updated error and "not loaded" text colors
+  if (error) return <p className="p-6 text-center text-red-600 dark:text-red-300 font-medium">{error}</p>;
+  if (!listing) return <p className="p-6 text-center text-gray-700 dark:text-bye-dark-text-secondary">Listing details could not be loaded.</p>;
 
   const timeDisplay = auctionEnded
     ? (listing.end_time ? `Ended ${formatRelativeTime(listing.end_time)}` : 'Auction Ended')
@@ -355,11 +360,12 @@ export default function ListingDetails() {
     : (listing.end_time ? `Ends ${formatRelativeTime(listing.end_time)}` : 'No end time set');
 
   const sliderSettings = { dots: false, infinite: photos.length > 1, speed: 500, slidesToShow: 1, slidesToScroll: 1, arrows: photos.length > 1, adaptiveHeight: true };
-  const typedPriceNum = parseInt(price); // This is from bid input, can be NaN
+  const typedPriceNum = parseInt(price);
   const showExceedsSliderNote = displaySlider && !isNaN(typedPriceNum) && typedPriceNum > sliderMax && typedPriceNum >= sliderMin && (listing.upper_cap ? typedPriceNum < listing.upper_cap : true);
 
   return (
-    <> {/* NEW: Wrapped in React.Fragment for the modal sibling */}
+    <>
+      {/* Main page container will inherit dark:bg-bye-dark-bg-primary from layout */}
       <main className="listing-detail-page max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
         {/* Section 1: Image and Core Details */}
         <section className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
@@ -367,21 +373,28 @@ export default function ListingDetails() {
             {photos.length > 0 ? (
                  <Slider {...sliderSettings}>
                     {photos.map((photoUrl: string, index: number) => (
-                        <div key={photoUrl || `photo-${index}`} className="aspect-square relative bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+                        // Updated image container background
+                        <div key={photoUrl || `photo-${index}`} className="aspect-square relative bg-gray-100 dark:bg-bye-dark-bg-hover rounded-lg overflow-hidden">
                              <Image src={photoUrl} alt={`Photo ${index + 1} for ${listing.title}`} fill style={{ objectFit: 'contain' }} sizes="(max-width: 768px) 100vw, 50vw" priority={index === 0} />
                         </div>
                      ))}
                 </Slider>
-            ) : ( <div className="w-full md:w-1/2 flex-shrink-0 aspect-square bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center"> <svg className="h-20 w-20 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /> </svg> </div> )}
+            ) : ( 
+                // Updated placeholder background and icon color
+                <div className="w-full md:w-1/2 flex-shrink-0 aspect-square bg-gray-200 dark:bg-bye-dark-bg-secondary rounded-lg flex items-center justify-center"> 
+                    <svg className="h-20 w-20 text-gray-400 dark:text-bye-dark-text-secondary opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"> 
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /> 
+                    </svg> 
+                </div>
+            )}
           </div>
 
           <div className={`w-full ${photos.length > 0 ? 'md:w-1/2' : ''} space-y-4`}>
               <div className="flex items-center space-x-3">
-                <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-100 break-words">
+                {/* Updated title color */}
+                <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-bye-dark-text-primary break-words">
                   {listing.title}
                 </h1>
-                {/* WatchlistButton was previously commented out in your provided code, I'm keeping it that way. */}
-                {/* If you want it active, uncomment it and ensure the import is also active. */}
                 {user !== undefined && listing && ( 
                   <WatchlistButton
                     listingId={listing.id}
@@ -392,82 +405,88 @@ export default function ListingDetails() {
                 )}
               </div>
 
+              {/* Updated seller info text and link colors */}
               {listing.seller_id && listing.seller_email ? (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Sold by: {' '}
+                  <p className="text-sm text-gray-600 dark:text-bye-dark-text-secondary">Sold by: {' '}
                       <Link href={`/user/${listing.seller_id}`} className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline">
                           {listing.seller_email}
                       </Link>
                   </p>
               ) : listing.seller_email ? (
-                  <p className="text-sm text-gray-600 dark:text-gray-400"> Sold by: <span className="font-medium text-gray-800 dark:text-gray-200">{listing.seller_email}</span></p>
+                  <p className="text-sm text-gray-600 dark:text-bye-dark-text-secondary"> Sold by: <span className="font-medium text-gray-800 dark:text-bye-dark-text-primary">{listing.seller_email}</span></p>
               ): null}
 
               {listing.status === 'active' && (
                   <div className="flex flex-col sm:flex-row gap-4 pt-2">
-                      <div className="flex-1 space-y-2 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-200 dark:border-gray-700">
-                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Minimum Bid:</p>
+                      {/* Updated info box backgrounds, borders, and text colors */}
+                      <div className="flex-1 space-y-2 bg-gray-50 dark:bg-bye-dark-bg-secondary p-3 rounded-md border border-gray-200 dark:border-bye-dark-border-primary">
+                          <p className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary">Minimum Bid:</p>
                           <p className="text-xl font-bold text-indigo-700 dark:text-indigo-400">{formatCurrency(listing.min_price)}</p>
                           {listing.upper_cap && listing.upper_cap > 0 && (
-                              <div className="pt-1 mt-1 border-t border-gray-200 dark:border-gray-700/60">
-                                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mt-1">Buy Now Price:</p>
+                              <div className="pt-1 mt-1 border-t border-gray-200 dark:border-bye-dark-border-primary opacity-70 dark:opacity-100">
+                                  <p className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary mt-1">Buy Now Price:</p>
                                   <p className="text-xl font-bold text-purple-700 dark:text-purple-400">{formatCurrency(listing.upper_cap)}</p>
                               </div>
                           )}
                       </div>
-                      <div className="flex-1 space-y-1 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md border border-gray-200 dark:border-gray-700">
-                           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Highest Bid:</h3>
+                      <div className="flex-1 space-y-1 bg-gray-50 dark:bg-bye-dark-bg-secondary p-3 rounded-md border border-gray-200 dark:border-bye-dark-border-primary">
+                           <h3 className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary">Current Highest Bid:</h3>
                            {currentHighestBidVal > 0 && bids.length > 0 ? (
                               <>
-                                  <p className="text-2xl font-bold text-green-700 dark:text-green-300">{formatCurrency(currentHighestBidVal)}</p>
+                                  <p className="text-2xl font-bold text-green-700 dark:text-green-400">{formatCurrency(currentHighestBidVal)}</p>
                                   {bids[0]?.bidder_email && (
-                                      <p className="text-xs text-gray-500 dark:text-gray-400 pt-1 min-w-0">by <span className="font-medium text-gray-700 dark:text-gray-300 truncate inline-block max-w-full">{bids[0].bidder_email}</span></p>
+                                      <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary pt-1 min-w-0">by <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary truncate inline-block max-w-full">{bids[0].bidder_email}</span></p>
                                   )}
                               </>
-                           ) : ( <p className="text-lg text-gray-500 dark:text-gray-400 pt-2">No bids yet.</p> )}
+                           ) : ( <p className="text-lg text-gray-500 dark:text-bye-dark-text-secondary pt-2">No bids yet.</p> )}
                       </div>
                   </div>
               )}
 
-                          {listing.status === 'closed' && (
-                 <div className={`p-4 rounded-md my-3 border ${listing.winning_bidder_id ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700' : 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'}`}>
+            {/* Updated status box backgrounds, borders, and text colors */}
+            {listing.status === 'closed' && (
+                 <div className={`p-4 rounded-md my-3 border ${listing.winning_bidder_id ? 'bg-green-50 dark:bg-green-900/25 border-green-300 dark:border-green-700/50' : 'bg-blue-50 dark:bg-blue-900/25 border-blue-300 dark:border-blue-700/50'}`}>
                      <h3 className={`text-lg font-semibold text-center mb-2 ${listing.winning_bidder_id ? 'text-green-700 dark:text-green-300' : 'text-blue-700 dark:text-blue-300'}`}>Auction Ended</h3>
                      {listing.winning_bidder_id && listing.final_sale_price ? (
                          <>
-                            <p className="text-md text-center text-gray-700 dark:text-gray-300"> {/* Base color for "Sold for:" text */}
+                            <p className="text-md text-center text-gray-700 dark:text-bye-dark-text-primary">
                                 Sold for: <span className="font-bold text-green-600 dark:text-green-400">{formatCurrency(listing.final_sale_price)}</span>
                             </p>
                             {winnerEmail && (
-                                <p className="text-sm text-center text-gray-600 dark:text-gray-400">
-                                    Winner: <span className="font-medium text-gray-800 dark:text-gray-200">{winnerEmail}</span> {/* Ensured winner email also has good contrast */}
+                                <p className="text-sm text-center text-gray-600 dark:text-bye-dark-text-secondary">
+                                    Winner: <span className="font-medium text-gray-800 dark:text-bye-dark-text-primary">{winnerEmail}</span>
                                 </p>
                             )}
                          </>
                      ) : (
-                        <p className="text-md text-center text-gray-700 dark:text-gray-300">This auction closed with no winning bids.</p>
+                        <p className="text-md text-center text-gray-700 dark:text-bye-dark-text-primary">This auction closed with no winning bids.</p>
                      )}
                  </div>
             )}
             {listing.status === 'cancelled' && (
-                 <div className="p-4 rounded-md my-3 border bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700">
+                 <div className="p-4 rounded-md my-3 border bg-yellow-50 dark:bg-yellow-900/25 border-yellow-300 dark:border-yellow-700/50">
                      <h3 className="text-lg font-semibold text-center text-yellow-700 dark:text-yellow-300">Auction Cancelled</h3>
-                     {/* Optional: You can add a generic message for cancelled auctions if you like */}
-                     {/* <p className="text-sm text-center text-yellow-600 dark:text-yellow-200 mt-1">This auction has been cancelled.</p> */}
                  </div>
             )}
-              {listing.end_time && (<p className={`text-sm font-medium pt-2 text-center ${auctionEnded ? 'text-gray-500 dark:text-gray-400' : 'text-gray-600 dark:text-gray-300'}`}><ClockIcon /> {timeDisplay}</p>)}
+              {/* Updated time display text color */}
+              {listing.end_time && (<p className={`text-sm font-medium pt-2 text-center ${auctionEnded ? 'text-gray-500 dark:text-bye-dark-text-secondary' : 'text-gray-600 dark:text-bye-dark-text-primary'}`}><ClockIcon /> {timeDisplay}</p>)}
           </div>
         </section>
 
         {/* Section 2: "Place Your Bid" Card */}
         {!auctionEnded && (
-          <section className="my-8 py-6 bg-gray-100 dark:bg-gray-800/40 rounded-xl shadow-inner">
-              <div className="max-w-lg mx-auto bg-white dark:bg-gray-800 shadow-xl rounded-lg p-6 sm:p-8">
+          // Updated outer section background
+          <section className="my-8 py-6 bg-gray-100 dark:bg-bye-dark-bg-hover rounded-xl shadow-inner">
+              {/* Updated inner card background */}
+              <div className="max-w-lg mx-auto bg-white dark:bg-bye-dark-bg-secondary shadow-xl rounded-lg p-6 sm:p-8">
                   {user && user.id !== listing.seller_id ? (
                       <>
-                          <h3 className="text-xl font-semibold mb-4 text-center text-gray-800 dark:text-white">Place Your Bid</h3>
+                          {/* Updated heading color */}
+                          <h3 className="text-xl font-semibold mb-4 text-center text-gray-800 dark:text-bye-dark-text-primary">Place Your Bid</h3>
                           
+                          {/* Updated text color */}
                           {displaySlider && (
-                              <p className="text-xs text-center text-gray-500 dark:text-gray-400 mb-3">
+                              <p className="text-xs text-center text-gray-500 dark:text-bye-dark-text-secondary mb-3">
                                   Suggested bid range: {formatCurrency(sliderMin)} - {formatCurrency(sliderMax)}
                               </p>
                           )}
@@ -475,10 +494,12 @@ export default function ListingDetails() {
                           {displaySlider && (
                               <div className="mb-5">
                                   <label htmlFor="bidSlider" className="sr-only">Bid Amount Slider</label>
+                                  {/* Updated slider track and thumb colors (accent-*) */}
                                   <input id="bidSlider" type="range" min={sliderMin} max={sliderMax} step={sliderStep} value={price || sliderMin}
                                       onChange={(e) => { setPrice(e.target.value); setBidStatusMessage(null); }}
-                                      className="w-full h-2.5 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-600 dark:accent-indigo-500" />
-                                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1.5 px-1">
+                                      className="w-full h-2.5 bg-gray-200 dark:bg-bye-dark-border-primary rounded-lg appearance-none cursor-pointer accent-indigo-600 dark:accent-indigo-400" />
+                                  {/* Updated text color for slider range */}
+                                  <div className="flex justify-between text-xs text-gray-500 dark:text-bye-dark-text-secondary mt-1.5 px-1">
                                       <span>{formatCurrency(sliderMin)}</span>
                                       <span>{formatCurrency(sliderMax)}</span>
                                   </div>
@@ -486,33 +507,37 @@ export default function ListingDetails() {
                           )}
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                               <div className="flex-grow relative">
-                                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-gray-400 pointer-events-none">₹</span>
+                                  {/* Updated currency symbol color */}
+                                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-bye-dark-text-secondary pointer-events-none">₹</span>
+                                  {/* Updated input field styles */}
                                   <input id="bidAmount" type="number" value={price}
                                       onChange={(e) => { setPrice(e.target.value); setBidStatusMessage(null); }}
                                       placeholder={`Min. ${formatCurrency(sliderMin)}`}
-                                      className="pl-7 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-md w-full focus:ring-indigo-500 focus:border-indigo-500 text-base dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-500"
+                                      className="pl-7 pr-3 py-2.5 border border-gray-300 dark:border-bye-dark-border-primary rounded-md w-full focus:ring-indigo-500 focus:border-indigo-500 text-base bg-white dark:bg-bye-dark-bg-hover text-gray-900 dark:text-bye-dark-text-primary dark:placeholder-bye-dark-text-secondary"
                                       step="1" min={sliderMin > 0 ? sliderMin : 1} />
                               </div>
-                              {/* MODIFIED: onClick now calls handlePlaceBidClick */}
+                              {/* Place Bid button - ensure Indigo contrasts, update focus ring offset */}
                               <button 
                                 onClick={handlePlaceBidClick} 
-                                className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white px-6 py-2.5 rounded-md font-medium transition whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 text-base"
-                                disabled={isPlacingBid || !price.trim()} // Also disable if price input is empty
+                                className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white px-6 py-2.5 rounded-md font-medium transition whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:ring-offset-2 dark:focus:ring-offset-bye-dark-bg-secondary text-base"
+                                disabled={isPlacingBid || !price.trim()}
                               >
                                 {isPlacingBid ? 'Processing...' : 'Place Bid'}
                               </button>
                           </div>
+                          {/* Updated "bid noted" text color */}
                           {showExceedsSliderNote && (
                               <p className="mt-3 text-xs text-center text-green-600 dark:text-green-400 flex items-center justify-center">
                                   <CheckCircleIcon /> Your bid of {formatCurrency(typedPriceNum)} is noted!
                               </p>
                           )}
-                          {bidStatusMessage && (<p className={`mt-4 text-sm font-medium text-center ${bidStatusMessage.startsWith('✅') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{bidStatusMessage}</p>)}
+                          {/* Updated bid status message colors */}
+                          {bidStatusMessage && (<p className={`mt-4 text-sm font-medium text-center ${bidStatusMessage.startsWith('✅') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-300'}`}>{bidStatusMessage}</p>)}
                       </>
-                  ) : user && user.id === listing.seller_id ? (
-                      <div className="p-3 border border-yellow-300 dark:border-yellow-700 rounded-md bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 text-center text-sm">You cannot place bids on your own listing.</div>
-                  ) : (
-                      <div className="p-3 border border-blue-200 dark:border-blue-700 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-center text-sm">Please{' '} <Link href={`/auth?redirect=/listings/${id}`} className="font-bold underline hover:text-blue-900 dark:hover:text-blue-200">log in</Link>{' '} to place a bid.</div>
+                  ) : user && user.id === listing.seller_id ? ( // Updated "cannot bid" message box
+                      <div className="p-3 border border-yellow-300 dark:border-yellow-700/50 rounded-md bg-yellow-50 dark:bg-yellow-900/25 text-yellow-800 dark:text-yellow-300 text-center text-sm">You cannot place bids on your own listing.</div>
+                  ) : ( // Updated "log in to bid" message box
+                      <div className="p-3 border border-blue-200 dark:border-blue-700/50 rounded-md bg-blue-50 dark:bg-blue-900/25 text-blue-800 dark:text-blue-300 text-center text-sm">Please{' '} <Link href={`/auth?redirect=/listings/${id}`} className="font-bold underline hover:text-blue-900 dark:hover:text-blue-200">log in</Link>{' '} to place a bid.</div>
                   )}
               </div>
           </section>
@@ -520,49 +545,59 @@ export default function ListingDetails() {
 
         {/* Section 3: Description */}
         <section>
-            <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Description</h3>
-            <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800">
-               <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{listing.description || <span className="text-gray-500 italic">No description provided.</span>}</p>
+            {/* Updated heading and text colors, container background and border */}
+            <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-bye-dark-text-primary">Description</h3>
+            <div className="p-4 border border-gray-200 dark:border-bye-dark-border-primary rounded-md bg-white dark:bg-bye-dark-bg-secondary">
+               <p className="text-gray-700 dark:text-bye-dark-text-primary whitespace-pre-wrap">{listing.description || <span className="text-gray-500 dark:text-bye-dark-text-secondary italic">No description provided.</span>}</p>
             </div>
         </section>
 
         {/* Section 4: Rules (if any) */}
         {listing.rules && (
           <section>
-               <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Auction Rules</h3>
-               <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800/50">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{listing.rules}</p>
+               {/* Updated heading and text colors, container background and border */}
+               <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-bye-dark-text-primary">Auction Rules</h3>
+               <div className="p-4 border border-gray-200 dark:border-bye-dark-border-primary rounded-md bg-gray-50 dark:bg-bye-dark-bg-secondary opacity-90 dark:opacity-100">
+                  <p className="text-sm text-gray-600 dark:text-bye-dark-text-secondary whitespace-pre-wrap">{listing.rules}</p>
                </div>
           </section>
         )}
 
-        {/* Listing Chat Section - Placed AFTER Rules */}
-        <section className="pt-8 border-t border-gray-200 dark:border-gray-700">
-          {id && user !== undefined && listing && ( // Ensure listing is also defined before rendering chat
+        {/* Listing Chat Section - Updated divider */}
+        <section className="pt-8 border-t border-gray-200 dark:border-bye-dark-border-primary">
+          {id && user !== undefined && listing && (
               <ListingChat listingId={id} currentUser={user} />
           )}
         </section>
 
         {/* Section 5: Bid History */}
-        <section className="pt-8 border-t border-gray-200 dark:border-gray-700">
-           <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-white"> Bid History ({bids.length}) </h2>
-           {bids.length === 0 ? ( <p className="text-gray-600 dark:text-gray-400">No bids have been placed yet.</p> ) : (
+        {/* Updated heading, text, list item backgrounds and borders */}
+        <section className="pt-8 border-t border-gray-200 dark:border-bye-dark-border-primary">
+           <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-bye-dark-text-primary"> Bid History ({bids.length}) </h2>
+           {bids.length === 0 ? ( <p className="text-gray-600 dark:text-bye-dark-text-secondary">No bids have been placed yet.</p> ) : (
                <ul className="space-y-3 max-h-[400px] overflow-y-auto pr-2 -mr-2 custom-scrollbar">
                    {bids.map((bid: Bid, index: number) => (
-                       <li key={bid.id} className={`p-3 border rounded-md flex justify-between items-center text-sm ${ index === 0 ? 'bg-green-50 dark:bg-green-900/40 border-green-200 dark:border-green-700' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700' }`}>
-                           <div><span className={`font-semibold ${index === 0 ? 'text-green-800 dark:text-green-300' : 'text-indigo-800 dark:text-indigo-400'}`}>{formatCurrency(bid.bid_price)}</span>{bid.bidder_email && ( <span className="text-xs text-gray-500 dark:text-gray-400 ml-2"> by {bid.bidder_email} </span> )}</div>
-                           <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-4">{new Date(bid.timestamp).toLocaleString()}</span>
+                       <li key={bid.id} className={`p-3 border rounded-md flex justify-between items-center text-sm ${ index === 0 
+                            ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700/60' 
+                            : 'bg-gray-50 dark:bg-bye-dark-bg-hover border-gray-200 dark:border-bye-dark-border-primary' 
+                        }`}>
+                           <div>
+                               <span className={`font-semibold ${index === 0 ? 'text-green-800 dark:text-green-300' : 'text-indigo-800 dark:text-indigo-400'}`}>{formatCurrency(bid.bid_price)}</span>
+                               {bid.bidder_email && ( <span className="text-xs text-gray-500 dark:text-bye-dark-text-secondary ml-2"> by {bid.bidder_email} </span> )}
+                           </div>
+                           <span className="text-xs text-gray-500 dark:text-bye-dark-text-secondary flex-shrink-0 ml-4">{new Date(bid.timestamp).toLocaleString()}</span>
                        </li>
                    ))}
                </ul>
            )}
         </section>
 
+        {/* style jsx global: Scrollbar colors are updated. Slick slider arrows are harder to theme without JS or more complex CSS. */}
         <style jsx global>{`
-          /* Slick Slider Arrow Styling */
+          /* Slick Slider Arrow Styling - Consider if these need dark mode variants if they clash */
           .slick-prev, .slick-next {
            position: absolute !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 10 !important;
-           width: 40px !important; height: 40px !important; background-color: rgba(0, 0, 0, 0.3) !important;
+           width: 40px !important; height: 40px !important; background-color: rgba(0, 0, 0, 0.3) !important; /* Default darkish arrows */
            border-radius: 50% !important; transition: background-color 0.2s, opacity 0.2s !important; opacity: 0.7 !important;
            cursor: pointer !important; display: flex !important; align-items: center !important; justify-content: center !important;
            padding: 0 !important; border: none !important;}
@@ -572,34 +607,33 @@ export default function ListingDetails() {
           .slick-prev::before, .slick-next::before {font-family: 'slick' !important; font-size: 18px !important; color: white !important;
             opacity: 1 !important; line-height: normal !important; display: block !important;}
         
-          .slick-dots { display: none !important; }
+          .slick-dots { display: none !important; } /* Dots are hidden anyway */
           @media (max-width: 640px) {.slick-prev { left: 5px !important; } .slick-next { right: 5px !important; }
              .slick-prev, .slick-next { width: 32px !important; height: 32px !important; }
              .slick-prev:before, .slick-next:before { font-size: 14px !important; }}
 
-          /* Optional Custom Scrollbar for Bid History */
+          /* Custom Scrollbar for Bid History - Updated for new dark theme */
           .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
           .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
           .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; /* Tailwind gray-300 */ }
           .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; /* Tailwind gray-400 */ }
-          .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #4b5563; /* Tailwind gray-600 */ }
-          .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #374151; /* Tailwind gray-700 */ }
+          html.dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #343536; /* bye-dark-border-primary */ }
+          html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #2A2A2B; /* bye-dark-bg-hover */ }
         `}</style>
       </main>
 
-      {/* NEW: Render the ConfirmBidModal */}
-      {listing && ( // Only render modal if listing data is available
+      {listing && (
         <ConfirmBidModal
           isOpen={isConfirmModalOpen}
           onClose={() => { 
             setIsConfirmModalOpen(false); 
-            setIsPlacingBid(false); // Also reset isPlacingBid if modal is cancelled via onClose
+            setIsPlacingBid(false);
           }}
           onConfirm={executePlaceBid}
-          bidAmount={price && !isNaN(parseInt(price, 10)) ? parseInt(price, 10) : null} // Ensure bidAmount is number or null
-          listingTitle={listing.title} // listing is guaranteed to be non-null here
+          bidAmount={price && !isNaN(parseInt(price, 10)) ? parseInt(price, 10) : null}
+          listingTitle={listing.title}
           currentHighestBid={currentHighestBidVal}
-          minimumBid={listing.min_price} // listing is guaranteed to be non-null here
+          minimumBid={listing.min_price}
           isLoading={isPlacingBid}
         />
       )}
