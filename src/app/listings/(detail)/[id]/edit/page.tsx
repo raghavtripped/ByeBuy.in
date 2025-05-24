@@ -26,10 +26,13 @@ interface Listing {
   upper_cap: number | null;
   end_time: string;
   seller_id: string;
-  photos: string | null;
-  tags: string | null;
+  photos: string[] | null; // MODIFIED: Was string | null
+  tags: string[] | null;   // MODIFIED: Was string | null
   rules: string | null;
   status: 'active' | 'closed' | 'cancelled';
+  // These are for fetching, they will be mapped to photos/tags in state
+  photos_jsonb?: string[] | null;
+  tags_jsonb?: string[] | null;
 }
 
 const CATEGORIES_FOR_FORM = [
@@ -100,7 +103,7 @@ export default function EditListingPage() {
       try {
         const { data: listingData, error: listingError } = await supabase
           .from('listings')
-          .select('*')
+          .select('*, photos_jsonb, tags_jsonb') // MODIFIED: Select new _jsonb columns
           .eq('id', listingId)
           .single();
 
@@ -111,7 +114,14 @@ export default function EditListingPage() {
         if (listingData.status !== 'active')
           throw new Error(`L.S.N.A: ${listingData.status}`);
 
-        setListing(listingData as Listing);
+        // Map _jsonb columns to photos and tags for the component's Listing state
+        const processedListingData: Listing = {
+            ...listingData,
+            photos: listingData.photos_jsonb || [], // MODIFIED: Use photos_jsonb
+            tags: listingData.tags_jsonb || [],     // MODIFIED: Use tags_jsonb
+        };
+        setListing(processedListingData);
+
 
         const { count: bidCount, error: bidError } = await supabase
           .from('bids')
@@ -160,17 +170,8 @@ export default function EditListingPage() {
       setRules(listing.rules || '');
 
       // photos
-      let initialPhotosFromDB: string[] = [];
-      try {
-        const parsed = listing.photos ? JSON.parse(listing.photos) : [];
-        if (
-          Array.isArray(parsed) &&
-          parsed.every((item) => typeof item === 'string')
-        )
-          initialPhotosFromDB = parsed;
-      } catch (e) {
-        console.error('Error parsing listing photos:', e);
-      }
+      // MODIFIED: listing.photos is now string[] | null, no JSON.parse needed
+      const initialPhotosFromDB: string[] = listing.photos || [];
       setDisplayPhotos(
         initialPhotosFromDB.map((url) => ({ id: url, url, isNew: false }))
       );
@@ -179,18 +180,11 @@ export default function EditListingPage() {
       setPhotosToDelete([]);
 
       // category
+      // MODIFIED: listing.tags is now string[] | null, no JSON.parse needed
+      const initialTagsArray: string[] = listing.tags || [];
       let initialCategory = '';
-      try {
-        const parsedTags = listing.tags ? JSON.parse(listing.tags) : [];
-        if (
-          Array.isArray(parsedTags) &&
-          parsedTags.length > 0 &&
-          typeof parsedTags[0] === 'string'
-        ) {
-          initialCategory = parsedTags[0];
-        }
-      } catch (e) {
-        console.error('Error parsing listing tags for category:', e);
+      if (initialTagsArray.length > 0 && typeof initialTagsArray[0] === 'string') {
+        initialCategory = initialTagsArray[0];
       }
       setSelectedCategory(initialCategory);
 
@@ -459,38 +453,45 @@ export default function EditListingPage() {
         .filter((url) => url && !photosToDelete.includes(url));
 
       /* -- build update payload -- */
-      const updateData: Partial<
-        Omit<Listing, 'id' | 'seller_id' | 'end_time' | 'status'>
-      > = {
+      // MODIFIED: Prepare to update photos_jsonb and tags_jsonb
+      const updatePayload: {
+        title: string;
+        description: string;
+        rules: string | null;
+        photos_jsonb: string[] | null; // MODIFIED: Use photos_jsonb
+        tags_jsonb: string[] | null;   // MODIFIED: Use tags_jsonb
+        min_price?: number;
+        upper_cap?: number | null;
+      } = {
         title: title.trim(),
         description: description.trim(),
         rules: rules.trim() || null,
-        photos:
-          finalDatabasePhotoUrls.length > 0
-            ? JSON.stringify(finalDatabasePhotoUrls)
-            : null,
-        tags: selectedCategory ? JSON.stringify([selectedCategory]) : null,
+        // MODIFIED: Assign array directly, no JSON.stringify
+        photos_jsonb: finalDatabasePhotoUrls.length > 0 ? finalDatabasePhotoUrls : null,
+        // MODIFIED: Assign array directly, no JSON.stringify
+        tags_jsonb: selectedCategory ? [selectedCategory] : null,
       };
+
 
       if (!hasBids) {
         const parsedMinPrice = parseFloat(minPrice);
-        updateData.min_price = parsedMinPrice;
+        updatePayload.min_price = parsedMinPrice;
         if (upperCap.trim()) {
           const parsedUpperCap = parseFloat(upperCap);
-          updateData.upper_cap = parsedUpperCap;
+          updatePayload.upper_cap = parsedUpperCap;
         } else {
-          updateData.upper_cap = null;
+          updatePayload.upper_cap = null; // Explicitly set to null if empty
         }
       }
 
       /* -- update row -- */
       const { error: updateError } = await supabase
         .from('listings')
-        .update(updateData)
+        .update(updatePayload) // MODIFIED: Use updatePayload
         .eq('id', listingId)
         .eq('seller_id', currentUser!.id);
       if (updateError)
-        throw new Error('Failed to save listing changes to the database.');
+        throw new Error(`Failed to save listing changes to the database. ${updateError.message}`);
 
       showNotification('success', 'Listing updated successfully!');
       router.push(`/listings/${listingId}`);
