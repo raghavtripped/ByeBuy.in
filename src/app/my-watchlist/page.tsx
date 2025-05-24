@@ -4,19 +4,35 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { supabase, User } from '@/lib/supabaseClient';
+import { supabase, type User } from '@/lib/supabaseClient';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import ListingCard, { ListingCardItem } from '@/components/ListingCard';
+import ListingCard, { type ListingCardItem } from '@/components/ListingCard';
 
 export default function MyWatchlistPage() {
   const router = useRouter();
+
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [watchedListings, setWatchedListings] = useState<ListingCardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   /* ------------------------------------------------------------------ */
-  /*  Fetch watch-list items                                            */
+  /*  Helpers                                                           */
+  /* ------------------------------------------------------------------ */
+  const parsePhotos = (photosData: string | string[] | null | undefined): string[] | null => {
+    if (!photosData) return null;
+    if (Array.isArray(photosData)) return photosData.every((p) => typeof p === 'string') ? photosData : null;
+    try {
+      const parsed = JSON.parse(photosData as string);
+      return Array.isArray(parsed) && parsed.every((p) => typeof p === 'string') ? parsed : null;
+    } catch (e) {
+      console.error('Photo parse error in watchlist:', e);
+      return null;
+    }
+  };
+
+  /* ------------------------------------------------------------------ */
+  /*  Fetch watch‑list items                                            */
   /* ------------------------------------------------------------------ */
   useEffect(() => {
     const checkUserAndLoadWatchlist = async () => {
@@ -50,38 +66,17 @@ export default function MyWatchlistPage() {
           /* --- 2. Listing details -------------------------------------- */
           const { data: listingsData, error: fetchListingsErr } = await supabase
             .from('listings_with_highest_bid')
-            .select(
-              'id, title, photos, min_price, current_highest_bid, end_time, status',
-            )
+            .select('id, title, photos_jsonb, min_price, current_highest_bid, end_time, status')
             .in('id', listingIds);
 
           if (fetchListingsErr) throw fetchListingsErr;
 
-          /* --- 3. Parse photos safely ---------------------------------- */
-          const parsePhotos = (
-            photosData: string | string[] | null | undefined,
-          ): string[] | null => {
-            if (!photosData) return null;
-            if (Array.isArray(photosData))
-              return photosData.every((p) => typeof p === 'string')
-                ? photosData
-                : null;
-            try {
-              const parsed = JSON.parse(photosData as string);
-              return Array.isArray(parsed) && parsed.every((p) => typeof p === 'string')
-                ? parsed
-                : null;
-            } catch (e) {
-              console.error('Photo parse error in watchlist:', e);
-              return null;
-            }
-          };
-
+          /* --- 3. Map to ListingCardItem ------------------------------- */
           const parsedListings = listingsData
             ?.map((item) => ({
               id: item.id || '',
               title: item.title || 'Untitled Listing',
-              photos: parsePhotos(item.photos),
+              photos: parsePhotos(item.photos_jsonb as string[] | null),
               min_price: item.min_price || 0,
               current_highest_bid: item.current_highest_bid ?? null,
               end_time: item.end_time ?? null,
@@ -98,12 +93,7 @@ export default function MyWatchlistPage() {
         let msg = 'Failed to load your watchlist.';
         if (err instanceof Error) msg = err.message;
         else if (typeof err === 'string') msg = err;
-        else if (
-          err &&
-          typeof err === 'object' &&
-          'message' in err &&
-          typeof (err as { message: unknown }).message === 'string'
-        ) {
+        else if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
           msg = (err as { message: string }).message;
         }
         setError(msg);
@@ -148,9 +138,7 @@ export default function MyWatchlistPage() {
   /* ------------------------------------------------------------------ */
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-8 text-gray-900 dark:text-bye-dark-text-primary tracking-tight">
-        My Watchlist
-      </h1>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-8 text-gray-900 dark:text-bye-dark-text-primary tracking-tight">My Watchlist</h1>
 
       {watchedListings.length === 0 ? (
         <div className="text-center py-10 bg-white dark:bg-bye-dark-bg-secondary border border-gray-200 dark:border-bye-dark-border-primary rounded-lg shadow-md">
@@ -169,13 +157,9 @@ export default function MyWatchlistPage() {
             />
           </svg>
 
-          <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-bye-dark-text-primary">
-            Your watchlist is empty.
-          </h3>
+          <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-bye-dark-text-primary">Your watchlist is empty.</h3>
 
-          <p className="mt-1 text-sm text-gray-500 dark:text-bye-dark-text-secondary">
-            {"Start browsing and add items you're interested in!"}
-          </p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-bye-dark-text-secondary">Start browsing and add items you&#39;re interested in!</p>
 
           <div className="mt-6">
             <Link
@@ -187,16 +171,9 @@ export default function MyWatchlistPage() {
           </div>
         </div>
       ) : (
-        <ul
-          role="list"
-          className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-        >
+        <ul role="list" className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {watchedListings.map((listing) => (
-            <ListingCard
-              key={listing.id}
-              listing={listing}
-              currentUser={currentUser}
-            />
+            <ListingCard key={listing.id} listing={listing} currentUser={currentUser} />
           ))}
         </ul>
       )}
