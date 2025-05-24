@@ -101,7 +101,7 @@ export default function EditListingPage() {
       try {
         const { data: listingData, error: listingError } = await supabase
           .from('listings')
-          .select('*, photos_jsonb, tags_jsonb')
+          .select('*, photos, tags')
           .eq('id', listingId)
           .single();
 
@@ -112,8 +112,8 @@ export default function EditListingPage() {
 
         const processedListingData: Listing = {
           ...listingData,
-          photos: listingData.photos_jsonb || [],
-          tags: listingData.tags_jsonb || [],
+          photos: listingData.photos || [],
+          tags: listingData.tags || [],
         };
         setListing(processedListingData);
 
@@ -391,16 +391,16 @@ export default function EditListingPage() {
         title: string;
         description: string;
         rules: string | null;
-        photos_jsonb: string[] | null;
-        tags_jsonb: string[] | null;
+        photos: string[] | null;
+        tags: string[] | null;
         min_price?: number;
         upper_cap?: number | null;
       } = {
         title: title.trim(),
         description: description.trim(),
         rules: rules.trim() || null,
-        photos_jsonb: finalDatabasePhotoUrls.length > 0 ? finalDatabasePhotoUrls : null,
-        tags_jsonb: selectedCategory ? [selectedCategory] : null,
+        photos: finalDatabasePhotoUrls.length > 0 ? finalDatabasePhotoUrls : null,
+        tags: selectedCategory ? [selectedCategory] : null,
       };
 
       if (!hasBids) {

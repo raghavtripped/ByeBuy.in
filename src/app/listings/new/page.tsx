@@ -184,11 +184,11 @@ export default function NewListingPage() {
         min_price: minPriceFloat,
         end_time: new Date(endTime).toISOString(),
         seller_id: user.id,
-        photos_jsonb: uploadedPhotoUrls.length ? uploadedPhotoUrls : null, // <-- use photos_jsonb
+        photos: uploadedPhotoUrls.length ? uploadedPhotoUrls : null, // <-- use photos
         upper_cap: upperCapFloat,
         rules: rules.trim() || null,
         status: 'active',
-        tags_jsonb: selectedCategory ? [selectedCategory] : null, // <-- use tags_jsonb
+        tags: selectedCategory ? [selectedCategory] : null, // <-- use tags
       });
       if (insertError) throw insertError;
 
