@@ -356,4 +356,7 @@ export default function ArchivedListingsPage() {
       )}
     </div>
   );
+/* -------------------------------------------------------------------- */
+/*  NOTE: The archived_listings_details view now outputs 'photos'       */
+/* -------------------------------------------------------------------- */
 }

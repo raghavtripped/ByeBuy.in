@@ -1,180 +1,467 @@
-// src/app/my-watchlist/page.tsx
+// src/app/listings/archive/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { supabase, type User } from '@/lib/supabaseClient';
+import Image from 'next/image';
+import { supabase } from '@/lib/supabaseClient';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'; // Keep for ListingTableRecord if needed
 import LoadingSpinner from '@/components/LoadingSpinner';
-import ListingCard, { type ListingCardItem } from '@/components/ListingCard';
+import EmptyState from '@/components/EmptyState';
+import { formatCurrency } from '@/lib/formatUtils';
+import { formatRelativeTime } from '@/lib/timeUtils';
 
-export default function MyWatchlistPage() {
-  const router = useRouter();
+/* -------------------------------------------------------------------------- */
+/*  Helper – parse photo JSON                                                 */
+/* -------------------------------------------------------------------------- */
+const parsePhotosJson = (
+  photosInput: string | string[] | null | undefined
+): string[] | null => {
+  if (photosInput == null) return null;
+  if (Array.isArray(photosInput)) {
+    return photosInput.every((i) => typeof i === 'string') ? photosInput : null;
+  }
+  // This part is mostly for backward compatibility or unexpected stringified JSON
+  if (typeof photosInput === 'string') {
+    try {
+      const parsed = JSON.parse(photosInput);
+      return Array.isArray(parsed) && parsed.every((i) => typeof i === 'string')
+        ? parsed
+        : null;
+    } catch (error) {
+      console.error('Failed to parse photos JSON string:', photosInput, error);
+      return null;
+    }
+  }
+  console.warn(
+    'Unexpected type for photosInput, cannot parse:',
+    typeof photosInput,
+    photosInput
+  );
+  return null;
+};
 
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [watchedListings, setWatchedListings] = useState<ListingCardItem[]>([]);
+/* -------------------------------------------------------------------------- */
+/*  Types                                                                     */
+/* -------------------------------------------------------------------------- */
+export type ArchivedListingDisplay = {
+  id: string;
+  title: string;
+  min_price: number;
+  photos: string[] | null; // This is what ListingCard expects
+  end_time: string | null;
+  created_at?: string;
+  status: 'closed' | 'cancelled';
+  seller_email?: string | null;
+  winning_bidder_id?: string | null;
+  winner_email?: string | null;
+  final_sale_price?: number | null;
+};
+
+// Type for raw data from the 'archived_listings_details' view
+type ArchivedViewItem = {
+  id: string;
+  title: string;
+  min_price: number;
+  photos: string[] | null; // MODIFIED: Expect 'photos' (aliased from photos_jsonb) from the view
+  end_time: string | null;
+  created_at?: string;
+  status: string; // Raw status from view
+  seller_email?: string | null;
+  winning_bidder_id?: string | null;
+  winner_email?: string | null;
+  final_sale_price?: number | null;
+};
+
+// Payload for realtime updates on 'listings' table
+// This still refers to the base table columns
+type ListingTableRecord = Partial<{
+  id: string;
+  title: string;
+  min_price: number;
+  photos_jsonb: string[] | null; // Realtime payload from 'listings' table will have photos_jsonb
+  end_time: string | null;
+  created_at: string;
+  status: 'active' | 'closed' | 'cancelled' | string;
+  seller_id: string;
+  winning_bid_id: string | null;
+  winning_bidder_id: string | null;
+}> & { id?: string };
+
+/* -------------------------------------------------------------------------- */
+/*  Component                                                                 */
+/* -------------------------------------------------------------------------- */
+export default function ArchivedListingsPage() {
+  const [archivedRows, setArchivedRows] = useState<ArchivedListingDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  /* ------------------------------------------------------------------ */
-  /*  Helpers                                                           */
-  /* ------------------------------------------------------------------ */
-  const parsePhotos = (photosData: string | string[] | null | undefined): string[] | null => {
-    if (!photosData) return null;
-    if (Array.isArray(photosData)) return photosData.every((p) => typeof p === 'string') ? photosData : null;
-    try {
-      const parsed = JSON.parse(photosData as string);
-      return Array.isArray(parsed) && parsed.every((p) => typeof p === 'string') ? parsed : null;
-    } catch (e) {
-      console.error('Photo parse error in watchlist:', e);
-      return null;
-    }
-  };
+  /* ----- helpers -------------------------------------------------------- */
+  const sortArchived = useCallback(
+    (rows: ArchivedListingDisplay[]) =>
+      [...rows].sort(
+        (a, b) =>
+          new Date(b.end_time || b.created_at || 0).getTime() -
+          new Date(a.end_time || a.created_at || 0).getTime()
+      ),
+    []
+  );
 
-  /* ------------------------------------------------------------------ */
-  /*  Fetch watch‑list items                                            */
-  /* ------------------------------------------------------------------ */
-  useEffect(() => {
-    const checkUserAndLoadWatchlist = async () => {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+  const fetchArchivedItemDetails = useCallback(
+    async (itemId: string): Promise<ArchivedListingDisplay | null> => {
+      const { data: itemData, error: itemError } = await supabase
+        .from('archived_listings_details') // This view should output 'photos' (aliased from photos_jsonb)
+        .select(
+          // MODIFIED: Select 'photos' from the view
+          'id, title, min_price, photos, end_time, created_at, status, seller_email, winning_bidder_id, winner_email, final_sale_price'
+        )
+        .eq('id', itemId)
+        .maybeSingle();
 
-      if (sessionError || !session?.user) {
-        router.push('/auth?redirect=/my-watchlist');
-        return;
+      if (itemError) {
+        console.error(
+          `RT: Failed to fetch details for archived item ${itemId}`,
+          itemError
+        );
+        return null;
+      }
+      if (!itemData) {
+        console.log(
+          `RT: Item ${itemId} not found in archived_listings_details view.`
+        );
+        return null;
       }
 
-      setCurrentUser(session.user);
+      // itemData.photos here is already string[] | null because the view aliased photos_jsonb
+      if (itemData.status === 'closed' || itemData.status === 'cancelled') {
+        return {
+          ...itemData,
+          photos: parsePhotosJson(itemData.photos), // Pass the already array-like data
+          status: itemData.status as 'closed' | 'cancelled',
+        };
+      }
+
+      console.warn(
+        `RT: Item ${itemId} fetched but status is not 'closed' or 'cancelled': ${itemData.status}`
+      );
+      return null;
+    },
+    []
+  );
+
+  const handleRealtimeUpdate = useCallback(
+    async (
+      payload: RealtimePostgresChangesPayload<ListingTableRecord> // Payload is from 'listings' table
+    ) => {
+      const newRecord =
+        payload.new && 'id' in payload.new ? payload.new : undefined;
+      const oldRecord =
+        payload.old && 'id' in payload.old ? payload.old : undefined;
+      const recordId = newRecord?.id || oldRecord?.id;
+
+      if (!recordId) {
+        console.warn('Archive Page RT: Received event without an ID.', payload);
+        return;
+      }
+      console.log(
+        'Archive Page RT:',
+        payload.eventType,
+        recordId,
+        newRecord?.status
+      );
+
+      // For realtime, we still need to fetch from the view to get all joined data
+      // if the status indicates it's an archived item.
+      switch (payload.eventType) {
+        case 'INSERT': // A new listing was created and immediately closed/cancelled
+        case 'UPDATE': // An existing listing's status changed to closed/cancelled or its details updated
+          if (
+            newRecord?.status === 'closed' ||
+            newRecord?.status === 'cancelled'
+          ) {
+            const detailedItem = await fetchArchivedItemDetails(recordId);
+            if (detailedItem) {
+              setArchivedRows((prev) => {
+                const existingIdx = prev.findIndex(
+                  (i) => i.id === detailedItem.id
+                );
+                if (existingIdx !== -1) {
+                  const updated = [...prev];
+                  updated[existingIdx] = detailedItem;
+                  return sortArchived(updated);
+                }
+                // If it wasn't in the list before (e.g. status just changed to closed)
+                return sortArchived([detailedItem, ...prev]); 
+              });
+            }
+          } else {
+            // If status changed from archived to active, remove it from this page
+            setArchivedRows((prev) =>
+              prev.filter((item) => item.id !== recordId)
+            );
+          }
+          break;
+
+        case 'DELETE':
+          setArchivedRows((prev) =>
+            prev.filter((item) => item.id !== recordId)
+          );
+          break;
+      }
+    },
+    [fetchArchivedItemDetails, sortArchived]
+  );
+
+  /* ----- initial load + RT -------------------------------------------- */
+  useEffect(() => {
+    let isMounted = true;
+    let archiveChannel: ReturnType<typeof supabase.channel> | null = null;
+
+    const loadArchivedListings = async () => {
+      if (!isMounted) return;
+
       setLoading(true);
       setError(null);
 
       try {
-        /* --- 1. All watched listing IDs -------------------------------- */
-        const { data: watchedEntries, error: fetchIdsErr } = await supabase
-          .from('watched_listings')
-          .select('listing_id')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false });
+        const { data, error: fetchError } = await supabase
+          .from('archived_listings_details') // This view should output 'photos' (aliased from photos_jsonb)
+          .select(
+            // MODIFIED: Select 'photos' from the view
+            'id, title, min_price, photos, end_time, created_at, status, seller_email, winning_bidder_id, winner_email, final_sale_price'
+          )
+          .order('end_time', { ascending: false });
 
-        if (fetchIdsErr) throw fetchIdsErr;
+        if (fetchError) throw fetchError;
 
-        if (watchedEntries && watchedEntries.length > 0) {
-          const listingIds = watchedEntries.map((e) => e.listing_id);
+        const rawData = (data || []) as ArchivedViewItem[]; // ArchivedViewItem expects 'photos'
 
-          /* --- 2. Listing details -------------------------------------- */
-          const { data: listingsData, error: fetchListingsErr } = await supabase
-            .from('listings_with_highest_bid')
-            .select('id, title, photos_jsonb, min_price, current_highest_bid, end_time, status')
-            .in('id', listingIds);
+        const validArchived = rawData
+          .filter(
+            (item): item is ArchivedViewItem & { status: 'closed' | 'cancelled' } =>
+              item.status === 'closed' || item.status === 'cancelled'
+          )
+          .map(
+            (item): ArchivedListingDisplay => ({
+              ...item,
+              photos: parsePhotosJson(item.photos), // Pass item.photos (which is string[] | null)
+            })
+          );
 
-          if (fetchListingsErr) throw fetchListingsErr;
-
-          /* --- 3. Map to ListingCardItem ------------------------------- */
-          const parsedListings = listingsData
-            ?.map((item) => ({
-              id: item.id || '',
-              title: item.title || 'Untitled Listing',
-              photos: parsePhotos(item.photos_jsonb as string[] | null),
-              min_price: item.min_price || 0,
-              current_highest_bid: item.current_highest_bid ?? null,
-              end_time: item.end_time ?? null,
-              status: (item.status as ListingCardItem['status']) || 'unknown',
-            }))
-            .filter((i) => i.id) as ListingCardItem[];
-
-          setWatchedListings(parsedListings);
-        } else {
-          setWatchedListings([]);
-        }
-      } catch (err: unknown) {
-        console.error('Error loading watchlist:', err);
-        let msg = 'Failed to load your watchlist.';
-        if (err instanceof Error) msg = err.message;
-        else if (typeof err === 'string') msg = err;
-        else if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
-          msg = (err as { message: string }).message;
-        }
-        setError(msg);
+        if (isMounted) setArchivedRows(sortArchived(validArchived));
+      } catch (err) {
+        console.error('Error loading archived listings:', err);
+        if (isMounted)
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Failed to load archived listings.'
+          );
+        if (isMounted) setArchivedRows([]);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    checkUserAndLoadWatchlist();
-  }, [router]);
+    loadArchivedListings();
 
-  /* ------------------------------------------------------------------ */
-  /*  Render guards                                                     */
-  /* ------------------------------------------------------------------ */
-  if (loading) {
+    archiveChannel = supabase.channel('public-listings-archive-page-v13'); // Unique channel name
+    archiveChannel
+      .on<ListingTableRecord>( // Realtime payload is from 'listings' table
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'listings' }, // Listen to base table
+        handleRealtimeUpdate
+      )
+      .subscribe((status, err) => {
+        if (!isMounted) return;
+        if (status === 'SUBSCRIBED')
+          console.log('Archive page realtime subscribed');
+        else if (status === 'CHANNEL_ERROR')
+          console.error('Archive RT channel error:', err);
+        else if (status === 'TIMED_OUT')
+          console.warn('Archive RT channel timed out.');
+      });
+
+    return () => {
+      isMounted = false;
+      if (archiveChannel) {
+        supabase
+          .removeChannel(archiveChannel)
+          .then(() => console.log('Archive channel unsubscribed'))
+          .catch((err) =>
+            console.error('Error unsubscribing archive channel:', err)
+          );
+      }
+    };
+  }, [handleRealtimeUpdate, sortArchived, fetchArchivedItemDetails]); // Dependencies
+
+  /* -------------------------------------------------------------------- */
+  /*  Render guards                                                       */
+  /* -------------------------------------------------------------------- */
+  if (loading)
     return (
       <div className="flex justify-center py-20">
-        <LoadingSpinner message="Loading your watchlist..." />
+        <LoadingSpinner message="Loading auction archive" />
       </div>
     );
-  }
 
-  if (error) {
+  if (error)
     return (
-      <div className="max-w-3xl mx-auto p-4 sm:p-6 lg:p-8 text-center">
-        <div className="bg-red-50 dark:bg-red-900/25 border border-red-200 dark:border-red-600/50 text-red-800 dark:text-red-300 p-4 rounded-md inline-block">
-          <p className="font-semibold dark:text-red-300">Error Loading Watchlist</p>
-          <p className="text-sm mt-1">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-3 py-1.5 bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600 text-white dark:text-gray-100 text-xs font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:ring-offset-2 dark:focus:ring-offset-red-900/25"
-          >
-            Try Again
-          </button>
-        </div>
+      <div className="p-6 text-center text-red-600 dark:text-red-300">
+        {error}
       </div>
     );
-  }
 
-  /* ------------------------------------------------------------------ */
-  /*  Main UI                                                           */
-  /* ------------------------------------------------------------------ */
+  /* -------------------------------------------------------------------- */
+  /*  JSX                                                                 */
+  /* -------------------------------------------------------------------- */
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-8 text-gray-900 dark:text-bye-dark-text-primary tracking-tight">My Watchlist</h1>
+      <header className="mb-6 sm:mb-8 pb-4 border-b border-gray-200 dark:border-bye-dark-border-primary">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-bye-dark-text-primary tracking-tight">
+          📦 Auction Archive
+        </h1>
+        <p className="text-sm text-gray-600 dark:text-bye-dark-text-secondary mt-1">
+          Browse auctions that have ended or been cancelled.
+        </p>
+      </header>
 
-      {watchedListings.length === 0 ? (
-        <div className="text-center py-10 bg-white dark:bg-bye-dark-bg-secondary border border-gray-200 dark:border-bye-dark-border-primary rounded-lg shadow-md">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="mx-auto h-12 w-12 text-gray-400 dark:text-bye-dark-text-secondary/75"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.846 5.675a.5.5 0 00.475.345h5.975c.925 0 1.315 1.193.586 1.815l-4.834 3.51a.5.5 0 00-.182.557l1.846 5.675c.3.921-.751 1.688-1.538 1.162l-4.834-3.51a.5.5 0 00-.586 0l-4.834 3.51c-.787.526-1.838-.241-1.538-1.162l1.846-5.675a.5.5 0 00-.182-.557l-4.834-3.51c-.73-.622-.339-1.815.586-1.815h5.975a.5.5 0 00.475-.345L11.049 2.927z"
-            />
-          </svg>
-
-          <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-bye-dark-text-primary">Your watchlist is empty.</h3>
-
-          <p className="mt-1 text-sm text-gray-500 dark:text-bye-dark-text-secondary">Start browsing and add items you&#39;re interested in!</p>
-
-          <div className="mt-6">
-            <Link
-              href="/listings"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white dark:text-gray-100 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:ring-offset-2 dark:focus:ring-offset-bye-dark-bg-secondary"
-            >
-              Browse Listings
-            </Link>
-          </div>
-        </div>
+      {archivedRows.length === 0 ? (
+        <EmptyState message="No archived auctions found yet." />
       ) : (
-        <ul role="list" className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {watchedListings.map((listing) => (
-            <ListingCard key={listing.id} listing={listing} currentUser={currentUser} />
-          ))}
+        <ul
+          role="list"
+          className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        >
+          {archivedRows.map((listing) => {
+            /* ----- badge colour classes --------------------------------*/
+            let outcomeText = 'Status Unknown';
+            let outcomeColorClasses =
+              'bg-gray-100 dark:bg-bye-dark-bg-hover text-gray-700 dark:text-bye-dark-text-secondary ring-gray-500/20 dark:ring-bye-dark-border-primary/30';
+
+            if (listing.status === 'closed') {
+              if (listing.winning_bidder_id) {
+                outcomeText = 'Sold';
+                if (
+                  listing.final_sale_price !== null &&
+                  listing.final_sale_price !== undefined
+                ) {
+                  outcomeText += ` for ${formatCurrency(
+                    listing.final_sale_price
+                  )}`;
+                }
+                outcomeColorClasses =
+                  'bg-green-100 dark:bg-green-900/25 text-green-700 dark:text-green-300 ring-green-600/20 dark:ring-green-500/30';
+              } else {
+                outcomeText = 'Ended (No Winner)';
+                outcomeColorClasses =
+                  'bg-yellow-100 dark:bg-yellow-900/25 text-yellow-700 dark:text-yellow-300 ring-yellow-600/20 dark:ring-yellow-500/30';
+              }
+            } else if (listing.status === 'cancelled') {
+              outcomeText = 'Cancelled';
+              outcomeColorClasses =
+                'bg-red-100 dark:bg-red-900/25 text-red-700 dark:text-red-300 ring-red-600/20 dark:ring-red-500/30';
+            }
+
+            const thumbnailUrl =
+              listing.photos && listing.photos.length > 0
+                ? listing.photos[0]
+                : null;
+
+            return (
+              <li
+                key={listing.id}
+                className="group relative flex flex-col bg-white dark:bg-bye-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-bye-dark-border-primary overflow-hidden transition-shadow hover:shadow-md"
+              >
+                <Link href={`/listings/${listing.id}`} className="flex flex-col flex-grow">
+                  {/* image  */}
+                  <div className="aspect-video w-full bg-gray-100 dark:bg-bye-dark-bg-hover overflow-hidden relative rounded-t-lg">
+                    {thumbnailUrl ? (
+                      <Image
+                        src={thumbnailUrl}
+                        alt={`Cover image for ${listing.title}`}
+                        fill
+                        style={{ objectFit: 'cover' }}
+                        className="transition-transform duration-300 group-hover:scale-105"
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                        priority={false}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            '/placeholder-image.svg';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-bye-dark-text-secondary/60">
+                        <svg
+                          className="h-16 w-16"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1}
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2L15.586 12.414a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* body */}
+                  <div className="p-4 flex flex-col flex-grow">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-bye-dark-text-primary mb-1 line-clamp-2 leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                      {listing.title}
+                    </h3>
+
+                    <p
+                      className={`inline-block px-2.5 py-1 text-xs font-medium rounded-full mb-2 self-start ${outcomeColorClasses} ring-1 ring-inset ring-current/20`}
+                    >
+                      {outcomeText}
+                    </p>
+
+                    <div className="mt-auto pt-2 space-y-1 text-sm border-t border-gray-200 dark:border-bye-dark-border-primary/70">
+                      <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary">
+                        Original Min. Bid:{' '}
+                        {formatCurrency(listing.min_price)}
+                      </p>
+
+                      {listing.winner_email && listing.status === 'closed' && (
+                        <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary">
+                          Winner:{' '}
+                          <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary">
+                            {listing.winner_email}
+                          </span>
+                        </p>
+                      )}
+
+                      {listing.seller_email && (
+                        <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary">
+                          Sold by:{' '}
+                          <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary">
+                            {listing.seller_email}
+                          </span>
+                        </p>
+                      )}
+
+                      {listing.end_time && (
+                        <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary">
+                          {listing.status === 'closed'
+                            ? 'Closed: '
+                            : listing.status === 'cancelled'
+                            ? 'Cancelled: '
+                            : 'Ended: '}
+                          {formatRelativeTime(listing.end_time)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
