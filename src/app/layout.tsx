@@ -21,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full"> {/* ThemeScript will toggle 'dark' class here */}
+    <html lang="en" className="h-full">
       <head>
         <ThemeScript />
       </head>
