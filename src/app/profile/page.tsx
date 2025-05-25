@@ -1,20 +1,20 @@
-// src/app/profile/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase, User } from '@/lib/supabaseClient';
+import { supabase, type User } from '@/lib/supabaseClient';
+
 import LoadingSpinner from '@/components/LoadingSpinner';
+import UserAvatar from '@/components/UserAvatar';
 
 import {
   FiList,
   FiSettings,
   FiHelpCircle,
   FiLogOut,
-  FiUser,
+  FiUser
 } from 'react-icons/fi';
-import { FaUserCircle } from 'react-icons/fa';
 
 interface ProfileLinkItemProps {
   href: string;
@@ -27,7 +27,7 @@ const ProfileLinkItem: React.FC<ProfileLinkItemProps> = ({
   href,
   icon: Icon,
   label,
-  isExternal,
+  isExternal
 }) => (
   <Link
     href={href}
@@ -55,35 +55,89 @@ const ProfileLinkItem: React.FC<ProfileLinkItemProps> = ({
 );
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  /* ------------------------------------------------------------------ */
-  /*  Auth                                                              */
-  /* ------------------------------------------------------------------ */
+  /* ─────────────────────────────── state ────────────────────────────── */
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // ✨  profile table data
+  const [profileData, setProfileData] = useState<{
+    full_name: string | null;
+    avatar_url: string | null;
+    hostel: string | null;
+    batch: string | null;
+    bio: string | null;
+  } | null>(null);
+
+  // ✨  quick stats
+  const [activeListingsCount, setActiveListingsCount] = useState(0);
+  const [itemsSoldCount, setItemsSoldCount] = useState(0);
+
+  /* ─────────────────────── fetch auth + profile info ────────────────── */
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchEverything = async () => {
       setLoading(true);
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession();
-      if (error) console.error('Session error:', error.message);
-      setUser(session?.user ?? null);
+
+      const { data: sessionRes, error: sessionErr } = await supabase.auth.getSession();
+      const session = sessionRes?.session;
+      if (sessionErr || !session?.user) {
+        router.replace('/auth?redirect=/profile');
+        setLoading(false);
+        return;
+      }
+      const user = session.user;
+      setAuthUser(user);
+
+      /* 1️⃣  profile row ------------------------------------------------ */
+      const { data: profileRes, error: profileErr } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, hostel, batch, bio')
+        .eq('id', user.id)
+        .single();
+
+      if (profileErr && profileErr.code !== 'PGRST116') { // 116 = no rows found
+        console.error('Profile fetch error:', profileErr.message);
+      } else {
+        setProfileData(profileRes ?? null);
+      }
+
+      /* 2️⃣  stats ------------------------------------------------------ */
+      try {
+        const todayIso = new Date().toISOString();
+
+        // active listings still running
+        const { count: activeCnt } = await supabase
+          .from('listings')
+          .select('id', { head: true, count: 'exact' })
+          .eq('seller_id', user.id)
+          .eq('status', 'active')
+          .gt('end_time', todayIso);
+        setActiveListingsCount(activeCnt ?? 0);
+
+        // items sold (closed with winner)
+        const { count: soldCnt } = await supabase
+          .from('listings')
+          .select('id', { head: true, count: 'exact' })
+          .eq('seller_id', user.id)
+          .eq('status', 'closed')
+          .not('winning_bidder_id', 'is', null);
+        setItemsSoldCount(soldCnt ?? 0);
+      } catch (statsErr) {
+        console.error('Stats fetch error:', statsErr);
+      }
+
       setLoading(false);
     };
 
-    fetchUser();
+    fetchEverything();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-        if (_event === 'SIGNED_OUT') router.replace('/auth');
-      }
-    );
+    const { data: listener } = supabase.auth.onAuthStateChange((_evt, ses) => {
+      if (_evt === 'SIGNED_OUT') router.replace('/auth');
+      setAuthUser(ses?.user ?? null);
+    });
 
-    return () => authListener?.subscription.unsubscribe();
+    return () => listener?.subscription.unsubscribe();
   }, [router]);
 
   const handleLogout = async () => {
@@ -93,44 +147,31 @@ export default function ProfilePage() {
     setLoading(false);
   };
 
-  /* ------------------------------------------------------------------ */
-  /*  Render guards                                                     */
-  /* ------------------------------------------------------------------ */
+  /* ───────────────────────── render guards ──────────────────────────── */
   if (loading)
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-bye-dark-bg-primary p-4">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-bye-dark-bg-primary p-4">
         <LoadingSpinner message="Loading profile" />
       </div>
     );
 
-  if (!user)
+  if (!authUser)
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-bye-dark-bg-primary p-4 text-center">
         <FiUser className="w-16 h-16 text-slate-400 dark:text-bye-dark-text-secondary/75 mb-4" />
-        <p className="text-slate-700 dark:text-bye-dark-text-primary mb-2">
+        <p className="text-slate-700 dark:text-bye-dark-text-primary mb-3">
           Please log in to view your profile.
         </p>
         <Link
           href="/auth"
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-bye-dark-bg-primary"
+          className="inline-flex px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-bye-dark-bg-primary"
         >
           Login
         </Link>
       </div>
     );
 
-  /* ------------------------------------------------------------------ */
-  /*  Avatar                                                            */
-  /* ------------------------------------------------------------------ */
-  const UserAvatar = () => (
-    <div className="w-20 h-20 sm:w-24 sm:h-24 bg-indigo-100 dark:bg-indigo-500/30 rounded-full flex items-center justify-center mb-3 sm:mb-4 ring-4 ring-white dark:ring-bye-dark-bg-secondary shadow-md">
-      <FaUserCircle className="w-16 h-16 sm:w-20 sm:h-20 text-indigo-500 dark:text-indigo-300" />
-    </div>
-  );
-
-  /* ------------------------------------------------------------------ */
-  /*  Page                                                              */
-  /* ------------------------------------------------------------------ */
+  /* ─────────────────────────────── page ─────────────────────────────── */
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-bye-dark-bg-primary pb-20 md:pb-8">
       {/* mobile header */}
@@ -143,38 +184,82 @@ export default function ProfilePage() {
       </header>
 
       <main className="max-w-xl mx-auto p-4 sm:p-6 lg:p-8">
+        {/* avatar + basic info */}
         <div className="flex flex-col items-center mb-6 sm:mb-8 pt-4 md:pt-0">
-          <UserAvatar />
-          {user.email && (
-            <p className="text-sm text-slate-600 dark:text-bye-dark-text-secondary break-all text-center">
-              {user.email}
+          <UserAvatar
+            avatarUrl={profileData?.avatar_url}
+            fullName={profileData?.full_name}
+          />
+
+          {profileData?.full_name && (
+            <h2 className="text-xl sm:text-2xl font-semibold text-slate-800 dark:text-bye-dark-text-primary mt-2 text-center">
+              {profileData.full_name}
+            </h2>
+          )}
+
+          {authUser.email && (
+            <p
+              className={`text-sm text-slate-600 dark:text-bye-dark-text-secondary break-all text-center ${
+                profileData?.full_name ? '' : 'mt-2'
+              }`}
+            >
+              {authUser.email}
+            </p>
+          )}
+
+          {(profileData?.batch || profileData?.hostel) && (
+            <div className="mt-1 text-xs text-center text-slate-500 dark:text-bye-dark-text-secondary/90">
+              {profileData.batch && <span>{profileData.batch}</span>}
+              {profileData.batch && profileData.hostel && <span> • </span>}
+              {profileData.hostel && <span>{profileData.hostel}</span>}
+            </div>
+          )}
+
+          {profileData?.bio && (
+            <p className="mt-3 text-sm text-center text-slate-600 dark:text-bye-dark-text-secondary max-w-md">
+              {profileData.bio}
             </p>
           )}
         </div>
 
+        {/* stats */}
+        <div className="mb-6 sm:mb-8 p-4 bg-white dark:bg-bye-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-bye-dark-border-primary">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-bye-dark-text-primary mb-3 text-center uppercase tracking-wider">
+            Activity Stats
+          </h3>
+          <div className="flex justify-around text-center">
+            <div>
+              <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                {activeListingsCount}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-bye-dark-text-secondary">
+                Active Listings
+              </p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {itemsSoldCount}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-bye-dark-text-secondary">
+                Items Sold
+              </p>
+            </div>
+            {/* ➜ add more stats here whenever you need */}
+          </div>
+        </div>
+
+        {/* links & actions */}
         <div className="space-y-3 sm:space-y-4">
           <h2 className="text-xs font-semibold text-slate-500 dark:text-bye-dark-text-secondary/80 uppercase tracking-wider px-1 mb-2">
             My Activity
           </h2>
-          <ProfileLinkItem
-            href="/my-listings"
-            icon={FiList}
-            label="My Listings"
-          />
+          <ProfileLinkItem href="/my-listings" icon={FiList} label="My Listings" />
 
           <h2 className="text-xs font-semibold text-slate-500 dark:text-bye-dark-text-secondary/80 uppercase tracking-wider px-1 pt-4 mb-2">
             Account &amp; Support
           </h2>
-          <ProfileLinkItem
-            href="/account/settings"
-            icon={FiSettings}
-            label="Account Settings"
-          />
-          <ProfileLinkItem
-            href="/help"
-            icon={FiHelpCircle}
-            label="Help Center"
-          />
+          <ProfileLinkItem href="/account/settings" icon={FiSettings} label="Account Settings" />
+          <ProfileLinkItem href="/help" icon={FiHelpCircle} label="Help Center" />
 
           <div className="pt-6">
             <button
