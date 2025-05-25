@@ -4,7 +4,7 @@
 'use client';
 
 import Image from 'next/image';
-import { FaUserCircle } from 'react-icons/fa';
+import { useState, useEffect } from 'react';
 
 interface UserAvatarProps {
   /** Public URL returned by Supabase Storage (or `null`) */
@@ -21,17 +21,10 @@ interface UserAvatarProps {
 }
 
 const sizeClasses: Record<NonNullable<UserAvatarProps['size']>, string> = {
-  sm: 'w-10 h-10 text-2xl',
-  md: 'w-20 h-20 sm:w-24 sm:h-24 text-5xl sm:text-6xl',
-  lg: 'w-32 h-32 text-7xl',
-  xl: 'w-40 h-40 text-8xl',
-};
-
-const iconSizeClasses: Record<NonNullable<UserAvatarProps['size']>, string> = {
-  sm: 'w-8 h-8',
-  md: 'w-16 h-16 sm:w-20 sm:h-20',
-  lg: 'w-28 h-28',
-  xl: 'w-36 h-36',
+  sm: 'w-10 h-10',
+  md: 'w-20 h-20 sm:w-24 sm:h-24',
+  lg: 'w-32 h-32',
+  xl: 'w-40 h-40',
 };
 
 const UserAvatar: React.FC<UserAvatarProps> = ({
@@ -39,13 +32,29 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
   fullName,
   size = 'md',
   className = '',
-}) => (
-  <div
-    className={`relative rounded-full overflow-hidden bg-slate-200 dark:bg-bye-dark-bg-hover flex items-center justify-center ring-2 ring-white dark:ring-bye-dark-bg-secondary shadow-sm ${sizeClasses[size]} ${className}`}
-  >
-    {avatarUrl ? (
+}) => {
+  const [imageSrc, setImageSrc] = useState(avatarUrl || '/default-avatar.png');
+  const [imageError, setImageError] = useState(false);
+
+  // Update imageSrc when avatarUrl changes
+  useEffect(() => {
+    setImageSrc(avatarUrl || '/default-avatar.png');
+    setImageError(false);
+  }, [avatarUrl]);
+
+  const handleImageError = () => {
+    if (!imageError && imageSrc !== '/default-avatar.png') {
+      setImageSrc('/default-avatar.png');
+      setImageError(true);
+    }
+  };
+
+  return (
+    <div
+      className={`relative rounded-full overflow-hidden bg-slate-200 dark:bg-bye-dark-bg-hover flex items-center justify-center ring-2 ring-white dark:ring-bye-dark-bg-secondary shadow-sm ${sizeClasses[size]} ${className}`}
+    >
       <Image
-        src={avatarUrl}
+        src={imageSrc}
         alt={fullName || 'User avatar'}
         fill
         sizes={
@@ -58,18 +67,10 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
             : '160px'
         }
         style={{ objectFit: 'cover' }}
-        onError={(e) => {
-          const img = e.target as HTMLImageElement;
-          if (!img.src.endsWith('/default-avatar.png'))
-            img.src = '/default-avatar.png';
-        }}
+        onError={handleImageError}
       />
-    ) : (
-      <FaUserCircle
-        className={`${iconSizeClasses[size]} text-slate-400 dark:text-bye-dark-text-secondary opacity-70`}
-      />
-    )}
-  </div>
-);
+    </div>
+  );
+};
 
 export default UserAvatar;

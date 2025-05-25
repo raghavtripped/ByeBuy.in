@@ -12,6 +12,12 @@ const nextConfig: NextConfig = {
         port: '', // Default HTTPS port (443)
         pathname: '/storage/v1/object/public/listing-images/**', // Allow any image in this bucket path
       },
+      {
+        protocol: 'https',
+        hostname: 'efkggsqrpmilxfmszdlz.supabase.co',
+        port: '',
+        pathname: '/storage/v1/object/public/avatars/**', // Add this line for avatars
+      },
       // Example of adding another domain in the future:
       // {
       //   protocol: 'https',
