@@ -1,4 +1,6 @@
-// src/app/profile/page.tsx
+/* -------------------------------------------------------------------------- */
+/*  src/app/profile/page.tsx                                                  */
+/* -------------------------------------------------------------------------- */
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -16,10 +18,12 @@ import {
   FiHelpCircle,
   FiLogOut,
   FiUser,
-  FiAlertTriangle
+  FiAlertTriangle,
 } from 'react-icons/fi';
 
-/*────────────────────────── reusable link row ──────────────────────────*/
+/* -------------------------------------------------------------------------- */
+/*  Re-usable link row                                                        */
+/* -------------------------------------------------------------------------- */
 interface ProfileLinkItemProps {
   href: string;
   icon: React.ElementType;
@@ -31,7 +35,7 @@ const ProfileLinkItem: React.FC<ProfileLinkItemProps> = ({
   href,
   icon: Icon,
   label,
-  isExternal
+  isExternal,
 }) => (
   <Link
     href={href}
@@ -58,11 +62,13 @@ const ProfileLinkItem: React.FC<ProfileLinkItemProps> = ({
   </Link>
 );
 
-/*───────────────────────────── page component ───────────────────────────*/
+/* -------------------------------------------------------------------------- */
+/*  Page component                                                            */
+/* -------------------------------------------------------------------------- */
 export default function ProfilePage() {
   const router = useRouter();
 
-  /* ───────────── state ───────────── */
+  /* ----------------------------- state ----------------------------------- */
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
 
@@ -83,21 +89,24 @@ export default function ProfilePage() {
   const [itemsSoldCount, setItemsSoldCount] = useState<number | null>(null);
   const [auctionsWonCount, setAuctionsWonCount] = useState<number | null>(null);
 
-  /* ───────── fetch auth + profile ───────── */
+  /* ---------------------- fetch auth & profile -------------------------- */
   useEffect(() => {
     const fetchAuthAndProfile = async () => {
-      const { data: sessRes, error: sessErr } = await supabase.auth.getSession();
+      const { data: sessRes, error: sessErr } =
+        await supabase.auth.getSession();
       const session = sessRes?.session;
+
       if (sessErr || !session?.user) {
         router.replace('/auth?redirect=/profile');
         return;
       }
+
       const user = session.user;
       setAuthUser(user);
 
       const { data: pData, error: pErr } = await supabase
         .from('profiles')
-        .select('full_name, avatar_url, hostel, batch, bio')
+        .select('full_name, avatar_url, hostel, batch, bio') /* 👈 avatar_url */
         .eq('id', user.id)
         .single();
 
@@ -106,21 +115,25 @@ export default function ProfilePage() {
       } else {
         setProfileData(pData ?? null);
       }
+
       setPageLoading(false);
     };
 
     fetchAuthAndProfile();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_evt, ses) => {
-      if (_evt === 'SIGNED_OUT') router.replace('/auth');
-      setAuthUser(ses?.user ?? null);
-    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_evt, ses) => {
+        if (_evt === 'SIGNED_OUT') router.replace('/auth');
+        setAuthUser(ses?.user ?? null);
+      }
+    );
     return () => listener?.subscription.unsubscribe();
   }, [router]);
 
-  /* ───────── fetch stats ───────── */
+  /* --------------------------- fetch stats ----------------------------- */
   useEffect(() => {
     if (!authUser) return;
+
     const fetchStats = async () => {
       setStatsLoading(true);
       setStatsError(null);
@@ -128,7 +141,11 @@ export default function ProfilePage() {
       try {
         const todayIso = new Date().toISOString();
 
-        const [{ count: act }, { count: sold }, { count: won }] = await Promise.all([
+        const [
+          { count: act },
+          { count: sold },
+          { count: won },
+        ] = await Promise.all([
           supabase
             .from('listings')
             .select('id', { head: true, count: 'exact' })
@@ -145,7 +162,7 @@ export default function ProfilePage() {
             .from('listings')
             .select('id', { head: true, count: 'exact' })
             .eq('status', 'closed')
-            .eq('winning_bidder_id', authUser.id)
+            .eq('winning_bidder_id', authUser.id),
         ]);
 
         setActiveListingsCount(act ?? 0);
@@ -165,7 +182,7 @@ export default function ProfilePage() {
     fetchStats();
   }, [authUser]);
 
-  /* logout */
+  /* ------------------------------ logout ------------------------------ */
   const handleLogout = async () => {
     setPageLoading(true);
     const { error } = await supabase.auth.signOut();
@@ -173,7 +190,7 @@ export default function ProfilePage() {
     setPageLoading(false);
   };
 
-  /* ─────────── guards ─────────── */
+  /* --------------------------- render guards -------------------------- */
   if (pageLoading)
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-bye-dark-bg-primary p-4">
@@ -197,7 +214,7 @@ export default function ProfilePage() {
       </div>
     );
 
-  /* ─────────── page ─────────── */
+  /* ------------------------------- page ------------------------------- */
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-bye-dark-bg-primary pb-20 md:pb-8">
       {/* mobile header */}
@@ -297,19 +314,27 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* links */}
+        {/* links & actions */}
         <div className="space-y-3 sm:space-y-4">
           <h2 className="text-xs font-semibold text-slate-500 dark:text-bye-dark-text-secondary/80 uppercase tracking-wider px-1 mb-2">
             My Activity
           </h2>
-          <ProfileLinkItem href="/my-listings" icon={FiList} label="My Listings" />
-          <ProfileLinkItem href="/my-bids"     icon={FiTrendingUp} label="My Bids" />
+          <ProfileLinkItem
+            href="/my-listings"
+            icon={FiList}
+            label="My Listings"
+          />
+          <ProfileLinkItem href="/my-bids" icon={FiTrendingUp} label="My Bids" />
 
           <h2 className="text-xs font-semibold text-slate-500 dark:text-bye-dark-text-secondary/80 uppercase tracking-wider px-1 pt-4 mb-2">
             Account &amp; Support
           </h2>
-          <ProfileLinkItem href="/account/settings" icon={FiSettings} label="Account Settings" />
-          <ProfileLinkItem href="/help"              icon={FiHelpCircle} label="Help Center" />
+          <ProfileLinkItem
+            href="/account/settings"
+            icon={FiSettings}
+            label="Account Settings"
+          />
+          <ProfileLinkItem href="/help" icon={FiHelpCircle} label="Help Center" />
 
           {/* logout button */}
           <div className="pt-6">

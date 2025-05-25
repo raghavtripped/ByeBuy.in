@@ -93,7 +93,7 @@ export default function Navbar() {
         { href: '/my-watchlist', text: 'My Watchlist' },
         { href: '/my-listings', text: 'My Listings' },
         { href: '/my-bids', text: 'My Bids' },
-        { href: '/account/settings', text: 'My Account' },
+        { href: '/profile', text: 'My Profile' },
       ]
     : [];
 
