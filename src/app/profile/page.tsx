@@ -21,9 +21,7 @@ import {
   FiAlertTriangle,
 } from 'react-icons/fi';
 
-/* -------------------------------------------------------------------------- */
-/*  Re-usable link row                                                        */
-/* -------------------------------------------------------------------------- */
+/* ----------------------------- link helper ------------------------------ */
 interface ProfileLinkItemProps {
   href: string;
   icon: React.ElementType;
@@ -62,9 +60,7 @@ const ProfileLinkItem: React.FC<ProfileLinkItemProps> = ({
   </Link>
 );
 
-/* -------------------------------------------------------------------------- */
-/*  Page component                                                            */
-/* -------------------------------------------------------------------------- */
+/* ------------------------------ page ------------------------------------ */
 export default function ProfilePage() {
   const router = useRouter();
 
@@ -106,7 +102,7 @@ export default function ProfilePage() {
 
       const { data: pData, error: pErr } = await supabase
         .from('profiles')
-        .select('full_name, avatar_url, hostel, batch, bio') /* 👈 avatar_url */
+        .select('full_name, avatar_url, hostel, batch, bio')
         .eq('id', user.id)
         .single();
 
