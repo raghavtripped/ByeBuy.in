@@ -1,3 +1,4 @@
+// src/app/profile/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -10,12 +11,15 @@ import UserAvatar from '@/components/UserAvatar';
 
 import {
   FiList,
+  FiTrendingUp,
   FiSettings,
   FiHelpCircle,
   FiLogOut,
-  FiUser
+  FiUser,
+  FiAlertTriangle
 } from 'react-icons/fi';
 
+/*────────────────────────── reusable link row ──────────────────────────*/
 interface ProfileLinkItemProps {
   href: string;
   icon: React.ElementType;
@@ -54,14 +58,14 @@ const ProfileLinkItem: React.FC<ProfileLinkItemProps> = ({
   </Link>
 );
 
+/*───────────────────────────── page component ───────────────────────────*/
 export default function ProfilePage() {
   const router = useRouter();
 
-  /* ─────────────────────────────── state ────────────────────────────── */
+  /* ───────────── state ───────────── */
   const [authUser, setAuthUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(true);
 
-  // ✨  profile table data
   const [profileData, setProfileData] = useState<{
     full_name: string | null;
     avatar_url: string | null;
@@ -70,85 +74,107 @@ export default function ProfilePage() {
     bio: string | null;
   } | null>(null);
 
-  // ✨  quick stats
-  const [activeListingsCount, setActiveListingsCount] = useState(0);
-  const [itemsSoldCount, setItemsSoldCount] = useState(0);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
-  /* ─────────────────────── fetch auth + profile info ────────────────── */
+  const [activeListingsCount, setActiveListingsCount] = useState<number | null>(
+    null
+  );
+  const [itemsSoldCount, setItemsSoldCount] = useState<number | null>(null);
+  const [auctionsWonCount, setAuctionsWonCount] = useState<number | null>(null);
+
+  /* ───────── fetch auth + profile ───────── */
   useEffect(() => {
-    const fetchEverything = async () => {
-      setLoading(true);
-
-      const { data: sessionRes, error: sessionErr } = await supabase.auth.getSession();
-      const session = sessionRes?.session;
-      if (sessionErr || !session?.user) {
+    const fetchAuthAndProfile = async () => {
+      const { data: sessRes, error: sessErr } = await supabase.auth.getSession();
+      const session = sessRes?.session;
+      if (sessErr || !session?.user) {
         router.replace('/auth?redirect=/profile');
-        setLoading(false);
         return;
       }
       const user = session.user;
       setAuthUser(user);
 
-      /* 1️⃣  profile row ------------------------------------------------ */
-      const { data: profileRes, error: profileErr } = await supabase
+      const { data: pData, error: pErr } = await supabase
         .from('profiles')
         .select('full_name, avatar_url, hostel, batch, bio')
         .eq('id', user.id)
         .single();
 
-      if (profileErr && profileErr.code !== 'PGRST116') { // 116 = no rows found
-        console.error('Profile fetch error:', profileErr.message);
+      if (pErr && pErr.code !== 'PGRST116') {
+        console.error('Profile fetch error:', pErr.message);
       } else {
-        setProfileData(profileRes ?? null);
+        setProfileData(pData ?? null);
       }
-
-      /* 2️⃣  stats ------------------------------------------------------ */
-      try {
-        const todayIso = new Date().toISOString();
-
-        // active listings still running
-        const { count: activeCnt } = await supabase
-          .from('listings')
-          .select('id', { head: true, count: 'exact' })
-          .eq('seller_id', user.id)
-          .eq('status', 'active')
-          .gt('end_time', todayIso);
-        setActiveListingsCount(activeCnt ?? 0);
-
-        // items sold (closed with winner)
-        const { count: soldCnt } = await supabase
-          .from('listings')
-          .select('id', { head: true, count: 'exact' })
-          .eq('seller_id', user.id)
-          .eq('status', 'closed')
-          .not('winning_bidder_id', 'is', null);
-        setItemsSoldCount(soldCnt ?? 0);
-      } catch (statsErr) {
-        console.error('Stats fetch error:', statsErr);
-      }
-
-      setLoading(false);
+      setPageLoading(false);
     };
 
-    fetchEverything();
+    fetchAuthAndProfile();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_evt, ses) => {
       if (_evt === 'SIGNED_OUT') router.replace('/auth');
       setAuthUser(ses?.user ?? null);
     });
-
     return () => listener?.subscription.unsubscribe();
   }, [router]);
 
+  /* ───────── fetch stats ───────── */
+  useEffect(() => {
+    if (!authUser) return;
+    const fetchStats = async () => {
+      setStatsLoading(true);
+      setStatsError(null);
+
+      try {
+        const todayIso = new Date().toISOString();
+
+        const [{ count: act }, { count: sold }, { count: won }] = await Promise.all([
+          supabase
+            .from('listings')
+            .select('id', { head: true, count: 'exact' })
+            .eq('seller_id', authUser.id)
+            .eq('status', 'active')
+            .gt('end_time', todayIso),
+          supabase
+            .from('listings')
+            .select('id', { head: true, count: 'exact' })
+            .eq('seller_id', authUser.id)
+            .eq('status', 'closed')
+            .not('winning_bidder_id', 'is', null),
+          supabase
+            .from('listings')
+            .select('id', { head: true, count: 'exact' })
+            .eq('status', 'closed')
+            .eq('winning_bidder_id', authUser.id)
+        ]);
+
+        setActiveListingsCount(act ?? 0);
+        setItemsSoldCount(sold ?? 0);
+        setAuctionsWonCount(won ?? 0);
+      } catch (err) {
+        console.error('Stats fetch error:', err);
+        setStatsError('Could not load stats');
+        setActiveListingsCount(0);
+        setItemsSoldCount(0);
+        setAuctionsWonCount(0);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [authUser]);
+
+  /* logout */
   const handleLogout = async () => {
-    setLoading(true);
+    setPageLoading(true);
     const { error } = await supabase.auth.signOut();
     if (error) alert(`Logout failed: ${error.message}`);
-    setLoading(false);
+    setPageLoading(false);
   };
 
-  /* ───────────────────────── render guards ──────────────────────────── */
-  if (loading)
+  /* ─────────── guards ─────────── */
+  if (pageLoading)
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-bye-dark-bg-primary p-4">
         <LoadingSpinner message="Loading profile" />
@@ -171,7 +197,7 @@ export default function ProfilePage() {
       </div>
     );
 
-  /* ─────────────────────────────── page ─────────────────────────────── */
+  /* ─────────── page ─────────── */
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-bye-dark-bg-primary pb-20 md:pb-8">
       {/* mobile header */}
@@ -184,7 +210,7 @@ export default function ProfilePage() {
       </header>
 
       <main className="max-w-xl mx-auto p-4 sm:p-6 lg:p-8">
-        {/* avatar + basic info */}
+        {/* avatar & identity */}
         <div className="flex flex-col items-center mb-6 sm:mb-8 pt-4 md:pt-0">
           <UserAvatar
             avatarUrl={profileData?.avatar_url}
@@ -227,49 +253,74 @@ export default function ProfilePage() {
           <h3 className="text-sm font-semibold text-slate-700 dark:text-bye-dark-text-primary mb-3 text-center uppercase tracking-wider">
             Activity Stats
           </h3>
-          <div className="flex justify-around text-center">
-            <div>
-              <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                {activeListingsCount}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-bye-dark-text-secondary">
-                Active Listings
-              </p>
+
+          {statsLoading ? (
+            <div className="flex justify-center py-6">
+              <LoadingSpinner message="Loading stats" />
             </div>
-            <div>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {itemsSoldCount}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-bye-dark-text-secondary">
-                Items Sold
-              </p>
-            </div>
-            {/* ➜ add more stats here whenever you need */}
-          </div>
+          ) : (
+            <>
+              <div className="flex justify-around text-center">
+                <div>
+                  <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                    {activeListingsCount}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-bye-dark-text-secondary">
+                    Active Listings
+                  </p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    {itemsSoldCount}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-bye-dark-text-secondary">
+                    Items Sold
+                  </p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                    {auctionsWonCount}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-bye-dark-text-secondary">
+                    Auctions Won
+                  </p>
+                </div>
+              </div>
+
+              {statsError && (
+                <div className="mt-4 flex items-center justify-center text-xs text-red-600 dark:text-red-400">
+                  <FiAlertTriangle className="w-4 h-4 mr-1" />
+                  {statsError}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
-        {/* links & actions */}
+        {/* links */}
         <div className="space-y-3 sm:space-y-4">
           <h2 className="text-xs font-semibold text-slate-500 dark:text-bye-dark-text-secondary/80 uppercase tracking-wider px-1 mb-2">
             My Activity
           </h2>
           <ProfileLinkItem href="/my-listings" icon={FiList} label="My Listings" />
+          <ProfileLinkItem href="/my-bids"     icon={FiTrendingUp} label="My Bids" />
 
           <h2 className="text-xs font-semibold text-slate-500 dark:text-bye-dark-text-secondary/80 uppercase tracking-wider px-1 pt-4 mb-2">
             Account &amp; Support
           </h2>
           <ProfileLinkItem href="/account/settings" icon={FiSettings} label="Account Settings" />
-          <ProfileLinkItem href="/help" icon={FiHelpCircle} label="Help Center" />
+          <ProfileLinkItem href="/help"              icon={FiHelpCircle} label="Help Center" />
 
+          {/* logout button */}
           <div className="pt-6">
             <button
               onClick={handleLogout}
-              disabled={loading}
+              disabled={pageLoading}
               className="w-full flex items-center justify-center p-3 bg-red-50 hover:bg-red-100 dark:bg-red-900/25 dark:hover:bg-red-900/35 rounded-lg shadow-sm transition-colors duration-150 group disabled:opacity-50"
             >
               <FiLogOut className="w-5 h-5 text-red-600 dark:text-red-400 mr-3 group-hover:text-red-700 dark:group-hover:text-red-300 transition-colors" />
               <span className="text-sm font-medium text-red-700 dark:text-red-300 group-hover:text-red-800 dark:group-hover:text-red-200">
-                {loading ? 'Logging out…' : 'Logout'}
+                {pageLoading ? 'Logging out…' : 'Logout'}
               </span>
             </button>
           </div>
