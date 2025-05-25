@@ -122,40 +122,43 @@ export default function AccountSettingsPage() {
 
     try {
       // Step 1: Upload new avatar if one is selected
-      if (avatarFile) {
-        const fileExt = avatarFile.name.split('.').pop();
-        const fileName = `${user.id}/profile.${fileExt}`; // Consistent naming for overwrites
-        const filePath = `avatars/${fileName}`; // Path within the 'avatars' bucket
+    if (avatarFile && user) {
+      const fileExt = avatarFile.name.split('.').pop();
+      const objectPathInBucket = `${user.id}/profile.${fileExt}`; // Path within the 'avatars' bucket
 
-        // Delete old avatar if it exists and is different (optional, Supabase can overwrite)
-        // For more robust deletion, you might store the full old path if filenames can vary.
-        // If currentAvatarUrl exists and new file is uploaded, attempt to delete old one.
-        // This is simpler if we enforce a consistent filename like 'profile.<ext>' per user.
-        if (currentAvatarUrl) {
-            const oldPath = getStoragePathFromURL(currentAvatarUrl);
-            if (oldPath && oldPath !== filePath) { // Only delete if path is different
-                // console.log("Attempting to delete old avatar:", oldPath);
-                // const { error: deleteError } = await supabase.storage.from('avatars').remove([oldPath]);
-                // if (deleteError) console.warn("Could not delete old avatar:", deleteError.message);
-                // For simplicity, Supabase upsert: true on upload will overwrite if path is same.
-                // If paths are different (e.g. due to different extension), explicit delete is good.
-            }
+      // Optionally delete old avatar if path is different (not required if always overwriting)
+      if (currentAvatarUrl) {
+        const oldPath = getStoragePathFromURL(currentAvatarUrl);
+        if (oldPath && oldPath !== objectPathInBucket) {
+          // Optionally delete old avatar here if needed
+          // await supabase.storage.from('avatars').remove([oldPath]);
         }
-        
-        const { error: uploadError } = await supabase.storage
-          .from('avatars') // Your bucket name
-          .upload(filePath, avatarFile, {
-            cacheControl: '3600',
-            upsert: true, // Overwrite if file with same path exists
-          });
-
-        if (uploadError) throw new Error(`Avatar upload failed: ${uploadError.message}`);
-        
-        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
-        if (!urlData?.publicUrl) throw new Error("Could not get public URL for new avatar.");
-        newAvatarPublicUrl = urlData.publicUrl;
-        setCurrentAvatarUrl(newAvatarPublicUrl); // Update currentAvatarUrl state for UI
       }
+
+      console.log("-----------------------------------------");
+      console.log("DEBUG: Attempting Avatar Upload");
+      console.log("DEBUG: Authenticated User ID (for RLS):", user.id);
+      console.log("DEBUG: Object Path in Bucket (for RLS 'name' column):", objectPathInBucket);
+      console.log("DEBUG: Bucket Name:", 'avatars');
+      console.log("-----------------------------------------");
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(objectPathInBucket, avatarFile, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error("DEBUG: Upload Error Object:", JSON.stringify(uploadError, null, 2));
+        throw new Error(`Avatar upload failed: ${uploadError.message}`);
+      }
+
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(objectPathInBucket);
+      if (!urlData?.publicUrl) throw new Error("Could not get public URL for new avatar.");
+      newAvatarPublicUrl = urlData.publicUrl;
+      setCurrentAvatarUrl(newAvatarPublicUrl);
+    }
 
       // Step 2: Update profile data in 'profiles' table
       const profileUpdates = {
