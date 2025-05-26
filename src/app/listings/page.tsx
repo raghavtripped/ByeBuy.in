@@ -87,7 +87,11 @@ export default function ListingsPage() {
           )
           .eq('status', 'active');
 
-        if (category) query = query.contains('tags', [category]);
+        if (category) {
+          // Construct a string that is a valid JSON array containing the category string
+          const filterValue = JSON.stringify([category]); // e.g., "[\"Electronics & Gadgets\"]"
+          query = query.contains('tags', filterValue);
+        }
 
         const { data, error: fetchErr } = await query.order('created_at', {
           ascending: false,
