@@ -2,7 +2,7 @@
 'use client'; // RootLayout MUST be a client component to manage this state
 
 import { useState, useEffect } from 'react';
-// Removed usePathname as it wasn't strictly needed for the simplified SSR fallback
+// Removed usePathname as it's not strictly needed for this version of SSR fallback
 import ThemeScript from '@/components/ThemeScript';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -33,37 +33,41 @@ export default function RootLayout({
 
   if (!isClient) {
     // Server-Side Render / Pre-Hydration Fallback:
-    // This aims to match the initial appearance of the splash screen.
+    // This aims to match the initial appearance of the splash screen
+    // to prevent layout shifts or flashes of the main app content.
     return (
       <html lang="en" className="h-full">
         <head>
           <ThemeScript />
           <title>ByeBuy – Loading...</title>
-          {/* Minimal necessary meta tags for SSR if any */}
+          <meta name="description" content="Your campus marketplace for timed auctions." /> {/* Added default description */}
         </head>
-        {/* MODIFIED: Body background to match splash's primary dark color */}
+        {/* MODIFIED: Body background and content to match splash screen's initial theme */}
         <body className={`${inter.className} bg-bye-dark-bg-primary flex flex-col min-h-screen`}>
-            {/* MODIFIED: Full-screen div with gradient matching SplashScreen */}
-            <div className="fixed inset-0 z-[10000] flex items-center justify-center 
-                           bg-gradient-to-br from-bye-dark-bg-primary via-bye-dark-bg-secondary to-bye-dark-bg-primary">
-                <LoadingSpinner message="Initializing ByeBuy..." /> {/* Ensure LoadingSpinner text is visible on this bg */}
+            {/* This div mimics the splash screen's full-page cover and background */}
+            <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gradient-to-br from-bye-dark-bg-primary via-bye-dark-bg-secondary to-bye-dark-bg-primary">
+                {/* Spinner color should be light to be visible on this dark background */}
+                <LoadingSpinner message="Initializing ByeBuy..." />
             </div>
         </body>
       </html>
     );
   }
 
+  // Client-side rendering
   return (
     <html lang="en" className="h-full">
       <head>
         <ThemeScript />
-        {/* Titles and other metadata should be handled by individual page.tsx files */}
+        {/* For App Router, individual pages should ideally export their own metadata for titles/descriptions */}
+        {/* <title>ByeBuy – Campus Auctions</title> */}
+        {/* <meta name="description" content="Your campus marketplace for timed auctions." /> */}
       </head>
       <body
         className={`${inter.className} bg-gray-50 dark:bg-bye-dark-bg-primary flex flex-col min-h-screen text-gray-900 dark:text-bye-dark-text-primary`}
       >
         {showSplash && (
-          <SplashScreen onHidden={handleSplashHidden} minDisplayTime={2500} /> // Using your original minDisplayTime
+          <SplashScreen onHidden={handleSplashHidden} minDisplayTime={2500} /> // Using your preferred minDisplayTime
         )}
         
         {/* Main app structure */}
