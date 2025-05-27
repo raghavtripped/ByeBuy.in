@@ -45,6 +45,8 @@ export default function MyWatchlistPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  // NEW STATE: To prevent infinite re-fetching when watchlist is empty
+  const [hasFetchedInitialWatchlist, setHasFetchedInitialWatchlist] = useState(false); 
   
   // Get state and actions from Zustand store
   const watchedListingIds = useWatchlistStore(state => state.watchedListingIds);
@@ -80,11 +82,14 @@ export default function MyWatchlistPage() {
   // Effect 2: Fetch watchlist IDs into Zustand store (if user is present and store is empty)
   // This acts as a fallback/initial load if AuthWatchlistManager hasn't populated it yet.
   useEffect(() => {
-    if (currentUser && watchedListingIds.size === 0 && !storeLoading && !storeError) {
+    // MODIFIED CONDITION: Add !hasFetchedInitialWatchlist to prevent re-fetching loop
+    if (currentUser && watchedListingIds.size === 0 && !hasFetchedInitialWatchlist && !storeLoading && !storeError) {
       console.log("MyWatchlistPage: User present but store empty/not loading, attempting fetch via store.");
-      fetchWatchedListingsFromStore(currentUser); // No await, let it run in background
+      fetchWatchedListingsFromStore(currentUser).then(() => {
+        setHasFetchedInitialWatchlist(true); // Set to true after the fetch attempt completes
+      });
     }
-  }, [currentUser, watchedListingIds.size, storeLoading, storeError, fetchWatchedListingsFromStore]);
+  }, [currentUser, watchedListingIds.size, hasFetchedInitialWatchlist, storeLoading, storeError, fetchWatchedListingsFromStore]); // ADD hasFetchedInitialWatchlist to deps
 
 
   // Effect 3: Fetch details of listings once watched IDs are available from the store
@@ -117,21 +122,13 @@ export default function MyWatchlistPage() {
         status: (item.status as ListingCardItem['status']) || 'unknown',
       })).filter(item => item.id) as ListingCardItem[];
       
-      // Ensure the order reflects the watchlist order (most recently added) if desired,
-      // or match the order of IDs from the store. For simplicity, we use fetched order.
-      // Original code to be replaced:
-// const filteredAndOrderedListings = watchedIdsArray // Use the memoized array for consistent order
-//   .map(id => parsedListings.find(listing => listing.id === id))
-//   .filter((listing): listing is ListingCardItem => listing !== undefined);
-
-// Replacement:
-const filteredAndOrderedListings = watchedIdsArray.reduce((acc: ListingCardItem[], id) => {
-  const listing = parsedListings.find(item => item.id === id);
-  if (listing) {
-    acc.push(listing);
-  }
-  return acc;
-}, []);
+      const filteredAndOrderedListings = watchedIdsArray.reduce((acc: ListingCardItem[], id) => {
+        const listing = parsedListings.find(item => item.id === id);
+        if (listing) {
+          acc.push(listing);
+        }
+        return acc;
+      }, []);
 
       setListingsDetails(filteredAndOrderedListings);
 
@@ -227,16 +224,20 @@ const filteredAndOrderedListings = watchedIdsArray.reduce((acc: ListingCardItem[
         ⭐ My Watchlist
       </h1>
 
-      {/* Corrected: Use the EmptyState component directly */}
       {!isLoadingPage && listingsDetails.length === 0 && !pageError && (
-        <EmptyState
-          message={"Your watchlist is empty."}
-          action={{
-            href: "/listings",
-            text: "Browse Listings"
-          }}
-          className="py-10 bg-white dark:bg-bye-dark-bg-secondary border border-gray-200 dark:border-bye-dark-border-primary rounded-lg shadow-md"
-        />
+        // MODIFIED: Wrap EmptyState in a div to control its vertical positioning and size
+        <div className="flex flex-col items-center justify-center flex-grow py-10">
+          <EmptyState
+            message={"Your watchlist is empty."}
+            action={{
+              href: "/listings",
+              text: "Browse Listings"
+            }}
+            // Removed py-10 from EmptyState's className as it's now on the wrapper
+            // Added w-full max-w-md to control the width of the EmptyState card itself
+            className="bg-white dark:bg-bye-dark-bg-secondary border border-gray-200 dark:border-bye-dark-border-primary rounded-lg shadow-md w-full max-w-md"
+          />
+        </div>
       )}
 
       {!isLoadingPage && listingsDetails.length > 0 && !pageError && (
