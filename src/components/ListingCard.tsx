@@ -85,7 +85,7 @@ export default function ListingCard({ listing, currentUser }: ListingCardProps) 
             {listing.end_time && listing.status === 'active' && !isEffectivelyEnded && (
               // Red accent for "Ends soon", ensure dark:text-red-400 contrasts well
               <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
-                Ends {formatRelativeTime(listing.end_time)}
+                 {formatRelativeTime(listing.end_time)}
               </p>
             )}
             {isEffectivelyEnded && listing.status !== 'active' && (
