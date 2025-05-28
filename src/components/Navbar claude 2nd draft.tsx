@@ -176,45 +176,43 @@ export default function Navbar() {
   const navLinkClasses = (href: string, isActive: boolean = pathname === href) =>
     `group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
       isActive
-        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/25' // Active state gradient
-        : 'text-gray-300 dark:text-bye-dark-text-secondary hover:text-white dark:hover:text-bye-dark-text-primary hover:bg-white/10 dark:hover:bg-white/5 hover:shadow-md' // Inactive state
+        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/25'
+        : 'text-gray-300 hover:text-white hover:bg-white/10 hover:shadow-md'
     }`;
 
   const mobileNavLinkClasses = (href: string, isActive: boolean = pathname === href) =>
     `group flex items-center px-4 py-3 text-base font-medium rounded-xl transition-all duration-200 ${
       isActive
-        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg' // Active state gradient
-        : 'text-gray-700 dark:text-bye-dark-text-primary hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover hover:text-gray-900 dark:hover:text-bye-dark-text-primary' // Inactive state
+        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
     }`;
 
   const userMenuLinkClasses = (href: string, isActive: boolean = pathname === href) =>
     `group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
       isActive
-        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' // Active state
-        : 'text-gray-700 dark:text-bye-dark-text-primary hover:bg-gray-50 dark:hover:bg-bye-dark-bg-hover hover:text-gray-900 dark:hover:text-bye-dark-text-primary' // Inactive state
+        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
     }`;
 
   /* ── Loading State ─────────────────── */
   if (loading) {
     return (
-      // Updated background and border for dark mode
-      <nav className="bg-gray-900/95 dark:bg-bye-dark-bg-primary backdrop-blur-xl border-b border-gray-800 dark:border-bye-dark-border-primary sticky top-0 z-50">
+      <nav className="bg-gray-900/95 backdrop-blur-xl border-b border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              {/* Updated skeleton colors for dark mode */}
-              <div className="h-8 w-8 bg-gray-700 dark:bg-bye-dark-bg-secondary rounded-full animate-pulse" />
-              <div className="h-6 w-20 bg-gray-700 dark:bg-bye-dark-bg-secondary rounded animate-pulse hidden sm:block" />
+              <div className="h-8 w-8 bg-gray-700 rounded-full animate-pulse" />
+              <div className="h-6 w-20 bg-gray-700 rounded animate-pulse hidden sm:block" />
             </div>
             <div className="hidden md:flex items-center space-x-4">
-              <div className="h-10 w-80 bg-gray-700 dark:bg-bye-dark-bg-secondary rounded-lg animate-pulse" />
+              <div className="h-10 w-80 bg-gray-700 rounded-lg animate-pulse" />
               <div className="flex space-x-2">
                 {[1, 2, 3].map(i => (
-                  <div key={i} className="h-8 w-20 bg-gray-700 dark:bg-bye-dark-bg-secondary rounded-lg animate-pulse" />
+                  <div key={i} className="h-8 w-20 bg-gray-700 rounded-lg animate-pulse" />
                 ))}
               </div>
             </div>
-            <div className="h-8 w-8 bg-gray-700 dark:bg-bye-dark-bg-secondary rounded-full animate-pulse" />
+            <div className="h-8 w-8 bg-gray-700 rounded-full animate-pulse" />
           </div>
         </div>
       </nav>
@@ -224,8 +222,7 @@ export default function Navbar() {
   /* ── Main Component ─────────────────── */
   return (
     <>
-      {/* Updated background and border for dark mode */}
-      <nav className="bg-gray-900/95 dark:bg-bye-dark-bg-primary backdrop-blur-xl border-b border-gray-800 dark:border-bye-dark-border-primary sticky top-0 z-50">
+      <nav className="bg-gray-900/95 backdrop-blur-xl border-b border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             
@@ -234,17 +231,15 @@ export default function Navbar() {
               <Link href="/" className="flex items-center space-x-3 group">
                 <div className="relative">
                   <Image
-                    src="/bidly-logo.svg" // Assuming this SVG is neutral or adapts well
+                    src="/bidly-logo.svg"
                     alt="ByeBuy logo"
                     width={32}
                     height={32}
                     priority
                     className="h-8 w-8 transition-transform duration-200 group-hover:scale-110"
                   />
-                  {/* Blur effect color is fine as it's an accent */}
                   <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full blur opacity-0 group-hover:opacity-20 transition-opacity duration-200" />
                 </div>
-                {/* Text gradient is fine as it's an accent */}
                 <span className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent hidden md:block">
                   ByeBuy
                 </span>
@@ -253,7 +248,6 @@ export default function Navbar() {
 
             {/* Center brand (mobile only) */}
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
-              {/* Text gradient is fine as it's an accent */}
               <Link href="/" className="text-lg font-semibold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
                 ByeBuy
               </Link>
@@ -266,8 +260,7 @@ export default function Navbar() {
                 <div className={`relative transition-all duration-300 ${
                   searchFocused ? 'transform scale-105' : ''
                 }`}>
-                  {/* Updated icon color for dark mode */}
-                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-bye-dark-text-secondary" />
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
                     ref={searchRef}
                     type="text"
@@ -276,10 +269,8 @@ export default function Navbar() {
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onFocus={handleSearchFocus}
                     onBlur={handleSearchBlur}
-                    // Updated background, border, text, placeholder, and focus ring for dark mode
-                    className="w-full pl-10 pr-4 py-2.5 bg-gray-800/80 dark:bg-bye-dark-bg-secondary border border-gray-700 dark:border-bye-dark-border-primary rounded-xl text-white dark:text-bye-dark-text-primary placeholder-gray-400 dark:placeholder-bye-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-all duration-200 hover:bg-gray-800 dark:hover:bg-bye-dark-bg-hover"
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 hover:bg-gray-800"
                   />
-                  {/* Focus effect gradient is fine as it's an accent */}
                   <div className={`absolute inset-0 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-xl transition-opacity duration-200 pointer-events-none ${
                     searchFocused ? 'opacity-100' : 'opacity-0'
                   }`} />
@@ -308,7 +299,7 @@ export default function Navbar() {
             <div className="flex items-center space-x-3">
               {user ? (
                 <>
-                  {/* Create Listing Button - gradient is fine */}
+                  {/* Create Listing Button */}
                   <Link
                     href="/listings/new"
                     className="hidden md:flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 hover:shadow-lg hover:shadow-indigo-500/25 transform hover:scale-105"
@@ -317,8 +308,8 @@ export default function Navbar() {
                     List Item
                   </Link>
 
-                  {/* Notifications Button */}
-                  <button className="hidden md:block p-2 text-gray-400 dark:text-bye-dark-text-secondary hover:text-white dark:hover:text-bye-dark-text-primary hover:bg-gray-800 dark:hover:bg-bye-dark-bg-hover rounded-lg transition-all duration-200 relative">
+                  {/* Notifications */}
+                  <button className="hidden md:block p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all duration-200 relative">
                     <BellIcon className="w-6 h-6" />
                     <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
                   </button>
@@ -328,8 +319,7 @@ export default function Navbar() {
                     <button
                       ref={userButtonRef}
                       onClick={toggleUserMenu}
-                      // Updated text and hover colors for dark mode
-                      className="flex items-center space-x-2 p-2 text-gray-300 dark:text-bye-dark-text-secondary hover:text-white dark:hover:text-bye-dark-text-primary hover:bg-gray-800 dark:hover:bg-bye-dark-bg-hover rounded-lg transition-all duration-200"
+                      className="flex items-center space-x-2 p-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-all duration-200"
                     >
                       <UserCircleIcon className="w-8 h-8" />
                       <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${
@@ -339,14 +329,12 @@ export default function Navbar() {
 
                     {/* User Dropdown */}
                     {isUserMenuOpen && (
-                      // Updated background, border, and shadow for dark mode
-                      <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-bye-dark-bg-secondary rounded-xl shadow-xl border border-gray-200 dark:border-bye-dark-border-primary py-2 transform transition-all duration-200 origin-top-right">
-                        {/* Updated border and text colors for dark mode */}
-                        <div className="px-4 py-3 border-b border-gray-200 dark:border-bye-dark-border-primary">
-                          <p className="text-sm font-medium text-gray-900 dark:text-bye-dark-text-primary">
+                      <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2 transform transition-all duration-200 origin-top-right">
+                        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
                             {user.email}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
                             Signed in
                           </p>
                         </div>
@@ -365,14 +353,12 @@ export default function Navbar() {
                               </Link>
                             );
                           })}
-                          {/* Updated border for dark mode */}
-                          <hr className="my-2 border-gray-200 dark:border-bye-dark-border-primary" />
+                          <hr className="my-2 border-gray-200 dark:border-gray-700" />
                           <button
                             onClick={handleLogout}
-                            // Updated text and hover colors for dark mode
                             className="w-full flex items-center px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
                           >
-                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                             </svg>
                             Sign Out
@@ -383,7 +369,6 @@ export default function Navbar() {
                   </div>
                 </>
               ) : (
-                // Sign In button - gradient is fine
                 <Link
                   href="/auth"
                   className="hidden md:flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 hover:shadow-lg hover:shadow-indigo-500/25 transform hover:scale-105"
@@ -396,8 +381,7 @@ export default function Navbar() {
               <button
                 ref={menuButtonRef}
                 onClick={toggleMobileMenu}
-                // Updated text and hover colors for dark mode
-                className="md:hidden p-2 text-gray-400 dark:text-bye-dark-text-secondary hover:text-white dark:hover:text-bye-dark-text-primary hover:bg-gray-800 dark:hover:bg-bye-dark-bg-hover rounded-lg transition-all duration-200"
+                className="md:hidden p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all duration-200"
                 aria-label="Toggle menu"
               >
                 {isMobileMenuOpen ? (
@@ -413,9 +397,8 @@ export default function Navbar() {
 
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
-        // Updated overlay color for dark mode
         <div
-          className="fixed inset-0 bg-black/60 dark:bg-black/75 backdrop-blur-sm z-40 md:hidden"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
@@ -423,37 +406,32 @@ export default function Navbar() {
       {/* Mobile Menu Panel */}
       <div
         ref={mobileMenuRef}
-        // Updated background, border, and shadow for dark mode
-        className={`fixed top-0 right-0 h-full w-80 bg-white dark:bg-bye-dark-bg-secondary shadow-2xl transform transition-transform duration-300 ease-out z-50 md:hidden border-l border-gray-200 dark:border-bye-dark-border-primary ${ // Added border-l for visual separation
+        className={`fixed top-0 right-0 h-full w-80 bg-white dark:bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-out z-50 md:hidden ${
           isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         <div className="flex flex-col h-full">
           {/* Mobile Menu Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-bye-dark-border-primary">
-            {/* Updated text colors for dark mode */}
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-bye-dark-text-primary">Menu</h2>
+          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Menu</h2>
             <button
               onClick={() => setIsMobileMenuOpen(false)}
-              // Updated text and hover colors for dark mode
-              className="p-2 text-gray-500 dark:text-bye-dark-text-secondary hover:text-gray-700 dark:hover:text-bye-dark-text-primary hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover rounded-lg transition-all duration-200"
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
             >
               <XMarkIcon className="w-6 h-6" />
             </button>
           </div>
 
           {/* Mobile Search */}
-          <div className="p-6 border-b border-gray-200 dark:border-bye-dark-border-primary">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <form onSubmit={handleSearchSubmit} className="relative">
-              {/* Updated icon color for dark mode */}
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-bye-dark-text-secondary" />
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search auctions..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                // Updated background, border, text, and placeholder for dark mode
-                className="w-full pl-10 pr-4 py-3 bg-gray-100 dark:bg-bye-dark-bg-hover border border-gray-300 dark:border-bye-dark-border-primary rounded-xl text-gray-900 dark:text-bye-dark-text-primary placeholder-gray-500 dark:placeholder-bye-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </form>
           </div>
@@ -480,8 +458,7 @@ export default function Navbar() {
             {user && (
               <>
                 <div className="pt-4">
-                  {/* Updated text color for dark mode */}
-                  <h3 className="px-4 text-xs font-semibold text-gray-500 dark:text-bye-dark-text-secondary uppercase tracking-wider mb-3">
+                  <h3 className="px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
                     My Account
                   </h3>
                   {userNavLinks.map(link => {
@@ -500,7 +477,7 @@ export default function Navbar() {
                   })}
                 </div>
 
-                {/* Create Listing Button - gradient is fine */}
+                {/* Create Listing Button */}
                 <Link
                   href="/listings/new"
                   className="flex items-center justify-center px-4 py-3 mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium transition-all duration-200 hover:shadow-lg"
@@ -514,26 +491,22 @@ export default function Navbar() {
           </div>
 
           {/* Mobile Menu Footer */}
-          <div className="p-6 border-t border-gray-200 dark:border-bye-dark-border-primary">
+          <div className="p-6 border-t border-gray-200 dark:border-gray-700">
             {user ? (
               <div className="space-y-3">
-                {/* Updated background and text colors for dark mode */}
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-bye-dark-bg-hover rounded-xl">
-                  {/* Updated icon color for dark mode */}
-                  <UserCircleIcon className="w-8 h-8 text-gray-400 dark:text-bye-dark-text-secondary" />
+                <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                  <UserCircleIcon className="w-8 h-8 text-gray-400" />
                   <div className="flex-1 min-w-0">
-                    {/* Updated text colors for dark mode */}
-                    <p className="text-sm font-medium text-gray-900 dark:text-bye-dark-text-primary truncate">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                       {user.email}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                       Signed in
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleLogout}
-                  // Updated text and hover colors for dark mode
                   className="w-full flex items-center justify-center px-4 py-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-medium transition-all duration-200"
                 >
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -543,7 +516,6 @@ export default function Navbar() {
                 </button>
               </div>
             ) : (
-              // Sign In button - gradient is fine
               <Link
                 href="/auth"
                 className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium transition-all duration-200 hover:shadow-lg"
