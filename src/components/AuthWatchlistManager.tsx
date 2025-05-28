@@ -3,65 +3,51 @@
 
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { useWatchlistStore } from '@/stores/watchlistStore';
+import { useWatchlistStore } from '@/stores/watchlistStore'; // Import your Zustand store
 
 export default function AuthWatchlistManager() {
-  // Get actions ONCE using getState(). These references should be stable.
-  // Destructure directly to avoid re-creating references in the dependency array.
-  const { fetchWatchedListings, clearWatchlist } = useWatchlistStore.getState();
+  const fetchWatchedListings = useWatchlistStore(state => state.fetchWatchedListings);
+  const clearWatchlist = useWatchlistStore(state => state.clearWatchlist);
+  // REMOVED: storeLoading is no longer needed as a direct dependency of the useEffect
+  // const storeLoading = useWatchlistStore(state => state.isLoading); 
 
   useEffect(() => {
-    const getInitialUserAndWatchlist = async () => {
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          console.error("AuthWM: Error getting initial session:", sessionError.message);
-          clearWatchlist(); // Clear on session fetch error
-          return;
+    // Initial check for session and fetch watchlist if needed
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        // Use getState() directly to check store's loading status without making it a dependency
+        if (!useWatchlistStore.getState().isLoading && useWatchlistStore.getState().watchedListingIds.size === 0) {
+          console.log("AuthWatchlistManager: Initial session found, fetching watchlist.");
+          fetchWatchedListings(session.user);
         }
-        const currentUser = session?.user ?? null;
-        if (currentUser) {
-          await fetchWatchedListings(currentUser);
-        } else {
-          clearWatchlist();
-        }
-      } catch (e: unknown) {
-        console.error("AuthWM: CATCH in getInitialUserAndWatchlist", e instanceof Error ? e.message : String(e));
-        clearWatchlist(); // Ensure clear on any unexpected error
+      } else {
+        console.log("AuthWatchlistManager: No initial session, clearing watchlist.");
+        clearWatchlist();
       }
-    };
+    });
 
-    getInitialUserAndWatchlist(); // Call on mount
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        const currentUser = session?.user ?? null;
-
-        // Re-fetch actions from getState inside callback to ensure latest, though usually stable
-        // This is a good pattern for Zustand actions used in async callbacks.
-        const { fetchWatchedListings: currentFetch, clearWatchlist: currentClear } = useWatchlistStore.getState();
-
-        if (event === 'SIGNED_IN' && currentUser) {
-          await currentFetch(currentUser);
-        } else if (event === 'SIGNED_OUT') {
-          currentClear();
-        } else if (event === 'USER_UPDATED' && currentUser) {
-          // User updated (e.g., email change, password change), re-fetch watchlist
-          await currentFetch(currentUser);
-        } else if (event === 'INITIAL_SESSION') {
-            if (currentUser) {
-                await currentFetch(currentUser);
-            } else {
-                currentClear();
-            }
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log("AuthWatchlistManager: Auth state changed. Event:", _event);
+      if (session?.user) {
+        // On SIGNED_IN or TOKEN_REFRESHED, fetch/refresh watchlist
+        // Use getState() directly to check store's loading status without making it a dependency
+        if (!useWatchlistStore.getState().isLoading) {
+          console.log("AuthWatchlistManager: User signed in/refreshed, fetching watchlist.");
+          fetchWatchedListings(session.user);
         }
+      } else {
+        // On SIGNED_OUT, clear the watchlist
+        console.log("AuthWatchlistManager: User signed out, clearing watchlist.");
+        clearWatchlist();
       }
-    );
+    });
 
     return () => {
-      authListener?.subscription?.unsubscribe();
+      console.log("AuthWatchlistManager: Cleaning up auth subscription.");
+      subscription?.unsubscribe();
     };
-  }, [fetchWatchedListings, clearWatchlist]); // These are stable references from getState()
+  }, [fetchWatchedListings, clearWatchlist]); // MODIFIED: Removed storeLoading from dependencies
 
-  return null;
+  return null; // This component does not render any UI
 }

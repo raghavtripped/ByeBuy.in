@@ -8,6 +8,7 @@ import { useWatchlistStore } from '@/stores/watchlistStore'; // Import your Zust
 import LoadingSpinner from '@/components/LoadingSpinner';
 import EmptyState from '@/components/EmptyState'; // Ensure EmptyState is imported and used
 import ListingCard, { ListingCardItem } from '@/components/ListingCard'; // Assuming ListingCard is styled
+import Link from 'next/link'; // <--- ADDED THIS IMPORT
 
 // Helper to parse photos, ensure it's consistent if used elsewhere
 const parsePhotos = (photosData: string | string[] | null | undefined): string[] | null => {
@@ -82,14 +83,14 @@ export default function MyWatchlistPage() {
   // Effect 2: Fetch watchlist IDs into Zustand store (if user is present and store is empty)
   // This acts as a fallback/initial load if AuthWatchlistManager hasn't populated it yet.
   useEffect(() => {
-    // MODIFIED CONDITION: Add !hasFetchedInitialWatchlist to prevent re-fetching loop
-    if (currentUser && watchedListingIds.size === 0 && !hasFetchedInitialWatchlist && !storeLoading && !storeError) {
-      console.log("MyWatchlistPage: User present but store empty/not loading, attempting fetch via store.");
-      fetchWatchedListingsFromStore(currentUser).then(() => {
-        setHasFetchedInitialWatchlist(true); // Set to true after the fetch attempt completes
-      });
+    // MODIFIED: Simplified condition. Only fetch if currentUser exists AND we haven't attempted an initial fetch yet.
+    // The store's internal loading state will prevent concurrent fetches if fetchWatchedListings is well-behaved.
+    if (currentUser && !hasFetchedInitialWatchlist) {
+      console.log("MyWatchlistPage: User present, initiating initial watchlist fetch via store.");
+      setHasFetchedInitialWatchlist(true); // Set to true immediately to prevent re-triggering
+      fetchWatchedListingsFromStore(currentUser); // Fire and forget, store manages its own loading/error
     }
-  }, [currentUser, watchedListingIds.size, hasFetchedInitialWatchlist, storeLoading, storeError, fetchWatchedListingsFromStore]); // ADD hasFetchedInitialWatchlist to deps
+  }, [currentUser, hasFetchedInitialWatchlist, fetchWatchedListingsFromStore]);
 
 
   // Effect 3: Fetch details of listings once watched IDs are available from the store
@@ -143,14 +144,16 @@ export default function MyWatchlistPage() {
   }, [watchedIdsArray]); // Dependency on memoized array
 
   useEffect(() => {
-    if (currentUser) { // Only fetch details if user is authenticated
+    // MODIFIED: Only fetch details if user is authenticated AND the store has finished loading (or has an error)
+    // This prevents fetching details before the watchedListingIds are populated.
+    if (currentUser && !storeLoading) { 
       fetchListingDetailsByIds(watchedIdsArray);
-    } else {
+    } else if (!currentUser) {
       // If user logs out or is not authenticated, clear details
       setListingsDetails([]);
       setLoadingDetails(false);
     }
-  }, [currentUser, watchedIdsArray, fetchListingDetailsByIds]);
+  }, [currentUser, watchedIdsArray, fetchListingDetailsByIds, storeLoading]); // Added storeLoading to deps
 
   // Effect 4: Realtime subscription for watched_listings table
   useEffect(() => {
@@ -173,7 +176,6 @@ export default function MyWatchlistPage() {
         (payload) => {
           console.log("MyWatchlistPage RT: Watched listings change detected!", payload);
           // When a change occurs, trigger a re-fetch of the watchlist IDs into the store
-          // AuthWatchlistManager also listens, but this ensures page is reactive.
           fetchWatchedListingsFromStore(currentUser);
         }
       )
@@ -186,14 +188,26 @@ export default function MyWatchlistPage() {
       console.log("MyWatchlistPage RT: Cleaning up subscription.");
       supabase.removeChannel(channel).catch(console.error);
     };
-  }, [currentUser, fetchWatchedListingsFromStore]); // Re-subscribe if user changes
+  }, [currentUser, fetchWatchedListingsFromStore]);
 
 
   // Combined loading state
+  // MODIFIED: Simplified combined loading logic
   const isLoadingPage = loadingAuth || storeLoading || loadingDetails;
 
-  if (isLoadingPage && listingsDetails.length === 0) { // Show main loader only if no data yet
-    return <div className="flex justify-center py-20"><LoadingSpinner message="Loading your watchlist..." /></div>;
+  // MODIFIED: Consolidated initial loading/error/empty states
+  if (loadingAuth) { // Show main loader only while authenticating
+    return <div className="flex justify-center py-20"><LoadingSpinner message="Authenticating..." /></div>;
+  }
+
+  if (!currentUser) { // If not authenticated after loadingAuth
+    return (
+      <div className="max-w-4xl mx-auto p-4 sm:p-8 text-center">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-900 dark:text-bye-dark-text-primary tracking-tight">⭐ My Watchlist</h1>
+        <p className="text-gray-600 dark:text-bye-dark-text-secondary">Please log in to view your watchlist.</p>
+        <Link href="/auth?redirect=/my-watchlist" className="mt-4 inline-block text-indigo-600 hover:underline dark:text-indigo-400">Go to Login</Link>
+      </div>
+    );
   }
 
   // Handle store error or details error
@@ -206,8 +220,10 @@ export default function MyWatchlistPage() {
                 <p className="text-sm mt-1">{pageError}</p>
                  <button 
                     onClick={() => {
-                        if (currentUser) fetchWatchedListingsFromStore(currentUser);
-                        if (detailsError && watchedListingIds.size > 0) fetchListingDetailsByIds(Array.from(watchedListingIds));
+                        // MODIFIED: Trigger re-fetch of both store and details if an error occurred
+                        setHasFetchedInitialWatchlist(false); // Allow re-fetch of store
+                        fetchWatchedListingsFromStore(currentUser);
+                        // fetchListingDetailsByIds will be triggered by useEffect when storeLoading becomes false
                     }}
                     className="mt-4 px-3 py-1.5 bg-red-600 dark:bg-red-500 text-white dark:text-gray-100 text-xs font-medium rounded-md hover:bg-red-700 dark:hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:ring-offset-2 dark:focus:ring-offset-red-900/25"
                 >
@@ -218,14 +234,18 @@ export default function MyWatchlistPage() {
     );
   }
 
+  // Show loading spinner if data is still being fetched after auth
+  if (isLoadingPage) {
+    return <div className="flex justify-center py-20"><LoadingSpinner message="Loading your watchlist..." /></div>;
+  }
+
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
       <h1 className="text-2xl sm:text-3xl font-bold mb-8 text-gray-900 dark:text-bye-dark-text-primary tracking-tight">
         ⭐ My Watchlist
       </h1>
 
-      {!isLoadingPage && listingsDetails.length === 0 && !pageError && (
-        // MODIFIED: Wrap EmptyState in a div to control its vertical positioning and size
+      {listingsDetails.length === 0 ? ( // No need for !isLoadingPage && !pageError here, handled by above guards
         <div className="flex flex-col items-center justify-center flex-grow py-10">
           <EmptyState
             message={"Your watchlist is empty."}
@@ -233,14 +253,10 @@ export default function MyWatchlistPage() {
               href: "/listings",
               text: "Browse Listings"
             }}
-            // Removed py-10 from EmptyState's className as it's now on the wrapper
-            // Added w-full max-w-md to control the width of the EmptyState card itself
             className="bg-white dark:bg-bye-dark-bg-secondary border border-gray-200 dark:border-bye-dark-border-primary rounded-lg shadow-md w-full max-w-md"
           />
         </div>
-      )}
-
-      {!isLoadingPage && listingsDetails.length > 0 && !pageError && (
+      ) : (
         <ul role="list" className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {listingsDetails.map((listing) => (
             <ListingCard

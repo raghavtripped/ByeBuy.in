@@ -1,7 +1,7 @@
 // src/stores/watchlistStore.ts
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabaseClient';
-import type { User, PostgrestError } from '@supabase/supabase-js';
+import type { User } from '@supabase/supabase-js'; // PostgrestError removed as it's no longer directly used
 
 interface WatchlistState {
   watchedListingIds: Set<string>;
@@ -16,11 +16,6 @@ interface WatchlistState {
 
 type WatchedListingData = { listing_id: string };
 
-// More specific type for Supabase select operations that return an array or null
-type SupabaseSelectArrayResponse<T> = 
-  | { data: T[]; error: null; status: number; count: number | null }
-  | { data: null; error: PostgrestError; status: number; count: number | null };
-
 export const useWatchlistStore = create<WatchlistState>((set, get) => ({
   watchedListingIds: new Set<string>(),
   isLoading: false,
@@ -28,38 +23,25 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
 
   fetchWatchedListings: async (user: User | null) => { 
     if (!user) {
-      // If no user, clear watchlist and ensure loading/error states are clean
       set({ watchedListingIds: new Set(), isLoading: false, error: null });
       return;
     }
-    // Set loading true, clear previous error
     set({ isLoading: true, error: null }); 
     try {
-      const FETCH_TIMEOUT = 7000;
-
-      const dbOperation = supabase
+      // MODIFIED: Removed Promise.race and FETCH_TIMEOUT.
+      // Now directly await the Supabase query to see its true resolution time.
+      const { data, error: fetchDbError } = await supabase
         .from('watched_listings')
         .select('listing_id')
-        .eq('user_id', user.id);
-
-      const timeoutPromise = new Promise<Error>((_, reject) => 
-        setTimeout(() => reject(new Error(`STORE: fetchWatchedListings DB call timed out after ${FETCH_TIMEOUT/1000} seconds`)), FETCH_TIMEOUT)
-      );
-      
-      const result = await Promise.race([dbOperation, timeoutPromise]);
-
-      if (result instanceof Error) { // Timeout occurred
-        throw result;
-      }
-
-      const { data, error: fetchDbError } = result as SupabaseSelectArrayResponse<WatchedListingData>;
+        .eq('user_id', user.id)
+        .returns<WatchedListingData[]>(); // Explicitly define return type for better type safety
 
       if (fetchDbError) {
         throw fetchDbError;
       }
 
       const idSet = new Set(data?.map(item => item.listing_id) || []);
-      set({ watchedListingIds: idSet, isLoading: false, error: null }); // Clear error on success
+      set({ watchedListingIds: idSet, isLoading: false, error: null });
     } catch (error: unknown) {
       let message = 'Failed to fetch watchlist';
       if (error instanceof Error) {
@@ -67,14 +49,12 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
       } else if (error && typeof error === 'object' && 'message' in error && typeof (error as {message: unknown}).message === 'string'){
         message = (error as {message: string}).message;
       }
-      // On error, set error message, set loading false, and clear watchlist IDs
       set({ error: message, isLoading: false, watchedListingIds: new Set() });
     }
   },
 
   addToWatchlistLocal: (listingId: string) => {
     set(state => {
-      // Ensure immutability: create a new Set
       const newSet = new Set(state.watchedListingIds);
       newSet.add(listingId);
       return { watchedListingIds: newSet };
@@ -83,7 +63,6 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
 
   removeFromWatchlistLocal: (listingId: string) => {
     set(state => {
-      // Ensure immutability: create a new Set
       const newSet = new Set(state.watchedListingIds);
       newSet.delete(listingId);
       return { watchedListingIds: newSet };
