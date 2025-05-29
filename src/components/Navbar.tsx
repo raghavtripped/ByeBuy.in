@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { supabase, type User } from '@/lib/supabaseClient';
 
 // Import icons
@@ -36,19 +36,20 @@ function usePrevious<T>(value: T): T | undefined {
 
 /* ---------- Component ---------------------------------------------------- */
 export default function Navbar() {
-  /* ── State ─────────────────────────────────── */
+  /* ── State & Hooks ─────────────────────────────── */
+  const router = useRouter();
+  const pathname = usePathname();
+  const prevPathname = usePrevious(pathname); // Re-added prevPathname declaration
+  const searchParams = useSearchParams();
+  const pageSearchTerm = searchParams.get('search') || '';
+
   const [user, setUser] = useState<User | null>(null);
   const prevUser = usePrevious(user);
   const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(pageSearchTerm);
   const [searchFocused, setSearchFocused] = useState(false);
-
-  /* ── Router / Location ──────────────── */
-  const router = useRouter();
-  const pathname = usePathname();
-  const prevPathname = usePrevious(pathname);
 
   /* ── Refs ───────────────────────────── */
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -146,14 +147,25 @@ export default function Navbar() {
     }
   }, [router]);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchTerm.trim()) {
-      router.push(`/listings?search=${encodeURIComponent(searchTerm.trim())}`);
-      setSearchTerm('');
-      searchRef.current?.blur();
+  /* ── Sync search term with URL ──────────────────── */
+  useEffect(() => {
+    if (pathname === '/listings') {
+      setSearchTerm(pageSearchTerm);
     }
-  };
+  }, [pageSearchTerm, pathname]);
+
+  /* ── Search Handler ────────────────────────────── */
+  const handleSearchSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedTerm = searchTerm.trim();
+    
+    // Navigate to listings with search param if term exists
+    router.push(`/listings${trimmedTerm ? `?search=${encodeURIComponent(trimmedTerm)}` : ''}`);
+    
+    // Reset focus and close mobile menu if open
+    searchRef.current?.blur();
+    if (isMobileMenuOpen) setIsMobileMenuOpen(false);
+  }, [searchTerm, router, isMobileMenuOpen]);
 
   const handleSearchFocus = () => setSearchFocused(true);
   const handleSearchBlur = () => setSearchFocused(false);

@@ -9,6 +9,7 @@
       import ListingCard, { ListingCardItem } from '@/components/ListingCard';
       // REMOVED: import CategoryCard from '@/components/CategoryCard'; // CategoryCard is only used inside CategoryFilterModal now
       import CategoryFilterModal from '@/components/CategoryFilterModal';
+      import { useSearchParams } from 'next/navigation';
 
       import { CATEGORIES_DATA } from '@/lib/categories';
       import { FunnelIcon, SparklesIcon, FireIcon } from '@heroicons/react/24/outline';
@@ -59,6 +60,8 @@
         const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
         const [currentUser, setCurrentUser] = useState<User | null>(null);
         const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+        const searchParams = useSearchParams();
+        const currentSearchTerm = searchParams.get('search');
 
         /* ---------------------------- Auth -------------------------------- */
         useEffect(() => {
@@ -80,29 +83,37 @@
         // Fetch listings, memoized and updated when selectedCategory changes
         
         const fetchListings = useCallback(
-          async (category: string | null) => {
+          async (category: string | null, searchTerm: string | null = null) => {
             setLoading(true);
             setError(null);
             try {
               let query = supabase
                 .from('listings_with_highest_bid')
                 .select(
-                  `id, title, min_price, photos, current_highest_bid, end_time, status, created_at, tags`,
+                  `id, title, min_price, photos, current_highest_bid, end_time, status, created_at, tags, description`,
                 )
                 .eq('status', 'active');
 
               // Filter by category if selected
               if (category) {
-                // The 'tags' column is JSONB, storing arrays like ["Category Name"].
-                // The 'contains' operator (@>) expects a JSONB array literal.
-                // We need to explicitly stringify the array to ensure Supabase client sends it as a JSON literal.
                 query = query.contains('tags', JSON.stringify([category]));
+              }
+
+              // Add search functionality
+              if (searchTerm) {
+                const trimmedTerm = searchTerm.trim();
+                if (trimmedTerm) {
+                  query = query.or(
+                    `title.ilike.%${trimmedTerm}%,description.ilike.%${trimmedTerm}%`
+                  );
+                }
               }
 
               // Order by creation date (newest first)
               const { data, error: fetchErr } = await query.order('created_at', {
                 ascending: false,
               });
+
               if (fetchErr) throw fetchErr;
 
               // Parse and normalize data
@@ -116,6 +127,7 @@
                   status: (item.status as ListingCardItem['status']) || 'unknown',
                   current_highest_bid: item.current_highest_bid ?? null,
                   end_time: item.end_time ?? null,
+                  description: item.description || '', // Add description to typed output
                 }))
                 .filter((i) => i.id) as ListingCardItem[];
 
@@ -140,13 +152,13 @@
               setLoading(false);
             }
           },
-          [], // No dependencies needed here
+          [selectedCategory, currentSearchTerm], // eslint-disable-line react-hooks/exhaustive-deps
         );
 
         /* ----------------------- Initial & RT load ------------------------ */
         useEffect(() => {
-          // Fetch listings on mount and when category changes
-          fetchListings(selectedCategory);
+          // Fetch listings on mount, category change, or search term change
+          fetchListings(selectedCategory, currentSearchTerm);
 
           // Subscribe to real-time updates for listings
           const channel = supabase
@@ -154,7 +166,7 @@
             .on<ListingTablePayload>(
               'postgres_changes',
               { event: '*', schema: 'public', table: 'listings' },
-              () => fetchListings(selectedCategory),
+              () => fetchListings(selectedCategory, currentSearchTerm),
             )
             .subscribe();
 
@@ -163,7 +175,7 @@
               .removeChannel(channel)
               .then(() => console.log('Listings RT channel unsubscribed.'));
           };
-        }, [selectedCategory, fetchListings]); // <--- Keep both dependencies
+        }, [selectedCategory, fetchListings, currentSearchTerm]); // Added currentSearchTerm
 
         /* --------------------------- Handlers ----------------------------- */
         // REMOVED: handleCategoryClick function
@@ -366,6 +378,30 @@
               </div>
             </div>
 
+            {/* Search Results Indicator */}
+            {currentSearchTerm && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
+                <div className="bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-indigo-100 dark:border-indigo-900/30">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                      <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary">
+                        Showing results for &quot;{currentSearchTerm}&quot;
+                      </span>
+                    </div>
+                    <Link
+                      href="/listings"
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover rounded-full transition-colors"
+                    >
+                      <svg className="w-5 h-5 text-gray-500 hover:text-gray-700 dark:text-bye-dark-text-secondary dark:hover:text-bye-dark-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Main Content Area */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
               {/* ---------------- Loading during RT updates ------------------ */}
@@ -381,19 +417,19 @@
               {/* ---------------- Empty state -------------------------------- */}
               {!loading && !error && rows.length === 0 && (
                 <div className="text-center py-16">
-                  {/* Container Background */}
                   <div className="max-w-md mx-auto bg-white/80 dark:bg-bye-dark-bg-secondary/80 backdrop-blur-sm rounded-3xl p-8 shadow-xl">
-                    {/* Icon Background Gradient */}
                     <div className="w-20 h-20 bg-gradient-to-r from-violet-100 to-purple-100 dark:from-indigo-900/30 dark:to-purple-900/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
                       <SparklesIcon className="w-10 h-10 text-violet-600 dark:text-violet-400" />
                     </div>
                     <EmptyState
                       message={
-                        selectedCategory
-                          ? `No active auctions found for "${selectedCategory}". Try exploring other categories.`
+                        currentSearchTerm
+                          ? `No auctions found for '${currentSearchTerm}'. Try a different search term.`
+                          : selectedCategory
+                          ? `No active auctions found for '${selectedCategory}'. Try exploring other categories.`
                           : 'No active auctions available right now. Be the first to start one!'
                       }
-                      action={!selectedCategory ? emptyAction : undefined}
+                      action={!currentSearchTerm && !selectedCategory ? emptyAction : undefined}
                       className=""
                     />
                   </div>
