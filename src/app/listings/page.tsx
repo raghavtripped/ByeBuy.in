@@ -378,30 +378,6 @@
                 </div>
               )}
 
-              {/* ---------------- Active filter indicator ------------------- */}
-              {selectedCategory && (
-                <div className="mb-8 flex justify-center">
-                  {/* Container Background and Border */}
-                  <div className="inline-flex items-center gap-3 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg border border-indigo-100 dark:border-indigo-900/30">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    {/* Text */}
-                    <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary">
-                      Filtering by: {selectedCategory}
-                    </span>
-                    {/* Close Button Hover Background */}
-                    <button
-                      onClick={() => setSelectedCategory(null)}
-                      className="ml-2 p-1 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover rounded-full transition-colors"
-                    >
-                      {/* Close Button Icon */}
-                      <svg className="w-4 h-4 text-gray-500 hover:text-gray-700 dark:text-bye-dark-text-secondary dark:hover:text-bye-dark-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {/* ---------------- Empty state -------------------------------- */}
               {!loading && !error && rows.length === 0 && (
                 <div className="text-center py-16">
