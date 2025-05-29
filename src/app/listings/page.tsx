@@ -255,6 +255,7 @@
                 <div className="absolute -bottom-8 -left-8 w-96 h-96 bg-gradient-to-tr from-blue-400/20 to-cyan-600/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
               </div>
 
+
               {/* Increased z-index from z-10 to z-20 */}
               <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12">
                 {/* ------------------------- Hero Header ------------------------ */}
@@ -305,10 +306,9 @@
                   </div>
                 </header>
 
-                {/* REMOVED: Desktop categories section */}
-                {/* ---------------- Universal category filter button -------------- */}
-                <div className="flex justify-center mb-8 relative z-30">
-                  {/* Increased z-index from z-20 to z-40 */}
+                {/* Universal category filter section */}
+                <div className="flex flex-col items-center space-y-3 mb-8 relative z-30">
+                  {/* Filter Button */}
                   <button
                     onClick={() => setIsCategoryModalOpen(true)}
                     className="group w-full max-w-sm sm:max-w-md lg:max-w-lg z-40"
@@ -344,6 +344,24 @@
                       </div>
                     </div>
                   </button>
+
+                  {/* Active Filter Indicator */}
+                  {selectedCategory && (
+                    <div className="inline-flex items-center gap-3 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm rounded-full px-6 py-2 shadow-lg border border-indigo-100 dark:border-indigo-900/30">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary">
+                        Filtering by: {selectedCategory}
+                      </span>
+                      <button
+                        onClick={() => setSelectedCategory(null)}
+                        className="ml-2 p-1 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover rounded-full transition-colors"
+                      >
+                        <svg className="w-4 h-4 text-gray-500 hover:text-gray-700 dark:text-bye-dark-text-secondary dark:hover:text-bye-dark-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
