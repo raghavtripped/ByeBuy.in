@@ -5,14 +5,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useWatchlistStore } from '@/stores/watchlistStore';
 import type { PostgrestError } from '@supabase/supabase-js';
-
-const showNotification = (type: 'success' | 'error', message: string) => {
-  if (typeof window !== 'undefined') {
-    if (type === 'success') alert(`Success: ${message}`);
-    else alert(`Error: ${message}`);
-  }
-  console.log(`WatchlistButton Notification (${type}): ${message}`);
-};
+import { useNotifications } from '@/hooks/useNotifications'; // Add this import
 
 const StarIconFilled = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
@@ -41,6 +34,7 @@ export default function WatchlistButton({
   size = 'md', 
   className = '' 
 }: WatchlistButtonProps) {
+  const { showNotification } = useNotifications(); // Add notifications hook
   const isInitiallyWatched = useWatchlistStore(state => state.isWatched(listingId));
   const addToWatchlistLocal = useWatchlistStore(state => state.addToWatchlistLocal);
   const removeFromWatchlistLocal = useWatchlistStore(state => state.removeFromWatchlistLocal);
@@ -54,7 +48,10 @@ export default function WatchlistButton({
 
   const handleToggleWatchlist = async () => {
     if (!userId) {
-      showNotification('error', 'Please log in to add items to your watchlist.');
+      showNotification({ 
+        type: 'error', 
+        message: 'Please log in to add items to your watchlist.'
+      });
       return;
     }
     if (isLoading) return;
@@ -127,7 +124,10 @@ export default function WatchlistButton({
       else if (error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
           message = (error as {message: string}).message;
       }
-      showNotification('error', `Update failed: ${message}`);
+      showNotification({
+        type: 'error',
+        message: `Update failed: ${message}`
+      });
     } finally {
       setIsLoading(false);
     }

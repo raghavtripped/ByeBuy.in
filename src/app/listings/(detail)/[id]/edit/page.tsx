@@ -1,8 +1,9 @@
 // src/app/listings/(detail)/[id]/edit/page.tsx
 'use client';
 
-import { useEffect, useState, FormEvent, ChangeEvent, DragEvent } from 'react';
+import { useState, useEffect, FormEvent, ChangeEvent, DragEvent } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useNotificationStore } from '@/stores/notificationStore'; // MODIFIED: Use store directly
 import { supabase } from '@/lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
 import Image from 'next/image';
@@ -11,15 +12,6 @@ import Image from 'next/image';
 const LoadingSpinner = ({ message }: { message: string }) => (
   <div className="text-center py-10 text-gray-600 dark:text-bye-dark-text-secondary">{message}...</div>
 );
-
-// Simple notification utility (consider replacing with a proper toast library)
-const showNotification = (type: 'success' | 'error', message: string) => {
-  if (typeof window !== 'undefined') {
-    // This is a basic alert, for better UX, a toast notification system is recommended
-    alert(`${type === 'success' ? 'Success' : 'Error'}: ${message}`);
-  }
-  console.log(`Notification (${type}): ${message}`);
-};
 
 // Type definition for the listing data used in this component
 interface Listing {
@@ -59,7 +51,8 @@ const MAX_PHOTOS = 5; // Maximum number of photos allowed
 export default function EditListingPage() {
   const router = useRouter();
   const params = useParams();
-  const listingId = params.id as string; // Get listing ID from route params
+  const listingId = params.id as string;
+  const addGlobalNotification = useNotificationStore(state => state.addNotification); // MODIFIED
 
   // State for listing data and UI control
   const [listing, setListing] = useState<Listing | null>(null);
@@ -245,10 +238,10 @@ export default function EditListingPage() {
     const availableSlots = MAX_PHOTOS - currentEffectivePhotoCount;
 
     if (filesArray.length > availableSlots) {
-      showNotification(
-        'error',
-        `You can only upload ${MAX_PHOTOS} photos. You can add ${availableSlots > 0 ? availableSlots : 0} more.`
-      );
+      addGlobalNotification({
+        type: 'error',
+        message: `You can only upload ${MAX_PHOTOS} photos. You can add ${availableSlots > 0 ? availableSlots : 0} more.`
+      });
       filesArray.splice(availableSlots); // Keep only as many files as available slots
       if (filesArray.length === 0) return; // No files left to process
     }
@@ -354,11 +347,11 @@ export default function EditListingPage() {
     setIsSubmitting(true);
 
     try {
-      // Step 1: Delete photos marked for removal from Supabase Storage
+      // Step 1: Delete photos marked for removal
       if (photosToDeleteFromStorage.length > 0) {
         const pathsToDelete = photosToDeleteFromStorage
           .map(getStoragePathFromUrl)
-          .filter((path): path is string => path !== null); // Ensure only valid paths
+          .filter((path): path is string => path !== null);
         if (pathsToDelete.length > 0) {
           const { error: deleteError } = await supabase.storage.from('listing-images').remove(pathsToDelete);
           if (deleteError) {
@@ -437,17 +430,29 @@ export default function EditListingPage() {
         throw new Error(`Failed to save listing changes to the database. ${updateError.message}`);
       }
 
-      showNotification('success', 'Listing updated successfully!');
-      router.push(`/listings/${listingId}`); // Redirect to listing detail page
-      // router.refresh(); // Optionally, trigger a server-side refresh if needed for other components
+      // Success notification at the end
+      addGlobalNotification({
+        type: 'success',
+        message: 'Listing updated successfully!',
+        duration: 5000 // Optional: Added duration for consistency
+      });
+      router.push(`/listings/${listingId}`);
 
-    } catch (err: unknown) {
+    } catch (err) {
       let message = 'Failed to save changes. Please try again.';
       if (err instanceof Error) {
         message = err.message;
       } else if (typeof err === 'string') {
         message = err;
       }
+      
+      // Error notification
+      addGlobalNotification({
+        type: 'error',
+        message: `Error updating listing: ${message}`,
+        duration: 10000
+      });
+      
       setSubmitMessage({ type: 'error', text: message });
       console.error("Submit error:", err);
     } finally {

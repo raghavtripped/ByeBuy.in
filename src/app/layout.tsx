@@ -11,6 +11,7 @@ import AuthWatchlistManager from '@/components/AuthWatchlistManager';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import SplashScreen from '@/components/SplashScreen';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import NotificationProvider from '@/components/NotificationProvider'; // Add this import
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -21,7 +22,7 @@ export default function RootLayout({
 }) {
   const [showSplash, setShowSplash] = useState(true);
   const [isClient, setIsClient] = useState(false);
-  const [mainAppVisible, setMainAppVisible] = useState(false); // New state
+  const [mainAppVisible, setMainAppVisible] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -67,7 +68,7 @@ export default function RootLayout({
         
         <div 
           className={`flex flex-col min-h-screen transition-opacity duration-300 ease-in-out ${mainAppVisible ? 'opacity-100' : 'opacity-0'}`}
-          style={{ visibility: mainAppVisible ? 'visible' : 'hidden' }} // Use visibility too
+          style={{ visibility: mainAppVisible ? 'visible' : 'hidden' }}
         >
           <AuthWatchlistManager />
           <Navbar />
@@ -77,6 +78,7 @@ export default function RootLayout({
           <Footer />
           <MobileBottomNav />
         </div>
+        <NotificationProvider /> {/* Add notification provider */}
       </body>
     </html>
   );

@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useNotifications } from '@/hooks/useNotifications'; // Add this import
 import Link from 'next/link';
 import Image from 'next/image';
 import { supabase, type User } from '@/lib/supabaseClient';
@@ -78,7 +79,8 @@ type SellerListingPayload = Partial<Omit<SellerListing, 'photos'>> & {
 /* -------------------------------------------------------------------------- */
 export default function MyListingsPage() {
   const router = useRouter();
-
+  const { showNotification } = useNotifications(); // Add notifications hook
+  
   const [user, setUser] = useState<User | null>(null);
   const [listings, setListings] = useState<SellerListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -339,6 +341,7 @@ export default function MyListingsPage() {
         .from('bids')
         .select('id', { head: true, count: 'exact' })
         .eq('item_id', id);
+        
       if (bidErr) throw bidErr;
       if ((count ?? 0) > 0) throw new Error('Cannot delete: bids already placed.');
 
@@ -346,26 +349,37 @@ export default function MyListingsPage() {
         .from('listings')
         .delete()
         .eq('id', id);
+        
       if (delErr) throw delErr;
 
       if (photos?.length) {
         const paths = photos
           .map(getStoragePathFromURL)
           .filter(Boolean) as string[];
+          
         if (paths.length) {
           const { error: storErr } = await supabase.storage
             .from('listing-images')
             .remove(paths);
-          if (storErr)
-            setDeleteError(
-              `Listing deleted, but some images failed to remove: ${storErr.message}`
-            );
+            
+          if (storErr) {
+            const msg = `Listing deleted, but some images failed to remove: ${storErr.message}`;
+            setDeleteError(msg);
+            showNotification({
+              type: 'warning',
+              message: msg,
+              duration: 10000
+            });
+          }
         }
       }
     } catch (err) {
-      setDeleteError(
-        err instanceof Error ? err.message : 'Deletion failed unexpectedly.'
-      );
+      const message = err instanceof Error ? err.message : 'Deletion failed unexpectedly.';
+      setDeleteError(message);
+      showNotification({
+        type: 'error',
+        message: `Delete failed: ${message}`
+      });
     } finally {
       setDeletingId(null);
       if (!deleteError) setTimeout(() => setDeleteError(null), 7000);

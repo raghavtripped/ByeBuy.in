@@ -6,6 +6,7 @@ import { supabase, User } from '@/lib/supabaseClient';
 import { formatRelativeTime } from '@/lib/timeUtils';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useNotifications } from '@/hooks/useNotifications'; // Add this import
 
 interface ChatMessage {
   id: string;
@@ -23,6 +24,7 @@ interface ListingChatProps {
 
 export default function ListingChat({ listingId, currentUser }: ListingChatProps) {
   const router = useRouter();
+  const { showNotification } = useNotifications(); // Add notifications hook
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(true);
@@ -30,14 +32,6 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
   const [isSending, setIsSending] = useState(false);
   
   const messageContainerRef = useRef<null | HTMLDivElement>(null); 
-
-  const showNotification = (type: 'success' | 'error', message: string) => {
-    if (typeof window !== 'undefined') {
-      if (type === 'success') alert(`Success: ${message}`);
-      else alert(`Error: ${message}`);
-    }
-    console.log(`ListingChat Notification (${type}): ${message}`);
-  };
 
   const fetchInitialMessages = useCallback(async () => {
     if (!listingId) {
@@ -148,17 +142,26 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
   const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) {
-        showNotification('error', 'Message cannot be empty.');
-        return;
+      showNotification({ 
+        type: 'error', 
+        message: 'Message cannot be empty.'
+      });
+      return;
     }
-    if (!currentUser) { 
-        showNotification('error', 'You must be logged in to send a message.');
-        router.push(`/auth?redirect=/listings/${listingId}`);
-        return;
+    if (!currentUser) {
+      showNotification({
+        type: 'error',
+        message: 'You must be logged in to send a message.'
+      });
+      router.push(`/auth?redirect=/listings/${listingId}`);
+      return;
     }
     if (!listingId) {
-        showNotification('error', 'Cannot send message: Listing ID is missing.');
-        return;
+      showNotification({
+        type: 'error',
+        message: 'Cannot send message: Listing ID is missing.'
+      });
+      return;
     }
 
     setIsSending(true);
@@ -179,7 +182,10 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
       setNewMessage(''); 
     } catch (err: unknown) {
       console.error("ListingChat: Error sending message:", err);
-      showNotification('error', `Failed to send message: ${err instanceof Error ? err.message : 'An unknown error occurred'}`);
+      showNotification({
+        type: 'error',
+        message: `Failed to send message: ${err instanceof Error ? err.message : 'An unknown error occurred'}`
+      });
     } finally {
       setIsSending(false);
     }

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { supabase, type User } from '@/lib/supabaseClient';
+import { useNotifications } from '@/hooks/useNotifications'; // Add this import
 
 // Import icons
 import { 
@@ -42,6 +43,7 @@ export default function Navbar() {
   const prevPathname = usePrevious(pathname); // Re-added prevPathname declaration
   const searchParams = useSearchParams();
   const pageSearchTerm = searchParams.get('search') || '';
+  const { showNotification } = useNotifications(); // Add notifications hook
 
   const [user, setUser] = useState<User | null>(null);
   const prevUser = usePrevious(user);
@@ -143,9 +145,12 @@ export default function Navbar() {
       router.push('/');
       setIsUserMenuOpen(false);
     } else {
-      alert(`Logout failed: ${error.message}`);
+      showNotification({ 
+        message: `Logout failed: ${error.message}`, 
+        type: 'error' 
+      });
     }
-  }, [router]);
+  }, [router, showNotification]); // Add showNotification to deps
 
   /* ── Sync search term with URL ──────────────────── */
   useEffect(() => {

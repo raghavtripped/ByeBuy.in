@@ -3,6 +3,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useNotifications } from '@/hooks/useNotifications'; // Add this import
 import { supabase, User } from '@/lib/supabaseClient';
 import { useWatchlistStore } from '@/stores/watchlistStore'; // Import your Zustand store
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -44,6 +45,7 @@ type WatchedListingPayload = {
 
 export default function MyWatchlistPage() {
   const router = useRouter();
+  const { showNotification } = useNotifications(); // Add notifications hook
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   // NEW STATE: To prevent infinite re-fetching when watchlist is empty
@@ -137,11 +139,15 @@ export default function MyWatchlistPage() {
       console.error("Error fetching listing details for watchlist:", err);
       const message = err instanceof Error ? err.message : 'Failed to load details for watched items.';
       setDetailsError(message);
+      showNotification({
+        type: 'error',
+        message: `Failed to load watchlist details: ${message}`
+      });
       setListingsDetails([]);
     } finally {
       setLoadingDetails(false);
     }
-  }, [watchedIdsArray]); // Dependency on memoized array
+  }, [watchedIdsArray, showNotification]); // Add showNotification to deps
 
   useEffect(() => {
     // MODIFIED: Only fetch details if user is authenticated AND the store has finished loading (or has an error)

@@ -1,11 +1,11 @@
 // src/app/account/settings/page.tsx
 'use client';
-export {}; // Keep this if it was needed for a specific reason (e.g., module augmentation)
 
-import { useState, useEffect, ChangeEvent, FormEvent } from 'react'; // Added ChangeEvent, FormEvent
+import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
+import { useNotifications } from '@/hooks/useNotifications'; // Add this import
 import LoadingSpinner from '@/components/LoadingSpinner';
 import Link from 'next/link';
 import Image from 'next/image'; // Added for avatar preview
@@ -29,6 +29,7 @@ const getStoragePathFromURL = (photoUrl: string): string | null => {
 
 export default function AccountSettingsPage() {
   const router = useRouter();
+  const { showNotification } = useNotifications(); // Add notifications hook
 
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true); // General page loading
@@ -37,8 +38,6 @@ export default function AccountSettingsPage() {
   // Messages for different actions
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   // --- NEW State for Profile Fields ---
   const [fullName, setFullName] = useState('');
@@ -193,23 +192,32 @@ export default function AccountSettingsPage() {
   // --- Password email handler ---
   const handleSetPassword = async () => {
     if (!user?.email) {
-      setPasswordError('User email not found. Cannot set/change password.');
-      setPasswordMessage(null); return;
+      showNotification({
+        type: 'error',
+        message: 'User email not found. Cannot set/change password.'
+      });
+      return;
     }
-    setPasswordMessage(null); setPasswordError(null);
+    
+    const redirectTo = process.env.NODE_ENV === 'development'
+      ? 'http://localhost:3000/update-password'
+      : 'https://byebuy.in/update-password';
 
-    const redirectTo =
-      process.env.NODE_ENV === 'development'
-        ? 'http://localhost:3000/update-password'
-        : 'https://byebuy.in/update-password';
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(
+      user.email, 
+      { redirectTo }
+    );
 
-    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(user.email, { redirectTo });
     if (resetErr) {
-      setPasswordError(`Error sending password setup/change email: ${resetErr.message}`);
+      showNotification({
+        type: 'error',
+        message: `Error sending password setup/change email: ${resetErr.message}`
+      });
     } else {
-      setPasswordMessage(
-        'A link to set/change your password has been sent to your email. Please check your inbox (and spam folder).'
-      );
+      showNotification({
+        type: 'success', 
+        message: 'Password reset link sent to your email. Please check your inbox (and spam folder).'
+      });
     }
   };
 
@@ -242,7 +250,7 @@ export default function AccountSettingsPage() {
 
   /* ---------- Main render ----------------------------------------------- */
   return (
-    <div className="max-w-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8"> {/* Increased max-w for more fields */}
+    <div className="max-w-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
       <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 dark:text-bye-dark-text-primary mb-8">
         Account Settings
       </h1>
@@ -382,26 +390,6 @@ export default function AccountSettingsPage() {
             {user.email}
           </p>
         </div>
-
-        {/* Password Alerts */}
-        {passwordMessage && (
-          <div
-            className="mb-4 p-3 text-sm text-green-700 bg-green-100 rounded-md
-                       dark:bg-green-900/25 dark:text-green-300"
-            role="alert"
-          >
-            {passwordMessage}
-          </div>
-        )}
-        {passwordError && (
-          <div
-            className="mb-4 p-3 text-sm text-red-700 bg-red-100 rounded-md
-                       dark:bg-red-900/25 dark:text-red-300"
-            role="alert"
-          >
-            {passwordError}
-          </div>
-        )}
 
         <div className="border-t border-gray-200 dark:border-bye-dark-border-primary pt-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-bye-dark-text-primary mb-3">
