@@ -33,7 +33,8 @@ export default function CategoryFilterModal({
 }: CategoryFilterModalProps) {
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50 md:hidden" onClose={onClose}>
+      {/* Removed md:hidden from Dialog */}
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -57,7 +58,8 @@ export default function CategoryFilterModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-bye-dark-bg-secondary p-6 text-left align-middle shadow-xl transition-all">
+              {/* Added responsive max-width classes */}
+              <Dialog.Panel className="w-full max-w-md md:max-w-lg lg:max-w-xl transform overflow-hidden rounded-2xl bg-white dark:bg-bye-dark-bg-secondary p-6 text-left align-middle shadow-xl transition-all">
                 <div className="flex justify-between items-center mb-4">
                   <Dialog.Title
                     as="h3"

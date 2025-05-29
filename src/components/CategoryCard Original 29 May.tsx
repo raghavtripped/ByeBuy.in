@@ -14,7 +14,6 @@ export interface CategoryCardProps {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   isSelected: boolean;
   onClick: () => void;
-  className?: string; // <-- Add this line
 }
 
 const iconSizeClasses = 'w-5 h-5 sm:w-6 sm:h-6';
@@ -81,5 +80,3 @@ export const CATEGORIES_WITH_ICONS = [
   { name: 'Sports & Hobby Gear',          icon: TrophyIcon },
   { name: 'Other',                        icon: SquaresPlusIcon },
 ] as const;
-
-<div className="fixed inset-0 z-[100] overflow-y-auto"></div>

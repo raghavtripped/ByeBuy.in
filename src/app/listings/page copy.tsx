@@ -7,7 +7,7 @@ import { supabase, type User } from '@/lib/supabaseClient';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import EmptyState from '@/components/EmptyState';
 import ListingCard, { ListingCardItem } from '@/components/ListingCard';
-// REMOVED: import CategoryCard from '@/components/CategoryCard'; // CategoryCard is only used inside CategoryFilterModal now
+// REMOVED: import CategoryCard from '@/components/CategoryCard';
 import CategoryFilterModal from '@/components/CategoryFilterModal';
 
 import { CATEGORIES_DATA } from '@/lib/categories';
@@ -140,7 +140,7 @@ export default function ListingsPage() {
         setLoading(false);
       }
     },
-    [], // <--- IMPORTANT: selectedCategory is a dependency here
+    [], // No dependencies needed here
   );
 
   /* ----------------------- Initial & RT load ------------------------ */
@@ -247,16 +247,16 @@ export default function ListingsPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-bye-dark-bg-primary dark:via-bye-dark-bg-primary dark:to-bye-dark-bg-primary">
       {/* Hero Section with Animated Background */}
       <div className="relative overflow-hidden">
-        {/* Animated background elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Animated background elements - moved to lower z-index */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
           {/* Animated Background Gradient 1 */}
           <div className="absolute -top-4 -right-4 w-96 h-96 bg-gradient-to-br from-indigo-400/20 to-purple-600/20 rounded-full blur-3xl animate-pulse"></div>
           {/* Animated Background Gradient 2 */}
           <div className="absolute -bottom-8 -left-8 w-96 h-96 bg-gradient-to-tr from-blue-400/20 to-cyan-600/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12">
-          {/* Header section */}
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-8 z-10">
+          {/* ------------------------- Hero Header ------------------------ */}
           <header className="text-center mb-12">
             <div className="flex items-center justify-center mb-6">
               <div className="relative">
@@ -304,48 +304,25 @@ export default function ListingsPage() {
             </div>
           </header>
 
-          {/* Move the active filter indicator here, just before the filter button */}
-          {selectedCategory && (
-            <div className="mb-4 flex justify-center">
-              <div className="inline-flex items-center gap-3 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg border border-indigo-100 dark:border-indigo-900/30">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary">
-                  Filtering by: {selectedCategory}
-                </span>
-                <button
-                  onClick={() => setSelectedCategory(null)}
-                  className="ml-2 p-1 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover rounded-full transition-colors"
-                >
-                  <svg 
-                    className="w-4 h-4 text-gray-500 hover:text-gray-700 dark:text-bye-dark-text-secondary dark:hover:text-bye-dark-text-primary" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          )}
-
+          {/* REMOVED: Desktop categories section */}
           {/* ---------------- Universal category filter button -------------- */}
-          <div className="flex justify-center mb-8 relative z-10">
+          <div className="w-full flex justify-center mb-8 relative z-20">
             <button
               onClick={() => setIsCategoryModalOpen(true)}
-              className="group w-full max-w-sm sm:max-w-md lg:max-w-lg z-20"
+              className="group relative w-full max-w-sm sm:max-w-md lg:max-w-lg transform transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-violet-500/20"
+              type="button"
             >
-              {/* Hover gradient background - positioned behind */}
-              <div className="absolute -inset-1 bg-gradient-to-r from-violet-500/20 to-purple-600/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-0"></div> {/* Added z-0 */}
+              {/* Hover gradient overlay - with pointer-events-none to ensure it doesn't block clicks */}
+              <div className="absolute inset-0 bg-gradient-to-r from-violet-500/20 to-purple-600/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               {/* Button Background and Border */}
-              <div className="relative bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl shadow-lg p-4 transition-all duration-300 group-hover:shadow-xl z-10"> {/* Added relative z-10 */}
+              <div className="relative bg-white/95 dark:bg-bye-dark-bg-secondary/95 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl shadow-lg p-4 transition-all duration-300 group-hover:shadow-xl group-hover:border-violet-300 dark:group-hover:border-violet-600">
                 <div className="flex items-center">
                   {/* Funnel Icon Container Background */}
-                  <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl mr-3">
+                  <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl mr-3 flex-shrink-0">
                     <FunnelIcon className="w-5 h-5 text-white" />
                   </div>
                   {/* Button Text */}
-                  <span className="flex-grow text-left font-medium text-gray-700 dark:text-bye-dark-text-primary">
+                  <span className="flex-grow text-left font-medium text-gray-700 dark:text-bye-dark-text-primary group-hover:text-violet-700 dark:group-hover:text-violet-400 transition-colors">
                     {selectedCategory
                       ? `Category: ${selectedCategory}`
                       : 'Filter All Categories'}
@@ -355,7 +332,7 @@ export default function ListingsPage() {
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 20 20"
                     fill="currentColor"
-                    className="w-5 h-5 text-gray-400 dark:text-bye-dark-text-secondary group-hover:text-indigo-500 transition-colors"
+                    className="w-5 h-5 text-gray-400 dark:text-bye-dark-text-secondary group-hover:text-indigo-500 transition-colors flex-shrink-0"
                   >
                     <path
                       fillRule="evenodd"
@@ -378,6 +355,30 @@ export default function ListingsPage() {
             {/* Container Background */}
             <div className="bg-white/80 dark:bg-bye-dark-bg-secondary/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
               <LoadingSpinner message="Updating auctions..." />
+            </div>
+          </div>
+        )}
+
+        {/* ---------------- Active filter indicator ------------------- */}
+        {selectedCategory && (
+          <div className="mb-8 flex justify-center">
+            {/* Container Background and Border */}
+            <div className="inline-flex items-center gap-3 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg border border-indigo-100 dark:border-indigo-900/30">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              {/* Text */}
+              <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary">
+                Filtering by: {selectedCategory}
+              </span>
+              {/* Close Button Hover Background */}
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className="ml-2 p-1 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover rounded-full transition-colors"
+              >
+                {/* Close Button Icon */}
+                <svg className="w-4 h-4 text-gray-500 hover:text-gray-700 dark:text-bye-dark-text-secondary dark:hover:text-bye-dark-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
           </div>
         )}
@@ -406,7 +407,7 @@ export default function ListingsPage() {
 
         {/* ---------------- Listings grid ------------------------------ */}
         {!loading && !error && rows.length > 0 && (
-          <div className="space-y-8 pt-8 sm:pt-12"> {/* Added pt-8 sm:pt-12 */}
+          <div className="space-y-4 pt-2 sm:pt-6"> {/* Reduced top padding */}
             <div className="text-center">
               {/* Section Title */}
               <h2 className="text-2xl font-bold text-gray-900 dark:text-bye-dark-text-primary mb-2">
