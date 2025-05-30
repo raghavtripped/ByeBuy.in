@@ -270,69 +270,84 @@
 
               {/* Increased z-index from z-10 to z-20 */}
               <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12">
-                {/* ------------------------- Hero Header ------------------------ */}
-                <header className="text-center mb-12">
-                  <div className="flex items-center justify-center mb-6">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-purple-600 rounded-2xl blur opacity-30 animate-pulse"></div>
-                      {/* FireIcon Container Background */}
-                      <div className="relative bg-white dark:bg-bye-dark-bg-secondary rounded-2xl p-3 shadow-xl">
-                        <FireIcon className="w-8 h-8 text-violet-600 dark:text-violet-400" />
+                {/* ------------------------- Hero Header (Hidden on Search or Category Filter) ------------------------ */}
+                {(!currentSearchTerm && !selectedCategory) ? (
+                  <header className="text-center mb-12">
+                    <div className="flex items-center justify-center mb-6">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-purple-600 rounded-2xl blur opacity-30 animate-pulse"></div>
+                        {/* FireIcon Container Background */}
+                        <div className="relative bg-white dark:bg-bye-dark-bg-secondary rounded-2xl p-3 shadow-xl">
+                          <FireIcon className="w-8 h-8 text-violet-600 dark:text-violet-400" />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  {/* Main Title */}
-                  <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-violet-600 via-purple-600 to-blue-600 bg-clip-text text-transparent mb-4">
-                    Live Auctions
-                  </h1>
-                  
-                  {/* Subtitle */}
-                  <p className="text-lg sm:text-xl text-gray-600 dark:text-bye-dark-text-secondary max-w-2xl mx-auto mb-8">
-                    Discover amazing deals & bid on items from around the Campus
-                  </p>
-
-                  {/* Stats or CTA */}
-                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
-                    {/* Stats/CTA Container */}
-                    <div className="flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-bye-dark-bg-secondary/80 backdrop-blur-sm rounded-full shadow-lg">
-                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                      {/* Stats Text */}
-                      <span className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary">
-                        {rows.length} Active Auctions
-                      </span>
-                    </div>
                     
-                    {currentUser && (
-                      <Link
-                        href="/listings/new"
-                        className="group relative px-8 py-3 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                      >
-                        <div className="absolute inset-0 bg-gradient-to-r from-violet-400 to-purple-500 rounded-full blur opacity-0 group-hover:opacity-50 transition-opacity duration-300"></div>
-                        <span className="relative flex items-center gap-2">
-                          <SparklesIcon className="w-5 h-5" />
-                          Create Listing
+                    {/* Main Title */}
+                    <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-violet-600 via-purple-600 to-blue-600 bg-clip-text text-transparent mb-4">
+                      Live Listings
+                    </h1>
+                    
+                    {/* Subtitle */}
+                    <p className="text-lg sm:text-xl text-gray-600 dark:text-bye-dark-text-secondary max-w-2xl mx-auto mb-8">
+                      Discover amazing deals & bid on items from around the Campus
+                    </p>
+
+                    {/* Stats or CTA */}
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
+                      {/* Stats/CTA Container */}
+                      <div className="flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-bye-dark-bg-secondary/80 backdrop-blur-sm rounded-full shadow-lg">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary">
+                          {rows.length} Active Auctions
                         </span>
-                      </Link>
-                    )}
-                  </div>
-                </header>
+                      </div>
+                      
+                      {currentUser && (
+                        <Link
+                          href="/listings/new"
+                          className="group relative px-8 py-3 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-r from-violet-400 to-purple-500 rounded-full blur opacity-0 group-hover:opacity-50 transition-opacity duration-300"></div>
+                          <span className="relative flex items-center gap-2">
+                            <SparklesIcon className="w-5 h-5" />
+                            Create Listing
+                          </span>
+                        </Link>
+                      )}
+                    </div>
+                  </header>
+                ) : null}
 
                 {/* Universal category filter section */}
-                <div className="flex flex-col items-center space-y-3 mb-8 relative z-30">
+                <div
+                  className={`flex flex-col items-center space-y-1 relative z-30 ${
+                    currentSearchTerm || selectedCategory
+                      ? 'pt-2 sm:pt-3 mb-2'
+                      : 'pt-4 sm:pt-6 mb-3'
+                  }`}
+                >
                   {/* Filter Button */}
                   <button
                     onClick={() => setIsCategoryModalOpen(true)}
-                    className="group w-full max-w-sm sm:max-w-md lg:max-w-lg z-40"
+                    className={`group w-full max-w-sm sm:max-w-md lg:max-w-lg z-40 ${
+                      currentSearchTerm ? 'transform -translate-y-1' : ''
+                    }`}
                   >
-                    {/* Hover gradient background - positioned behind */}
-                    <div className="absolute -inset-1 bg-gradient-to-r from-violet-500/20 to-purple-600/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-0"></div> {/* Added z-0 */}
-                    {/* Button Background and Border */}
-                    <div className="relative bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl shadow-lg p-4 transition-all duration-300 group-hover:shadow-xl z-10"> {/* Added relative z-10 */}
+                    {/* Button Background - Reduce padding during search */}
+                    <div 
+                      className={`relative bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl shadow-lg transition-all duration-300 group-hover:shadow-xl z-10 ${
+                        currentSearchTerm ? 'p-2.5' : 'p-4'
+                      }`}
+                    >
                       <div className="flex items-center">
-                        {/* Funnel Icon Container Background */}
-                        <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl mr-3">
-                          <FunnelIcon className="w-5 h-5 text-white" />
+                        {/* Funnel Icon - Smaller during search */}
+                        <div className={`bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl mr-3 ${
+                          currentSearchTerm ? 'p-1.5' : 'p-2' // Smaller padding during search
+                        }`}>
+                          <FunnelIcon className={`text-white ${
+                            currentSearchTerm ? 'w-4 h-4' : 'w-5 h-5' // Smaller icon during search
+                          }`} />
                         </div>
                         {/* Button Text */}
                         <span className="flex-grow text-left font-medium text-gray-700 dark:text-bye-dark-text-primary">
@@ -359,48 +374,55 @@
 
                   {/* Active Filter Indicator */}
                   {selectedCategory && (
-                    <div className="inline-flex items-center gap-3 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm rounded-full px-6 py-2 shadow-lg border border-indigo-100 dark:border-indigo-900/30">
-                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                      <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary">
-                        Filtering by: {selectedCategory}
+                    <div className="inline-flex items-center gap-2 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm rounded-full px-4 py-1 shadow-lg border border-indigo-100 dark:border-indigo-900/30">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
+                      <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary text-sm">
+                        Results for {selectedCategory}
                       </span>
                       <button
                         onClick={() => setSelectedCategory(null)}
-                        className="ml-2 p-1 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover rounded-full transition-colors"
+                        className="ml-1 p-1 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover rounded-full transition-colors"
+                      >
+                        <svg 
+                          className="w-4 h-4 text-gray-500 hover:text-gray-700 dark:text-bye-dark-text-secondary dark:hover:text-bye-dark-text-primary" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M6 18L18 6M6 6l12 12" 
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Search Results Indicator - Moved inside container */}
+                  {currentSearchTerm && (
+                    <div className="inline-flex items-center gap-2 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm rounded-full px-4 py-1 shadow-lg border border-indigo-100 dark:border-indigo-900/30">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                      <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary text-sm">
+                        Results for &quot;{currentSearchTerm}&quot;
+                      </span>
+                      <Link
+                        href="/listings"
+                        className="ml-1 p-1 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover rounded-full transition-colors"
                       >
                         <svg className="w-4 h-4 text-gray-500 hover:text-gray-700 dark:text-bye-dark-text-secondary dark:hover:text-bye-dark-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                      </button>
+                      </Link>
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Search Results Indicator */}
-            {currentSearchTerm && (
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
-                <div className="bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-indigo-100 dark:border-indigo-900/30">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                      <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary">
-                        Showing results for &quot;{currentSearchTerm}&quot;
-                      </span>
-                    </div>
-                    <Link
-                      href="/listings"
-                      className="p-2 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover rounded-full transition-colors"
-                    >
-                      <svg className="w-5 h-5 text-gray-500 hover:text-gray-700 dark:text-bye-dark-text-secondary dark:hover:text-bye-dark-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Search Results Indicator - Centered & Compact */}
+            {/* Remove the original search results indicator section */}
 
             {/* Main Content Area */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
@@ -438,17 +460,22 @@
 
               {/* ---------------- Listings grid ------------------------------ */}
               {!loading && !error && rows.length > 0 && (
-                <div className="space-y-8 pt-8 sm:pt-12"> {/* Added pt-8 sm:pt-12 */}
-                  <div className="text-center">
-                    {/* Section Title */}
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-bye-dark-text-primary mb-2">
-                      {selectedCategory ? `${selectedCategory} Auctions` : 'All Active Auctions'}
-                    </h2>
-                    {/* Section Subtitle */}
-                    <p className="text-gray-600 dark:text-bye-dark-text-secondary">
-                      {rows.length} auction{rows.length !== 1 ? 's' : ''} ending soon
-                    </p>
-                  </div>
+                <div className={`${
+                  currentSearchTerm || selectedCategory 
+                    ? 'pt-8 sm:pt-10' // More spacing when in search/filter mode
+                    : 'space-y-6 pt-6 sm:pt-8'
+                }`}>
+                  {/* Title Section - Only show when not searching AND not filtering */}
+                  {(!currentSearchTerm && !selectedCategory) && (
+                    <div className="text-center mb-4">
+                      <h2 className="text-2xl font-bold text-gray-900 dark:text-bye-dark-text-primary mb-1">
+                        {selectedCategory ? `${selectedCategory} Auctions` : 'All Active Listings'}
+                      </h2>
+                      <p className="text-gray-600 dark:text-bye-dark-text-secondary text-sm">
+                        {rows.length} auction{rows.length !== 1 ? 's' : ''} ending soon
+                      </p>
+                    </div>
+                  )}
 
                   <ul
                     role="list"
