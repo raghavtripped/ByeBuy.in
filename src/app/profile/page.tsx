@@ -320,7 +320,11 @@ export default function ProfilePage() {
             icon={FiList}
             label="My Listings"
           />
-          <ProfileLinkItem href="/my-bids" icon={FiTrendingUp} label="My Bids" />
+          <ProfileLinkItem 
+            href="/my-bids" 
+            icon={FiTrendingUp} 
+            label="My Bids" 
+          />
 
           <h2 className="text-xs font-semibold text-slate-500 dark:text-bye-dark-text-secondary/80 uppercase tracking-wider px-1 pt-4 mb-2">
             Account &amp; Support

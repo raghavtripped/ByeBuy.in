@@ -7,11 +7,10 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import AuthWatchlistManager from '@/components/AuthWatchlistManager';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import SplashScreen from '@/components/SplashScreen';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import NotificationProvider from '@/components/NotificationProvider'; // Add this import
+import NotificationProvider from '@/components/NotificationProvider';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -26,15 +25,13 @@ export default function RootLayout({
 
   useEffect(() => {
     setIsClient(true);
-    // When splash is fully hidden, then make the main app visible
   }, []);
 
   const handleSplashHidden = () => {
     setShowSplash(false);
-    // Add a short delay for the splash to visually clear before main app fades in
     setTimeout(() => {
-        setMainAppVisible(true);
-    }, 50); // Small delay, adjust as needed
+      setMainAppVisible(true);
+    }, 50);
   };
 
   if (!isClient) {
@@ -46,9 +43,9 @@ export default function RootLayout({
           <meta name="description" content="Your campus marketplace for timed auctions." />
         </head>
         <body className={`${inter.className} bg-bye-dark-bg-primary flex flex-col min-h-screen`}>
-            <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gradient-to-br from-bye-dark-bg-primary via-bye-dark-bg-secondary to-bye-dark-bg-primary">
-                <LoadingSpinner message="Initializing ByeBuy..." />
-            </div>
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gradient-to-br from-bye-dark-bg-primary via-bye-dark-bg-secondary to-bye-dark-bg-primary">
+            <LoadingSpinner message="Initializing ByeBuy..." />
+          </div>
         </body>
       </html>
     );
@@ -70,7 +67,6 @@ export default function RootLayout({
           className={`flex flex-col min-h-screen transition-opacity duration-300 ease-in-out ${mainAppVisible ? 'opacity-100' : 'opacity-0'}`}
           style={{ visibility: mainAppVisible ? 'visible' : 'hidden' }}
         >
-          <AuthWatchlistManager />
           <Navbar />
           <main className="pt-4 flex-grow container mx-auto px-4 sm:px-6 lg:p-8">
             {children}
@@ -78,7 +74,7 @@ export default function RootLayout({
           <Footer />
           <MobileBottomNav />
         </div>
-        <NotificationProvider /> {/* Add notification provider */}
+        <NotificationProvider />
       </body>
     </html>
   );

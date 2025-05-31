@@ -3,8 +3,6 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { formatCurrency } from '@/lib/formatUtils';
-import WatchlistButton from '@/components/WatchlistButton';
-import { User } from '@/lib/supabaseClient';
 import { formatRelativeTime, isPast } from '@/lib/timeUtils';
 
 export type ListingCardItem = {
@@ -19,21 +17,15 @@ export type ListingCardItem = {
 
 interface ListingCardProps {
   listing: ListingCardItem;
-  currentUser: User | null;
   className?: string; // <--- ADDED THIS LINE
 }
 
-export default function ListingCard({ listing, currentUser, className = '' }: ListingCardProps) { // ADDED className = ''
+export default function ListingCard({ listing, className = '' }: ListingCardProps) {
   const thumbnailUrl = (listing.photos && listing.photos.length > 0) ? listing.photos[0] : null;
   const isEffectivelyEnded = listing.status !== 'active' || (listing.end_time && isPast(listing.end_time));
 
   return (
-    <li className={`group relative flex flex-col bg-white dark:bg-bye-dark-bg-secondary rounded-lg shadow border border-gray-200 dark:border-bye-dark-border-primary overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1 ${className}`}> {/* ADDED ${className} */}
-      <div className="absolute top-2 right-2 z-10">
-        {currentUser !== undefined && listing && (
-          <WatchlistButton listingId={listing.id} userId={currentUser?.id} size="sm" />
-        )}
-      </div>
+    <li className={`group relative flex flex-col bg-white dark:bg-bye-dark-bg-secondary rounded-lg shadow border border-gray-200 dark:border-bye-dark-border-primary overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1 ${className}`}>
       <Link href={`/listings/${listing.id}`} className="flex flex-col flex-grow">
         <div className="aspect-video w-full bg-gray-100 dark:bg-bye-dark-bg-hover overflow-hidden relative rounded-t-lg">
           {thumbnailUrl ? (

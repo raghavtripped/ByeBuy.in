@@ -12,11 +12,10 @@ import { useNotifications } from '@/hooks/useNotifications'; // Add this import
 import { 
   MagnifyingGlassIcon,
   BellIcon,
-  UserCircleIcon, // Used for My Profile link icon
+  UserCircleIcon,
   Bars3Icon,
   XMarkIcon,
   PlusIcon,
-  HeartIcon,
   ListBulletIcon,
   CurrencyDollarIcon,
   Cog6ToothIcon,
@@ -183,7 +182,6 @@ export default function Navbar() {
   ];
 
   const userNavLinks = [
-    { href: '/my-watchlist', text: 'My Watchlist', icon: HeartIcon },
     { href: '/my-listings', text: 'My Listings', icon: ListBulletIcon },
     { href: '/my-bids', text: 'My Bids', icon: CurrencyDollarIcon },
     { href: '/account/settings', text: 'Account Settings', icon: Cog6ToothIcon },

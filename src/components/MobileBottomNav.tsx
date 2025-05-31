@@ -1,4 +1,3 @@
-
 /* -------------------------------------------------------------------------- */
 /*  src/components/MobileBottomNav.tsx                                        */
 /* -------------------------------------------------------------------------- */
@@ -10,10 +9,11 @@ import { usePathname } from 'next/navigation';
 
 /* ---------- Icons (react-icons) ----------- */
 import { AiOutlineHome, AiFillHome } from 'react-icons/ai';
-import { FiHeart, FiUser }          from 'react-icons/fi';
-import { FaHeart, FaUserAlt }       from 'react-icons/fa';
-import { IoAddCircleSharp }         from 'react-icons/io5';
-import { BsListTask, BsListStars }  from 'react-icons/bs';
+import { FiUser, FiSearch } from 'react-icons/fi';
+import { FaUserAlt } from 'react-icons/fa';
+import { IoAddCircleSharp } from 'react-icons/io5';
+import { BsListTask, BsListStars } from 'react-icons/bs';
+import { HiMagnifyingGlass } from 'react-icons/hi2';
 
 /* ---------- Types ------------------------- */
 interface NavItem {
@@ -21,16 +21,42 @@ interface NavItem {
   label: string;
   inactiveIcon: React.ElementType;
   activeIcon: React.ElementType;
-  isCreateButton?: boolean;               // special styling
+  isCreateButton?: boolean;
 }
 
 /* ---------- Config ------------------------ */
 const navItems: NavItem[] = [
-  { href: '/listings',     label: 'Home',      inactiveIcon: AiOutlineHome,  activeIcon: AiFillHome },
-  { href: '/my-watchlist', label: 'Watchlist', inactiveIcon: FiHeart,        activeIcon: FaHeart },
-  { href: '/listings/new', label: 'Create',    inactiveIcon: IoAddCircleSharp, activeIcon: IoAddCircleSharp, isCreateButton: true },
-  { href: '/my-bids',      label: 'My Bids',   inactiveIcon: BsListTask,     activeIcon: BsListStars },
-  { href: '/profile',      label: 'Profile',   inactiveIcon: FiUser,         activeIcon: FaUserAlt },
+  { 
+    href: '/listings', 
+    label: 'Home', 
+    inactiveIcon: AiOutlineHome, 
+    activeIcon: AiFillHome 
+  },
+  { 
+    href: '/listings?search=true', 
+    label: 'Search', 
+    inactiveIcon: FiSearch, 
+    activeIcon: HiMagnifyingGlass 
+  },
+  { 
+    href: '/listings/new', 
+    label: 'Create', 
+    inactiveIcon: IoAddCircleSharp, 
+    activeIcon: IoAddCircleSharp, 
+    isCreateButton: true 
+  },
+  { 
+    href: '/my-bids', 
+    label: 'My Bids', 
+    inactiveIcon: BsListTask, 
+    activeIcon: BsListStars 
+  },
+  { 
+    href: '/profile', 
+    label: 'Profile', 
+    inactiveIcon: FiUser, 
+    activeIcon: FaUserAlt 
+  },
 ];
 
 /* ---------- Component --------------------- */
@@ -42,11 +68,12 @@ const MobileBottomNav: React.FC = () => {
                     bg-white dark:bg-bye-dark-bg-secondary
                     border-t border-slate-200 dark:border-bye-dark-border-primary
                     shadow-top-nav">
-      {/* shadow-top-nav → define in globals or replace with a Tailwind shadow util */}
       <div className="max-w-md mx-auto flex justify-around items-center h-16">
         {navItems.map(({ href, label, inactiveIcon, activeIcon, isCreateButton }) => {
-          const isActive   = pathname === href || (href === '/listings' && pathname === '/');
-          const Icon       = isActive ? activeIcon : inactiveIcon;
+          const isActive = pathname === href || 
+                          (href === '/listings' && pathname === '/') ||
+                          (href === '/listings?search=true' && pathname.includes('search'));
+          const Icon = isActive ? activeIcon : inactiveIcon;
 
           return (
             <Link

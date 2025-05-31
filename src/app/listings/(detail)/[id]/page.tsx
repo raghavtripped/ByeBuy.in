@@ -18,7 +18,6 @@ import {
 } from '@/lib/timeUtils';
 import { formatCurrency } from '@/lib/formatUtils';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import WatchlistButton from '@/components/WatchlistButton';
 import ListingChat from '@/components/ListingChat';
 import ConfirmBidModal from '@/components/ConfirmBidModal';
 
@@ -397,6 +396,7 @@ export default function ListingDetails() {
     <>
       <main className="listing-detail-page max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
         <section className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
+          {/* Photo Gallery Section */}
           <div className="w-full md:w-1/2 flex-shrink-0 slick-container relative">
             {photos.length > 0 ? (
                  <Slider {...sliderSettings}>
@@ -416,28 +416,23 @@ export default function ListingDetails() {
           </div>
 
           <div className={`w-full ${photos.length > 0 ? 'md:w-1/2' : ''} space-y-4`}>
-              <div className="flex items-center space-x-3">
-                <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-bye-dark-text-primary break-words">
-                  {listing.title}
-                </h1>
-                {user !== undefined && listing && ( 
-                  <WatchlistButton
-                    listingId={listing.id}
-                    userId={user?.id}
-                    size="md" 
-                    className="flex-shrink-0 mt-1 sm:mt-0" 
-                  />
-                )}
-              </div>
+              {/* Remove watchlist button and simplify title section */}
+              <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-bye-dark-text-primary break-words">
+                {listing.title}
+              </h1>
 
+              {/* Rest of the listing details remain the same */}
               {listing.seller_id && listing.seller_email ? (
-                  <p className="text-sm text-gray-600 dark:text-bye-dark-text-secondary">Sold by: {' '}
-                      <Link href={`/user/${listing.seller_id}`} className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline">
-                          {listing.seller_email}
-                      </Link>
+                  <p className="text-sm text-gray-600 dark:text-bye-dark-text-secondary">
+                    Sold by: {' '}
+                    <Link href={`/user/${listing.seller_id}`} className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline">
+                      {listing.seller_email}
+                    </Link>
                   </p>
               ) : listing.seller_email ? (
-                  <p className="text-sm text-gray-600 dark:text-bye-dark-text-secondary"> Sold by: <span className="font-medium text-gray-800 dark:text-bye-dark-text-primary">{listing.seller_email}</span></p>
+                  <p className="text-sm text-gray-600 dark:text-bye-dark-text-secondary">
+                    Sold by: <span className="font-medium text-gray-800 dark:text-bye-dark-text-primary">{listing.seller_email}</span>
+                  </p>
               ): null}
 
               {listing.status === 'active' && (
