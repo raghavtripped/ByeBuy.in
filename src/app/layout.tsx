@@ -11,6 +11,7 @@ import MobileBottomNav from '@/components/MobileBottomNav';
 import SplashScreen from '@/components/SplashScreen';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import NotificationProvider from '@/components/NotificationProvider';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -67,12 +68,16 @@ export default function RootLayout({
           className={`flex flex-col min-h-screen transition-opacity duration-300 ease-in-out ${mainAppVisible ? 'opacity-100' : 'opacity-0'}`}
           style={{ visibility: mainAppVisible ? 'visible' : 'hidden' }}
         >
-          <Navbar />
-          <main className="pt-4 flex-grow container mx-auto px-4 sm:px-6 lg:p-8">
-            {children}
-          </main>
-          <Footer />
-          <MobileBottomNav />
+          <ErrorBoundary>
+            <Navbar />
+            <main className="pt-4 flex-grow container mx-auto px-4 sm:px-6 lg:p-8">
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
+            </main>
+            <Footer />
+            <MobileBottomNav />
+          </ErrorBoundary>
         </div>
         <NotificationProvider />
       </body>
