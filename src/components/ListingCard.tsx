@@ -9,9 +9,7 @@ import {
   FireIcon, 
   SparklesIcon, 
   TrophyIcon,
-  BookmarkIcon,
-  HeartIcon 
-} from '@heroicons/react/24/outline';
+  BookmarkIcon} from '@heroicons/react/24/outline';
 import { 
   ClockIcon as ClockIconSolid 
 } from '@heroicons/react/24/solid';
@@ -94,7 +92,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                   <div className="flex items-center justify-between text-white text-sm">
                     <div className="flex items-center gap-1">
                       <ClockIcon className="w-4 h-4" />
-                      <span className="font-medium">Ends {formatRelativeTime(listing.end_time)}</span>
+                      <span className="font-medium"> {formatRelativeTime(listing.end_time)}</span>
                     </div>
                   </div>
                 </div>
@@ -148,13 +146,13 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
 
               {/* Footer Info */}
               <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-bye-dark-border-primary">
-                {/* Status/Time */}
+                {/* Status/Time - Updated */}
                 <div className="flex items-center gap-2">
                   {listing.status === 'active' && !isEffectivelyEnded ? (
                     <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                      <span className="text-xs font-medium text-green-600 dark:text-green-400">
-                        Live
+                      <ClockIcon className="w-3 h-3" />
+                      <span className="text-xs font-medium text-red-600 dark:text-red-400">
+                        {listing.end_time ? ` ${formatRelativeTime(listing.end_time)}` : ''}
                       </span>
                     </div>
                   ) : (
@@ -223,7 +221,11 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
 
       {/* Mobile View - Vertical Card */}
       <div className={`block md:hidden ${className}`}>
-        <Link href={`/listings/${listing.id}`} className="block active:scale-[0.98] transition-transform duration-150">
+        <Link 
+          href={`/listings/${listing.id}`} 
+          className="block active:scale-[0.98] transition-transform duration-150"
+          scroll={true} // Add this line
+        >
           <div className="bg-white dark:bg-bye-dark-bg-secondary rounded-xl shadow-md border border-gray-100 dark:border-bye-dark-border-primary overflow-hidden">
             
             {/* Image Section - Shorter aspect ratio */}
@@ -262,11 +264,6 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                   </div>
                 )}
               </div>
-
-              {/* Watchlist Button (Heart) - Top Right */}
-              <button className="absolute top-2 right-2 p-2 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm rounded-full shadow-sm active:scale-95 transition-transform duration-150">
-                <HeartIcon className="w-4 h-4 text-gray-700 dark:text-bye-dark-text-primary" />
-              </button>
             </div>
 
             {/* Content Section - Reduced padding */}
@@ -312,9 +309,11 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
               {/* Combined Time/Status & Bids - Single line */}
               <div className="flex items-center justify-between mb-2 text-xs">
                 {listing.status === 'active' && !isEffectivelyEnded ? (
-                  <div className="flex items-center gap-1 text-gray-600 dark:text-bye-dark-text-primary">
+                  <div className="flex items-center gap-1">
                     <ClockIcon className="w-3 h-3" />
-                    <span>{formatRelativeTime(listing.end_time!)}</span>
+                    <span className="text-red-600 dark:text-red-400">
+                      {formatRelativeTime(listing.end_time!)}
+                    </span>
                   </div>
                 ) : (
                   <span className={`text-xs ${
