@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import Slider from "react-slick";
+import WatchlistButton from '@/components/WatchlistButton';
 
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
@@ -416,10 +417,18 @@ export default function ListingDetails() {
           </div>
 
           <div className={`w-full ${photos.length > 0 ? 'md:w-1/2' : ''} space-y-4`}>
-              {/* Remove watchlist button and simplify title section */}
-              <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-bye-dark-text-primary break-words">
-                {listing.title}
-              </h1>
+              {/* Title Section with Watchlist Button */}
+              <div className="flex items-center justify-between mb-6">
+                <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-bye-dark-text-primary break-words">
+                  {listing.title}
+                </h1>
+                <WatchlistButton
+                  listingId={listing.id}
+                  currentUser={user}
+                  size="md"
+                  className="bg-white dark:bg-bye-dark-bg-secondary hover:bg-gray-50 dark:hover:bg-bye-dark-bg-hover"
+                />
+              </div>
 
               {/* Rest of the listing details remain the same */}
               {listing.seller_id && listing.seller_email ? (

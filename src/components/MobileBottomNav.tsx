@@ -9,11 +9,12 @@ import { usePathname } from 'next/navigation';
 
 /* ---------- Icons (react-icons) ----------- */
 import { AiOutlineHome, AiFillHome } from 'react-icons/ai';
-import { FiUser, FiSearch } from 'react-icons/fi';
+import { FiUser } from 'react-icons/fi';
 import { FaUserAlt } from 'react-icons/fa';
 import { IoAddCircleSharp } from 'react-icons/io5';
 import { BsListTask, BsListStars } from 'react-icons/bs';
-import { HiMagnifyingGlass } from 'react-icons/hi2';
+import { FiHeart } from 'react-icons/fi';
+import { FaHeart } from 'react-icons/fa';
 
 /* ---------- Types ------------------------- */
 interface NavItem {
@@ -33,10 +34,10 @@ const navItems: NavItem[] = [
     activeIcon: AiFillHome 
   },
   { 
-    href: '/listings?search=true', 
-    label: 'Search', 
-    inactiveIcon: FiSearch, 
-    activeIcon: HiMagnifyingGlass 
+    href: '/my-watchlist', 
+    label: 'Watchlist', 
+    inactiveIcon: FiHeart, 
+    activeIcon: FaHeart 
   },
   { 
     href: '/listings/new', 
