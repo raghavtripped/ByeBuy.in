@@ -183,7 +183,6 @@ export default function Navbar() {
   ];
 
   const userNavLinks = [
-    { href: '/profile', text: 'My Profile', icon: UserCircleIcon },
     { href: '/my-watchlist', text: 'My Watchlist', icon: HeartIcon },
     { href: '/my-listings', text: 'My Listings', icon: ListBulletIcon },
     { href: '/my-bids', text: 'My Bids', icon: CurrencyDollarIcon },

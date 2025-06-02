@@ -277,6 +277,16 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                   </div>
                 )}
               </div>
+
+              {/* Add WatchlistButton */}
+              <div className="absolute top-2 right-2">
+                <WatchlistButton
+                  listingId={listing.id}
+                  currentUser={user}
+                  size="sm"
+                  className="bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm hover:bg-white dark:hover:bg-bye-dark-bg-secondary"
+                />
+              </div>
             </div>
 
             {/* Content Section - Reduced padding */}
@@ -348,16 +358,12 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
 
               {/* Action Buttons - Reduced height */}
               <div className="flex gap-2">
-                <button className="flex-1 bg-gray-100 dark:bg-bye-dark-bg-hover text-gray-700 dark:text-bye-dark-text-primary py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150 flex items-center justify-center gap-1.5">
-                  <BookmarkIcon className="w-3.5 h-3.5" />
-                  Save
-                </button>
                 {listing.status === 'active' && !isEffectivelyEnded ? (
-                  <button className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150 shadow-sm">
+                  <button className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150 shadow-sm">
                     Place Bid
                   </button>
                 ) : (
-                  <button className="flex-1 bg-gray-100 dark:bg-bye-dark-bg-hover text-gray-700 dark:text-bye-dark-text-primary py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150">
+                  <button className="w-full bg-gray-100 dark:bg-bye-dark-bg-hover text-gray-700 dark:text-bye-dark-text-primary py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150">
                     View Details
                   </button>
                 )}
