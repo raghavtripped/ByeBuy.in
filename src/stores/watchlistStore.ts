@@ -143,16 +143,15 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
                   break;
               }
             }
-          );
-
-        const status = await channel.subscribe();
-        console.log('Realtime subscription status:', status);
-        
-        if (status === 'SUBSCRIBED') {
-          set({ realtimeSubscription: channel, error: null });
-        } else {
-          throw new Error(`Failed to subscribe to channel: ${status}`);
-        }
+          )
+          .subscribe((status) => {
+            console.log('Realtime subscription status:', status);
+            if (status === 'SUBSCRIBED') {
+              set({ realtimeSubscription: channel, error: null });
+            } else {
+              throw new Error(`Failed to subscribe to channel: ${status}`);
+            }
+          });
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to setup realtime sync';
         console.error('Realtime sync setup error:', errorMessage);
