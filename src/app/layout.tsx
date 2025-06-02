@@ -12,6 +12,7 @@ import SplashScreen from '@/components/SplashScreen';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import NotificationProvider from '@/components/NotificationProvider';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import AuthWatchlistManager from '@/components/AuthWatchlistManager';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -69,6 +70,7 @@ export default function RootLayout({
           style={{ visibility: mainAppVisible ? 'visible' : 'hidden' }}
         >
           <ErrorBoundary>
+            <AuthWatchlistManager />
             <Navbar />
             <main className="pt-4 flex-grow container mx-auto px-4 sm:px-6 lg:p-8">
               <ErrorBoundary>

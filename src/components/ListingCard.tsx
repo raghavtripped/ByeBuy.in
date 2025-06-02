@@ -13,6 +13,8 @@ import {
 import { 
   ClockIcon as ClockIconSolid 
 } from '@heroicons/react/24/solid';
+import WatchlistButton from '@/components/WatchlistButton';
+import { useAuth } from '@/hooks/useAuth';
 
 export type ListingCardItem = {
   id: string;
@@ -30,6 +32,7 @@ interface ListingCardProps {
 }
 
 export default function ListingCard({ listing, className = '' }: ListingCardProps) {
+  const { user } = useAuth();
   const thumbnailUrl = (listing.photos && listing.photos.length > 0) ? listing.photos[0] : null;
   const isEffectivelyEnded = listing.status !== 'active' || (listing.end_time && isPast(listing.end_time));
   const hasActiveBids = listing.current_highest_bid && listing.current_highest_bid > 0;
@@ -84,6 +87,16 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                     SOLD
                   </div>
                 )}
+              </div>
+
+              {/* Watchlist Button - Absolute positioned */}
+              <div className="absolute top-3 right-3 z-10">
+                <WatchlistButton
+                  listingId={listing.id}
+                  currentUser={user}
+                  size="sm"
+                  className="bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm hover:bg-white dark:hover:bg-bye-dark-bg-secondary"
+                />
               </div>
 
               {/* Bottom overlay with time remaining */}
