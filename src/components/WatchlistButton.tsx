@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import { HeartIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
-import { supabase } from '../lib/supabaseClient';
-import { useWatchlistStore } from '../stores/watchlistStore';
+import { PostgrestError } from '@supabase/postgrest-js';
+import { supabase } from '@/lib/supabaseClient';
+import { useWatchlistStore, type WatchlistState } from '@/stores/watchlistStore';
 
 interface WatchlistButtonProps {
   listingId: string;
@@ -21,7 +22,7 @@ export default function WatchlistButton({
 }: WatchlistButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { isWatched, addToWatchlistLocal, removeFromWatchlistLocal } = useWatchlistStore(
-    (state) => state.actions
+    (state: WatchlistState) => state.actions
   );
 
   const isItemWatched = isWatched(listingId);
@@ -57,14 +58,15 @@ export default function WatchlistButton({
           .match({ user_id: currentUser.id, listing_id: listingId });
         if (error) throw error;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       // Revert optimistic update on error
       if (previousState) {
         addToWatchlistLocal(listingId);
       } else {
         removeFromWatchlistLocal(listingId);
       }
-      console.error('Error toggling watchlist:', error);
+      const errorMessage = error instanceof PostgrestError ? error.message : 'Failed to update watchlist';
+      console.error('Error toggling watchlist:', errorMessage);
       // TODO: Show error notification
     } finally {
       setIsLoading(false);

@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import { useWatchlistStore } from '../stores/watchlistStore';
+import React, { useEffect } from 'react';
+import { AuthChangeEvent, Session } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabaseClient';
+import { useWatchlistStore, type WatchlistState } from '@/stores/watchlistStore';
 
 export default function AuthWatchlistManager() {
   const { 
@@ -10,13 +11,13 @@ export default function AuthWatchlistManager() {
     clearWatchlistLocal,
     setupRealtimeSync,
     cleanupRealtimeSync 
-  } = useWatchlistStore(state => state.actions);
-  const hasFetched = useWatchlistStore(state => state.hasFetchedInitialWatchlist);
+  } = useWatchlistStore((state: WatchlistState) => state.actions);
+  const hasFetched = useWatchlistStore((state: WatchlistState) => state.hasFetchedInitialWatchlist);
 
   useEffect(() => {
     let isMounted = true;
 
-    const handleAuthChange = async (_event: string, session: any) => {
+    const handleAuthChange = async (event: AuthChangeEvent, session: Session | null) => {
       if (!isMounted) return;
       
       if (session?.user && !hasFetched) {

@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabaseClient';
+import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { PostgrestError } from '@supabase/postgrest-js';
+import { supabase } from '@/lib/supabaseClient';
 
-interface WatchlistState {
+export interface WatchlistState {
   watchedListingIds: Set<string>;
   isLoading: boolean;
   error: string | null;
@@ -24,6 +25,11 @@ interface WatchedListingRecord {
   user_id: string;
 }
 
+type WatchlistPayload = RealtimePostgresChangesPayload<{
+  listing_id: string;
+  user_id: string;
+}>;
+
 export const useWatchlistStore = create<WatchlistState>((set, get) => ({
   watchedListingIds: new Set(),
   isLoading: false,
@@ -31,22 +37,22 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
   hasFetchedInitialWatchlist: false,
   realtimeSubscription: null,
   actions: {
-    isWatched: (listingId) => get().watchedListingIds.has(listingId),
+    isWatched: (listingId: string) => get().watchedListingIds.has(listingId),
     
-    addToWatchlistLocal: (listingId) => 
-      set((state) => ({ 
+    addToWatchlistLocal: (listingId: string) => 
+      set((state: WatchlistState) => ({ 
         watchedListingIds: new Set(state.watchedListingIds).add(listingId),
         error: null 
       })),
     
-    removeFromWatchlistLocal: (listingId) => 
-      set((state) => {
+    removeFromWatchlistLocal: (listingId: string) => 
+      set((state: WatchlistState) => {
         const newSet = new Set(state.watchedListingIds);
         newSet.delete(listingId);
         return { watchedListingIds: newSet, error: null };
       }),
     
-    fetchAndSyncWatchlist: async (userId) => {
+    fetchAndSyncWatchlist: async (userId: string) => {
       if (!userId) return;
       
       set({ isLoading: true, error: null });
@@ -63,9 +69,10 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
           hasFetchedInitialWatchlist: true,
           isLoading: false 
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof PostgrestError ? error.message : 'Failed to fetch watchlist';
         set({ 
-          error: error.message || 'Failed to fetch watchlist',
+          error: errorMessage,
           isLoading: false,
           hasFetchedInitialWatchlist: true 
         });
@@ -83,7 +90,7 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
       });
     },
 
-    setupRealtimeSync: async (userId) => {
+    setupRealtimeSync: async (userId: string) => {
       try {
         const { cleanupRealtimeSync } = get().actions;
         cleanupRealtimeSync();
@@ -92,22 +99,26 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
         
         channel
           .on(
-            'postgres_changes' as any,
+            'postgres_changes' as const,
             {
               event: '*',
               schema: 'public',
               table: 'watched_listings',
               filter: `user_id=eq.${userId}`,
             },
-            (payload: { eventType: string; new: WatchedListingRecord; old: WatchedListingRecord }) => {
+            (payload: WatchlistPayload) => {
               const { eventType, new: newRecord, old: oldRecord } = payload;
               
               switch (eventType) {
                 case 'INSERT':
-                  get().actions.addToWatchlistLocal(newRecord.listing_id);
+                  if (newRecord?.listing_id) {
+                    get().actions.addToWatchlistLocal(newRecord.listing_id);
+                  }
                   break;
                 case 'DELETE':
-                  get().actions.removeFromWatchlistLocal(oldRecord.listing_id);
+                  if (oldRecord?.listing_id) {
+                    get().actions.removeFromWatchlistLocal(oldRecord.listing_id);
+                  }
                   break;
                 default:
                   break;
@@ -117,8 +128,9 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
 
         await channel.subscribe();
         set({ realtimeSubscription: channel, error: null });
-      } catch (error: any) {
-        set({ error: `Failed to setup realtime sync: ${error.message}` });
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to setup realtime sync';
+        set({ error: `Failed to setup realtime sync: ${errorMessage}` });
         console.error('Realtime sync setup error:', error);
       }
     },

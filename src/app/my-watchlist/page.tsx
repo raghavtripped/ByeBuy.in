@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabaseClient';
-import { useWatchlistStore } from '../../stores/watchlistStore';
+import { PostgrestError } from '@supabase/postgrest-js';
+import { supabase } from '@/lib/supabaseClient';
+import { useWatchlistStore, type WatchlistState } from '@/stores/watchlistStore';
 
 interface ListingCardItem {
   id: string;
@@ -21,9 +22,9 @@ export default function WatchlistPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const watchedListingIds = useWatchlistStore((state) => state.watchedListingIds);
-  const storeIsLoading = useWatchlistStore((state) => state.isLoading);
-  const storeError = useWatchlistStore((state) => state.error);
+  const watchedListingIds = useWatchlistStore((state: WatchlistState) => state.watchedListingIds);
+  const storeIsLoading = useWatchlistStore((state: WatchlistState) => state.isLoading);
+  const storeError = useWatchlistStore((state: WatchlistState) => state.error);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -55,14 +56,12 @@ export default function WatchlistPage() {
         if (error) throw error;
 
         setWatchedItems(data || []);
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(err.message);
-          console.error('Error fetching watched items:', err);
-        } else {
-          setError('An unknown error occurred');
-          console.error('Error fetching watched items:', err); 
-        }
+      } catch (error: unknown) {
+        const errorMessage = error instanceof PostgrestError 
+          ? error.message 
+          : 'Failed to fetch watched items';
+        setError(errorMessage);
+        console.error('Error fetching watched items:', error);
       } finally {
         setIsLoading(false);
       }
