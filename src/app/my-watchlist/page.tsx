@@ -55,9 +55,14 @@ export default function WatchlistPage() {
         if (error) throw error;
 
         setWatchedItems(data || []);
-      } catch (err: any) {
-        setError(err.message);
-        console.error('Error fetching watched items:', err);
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setError(err.message);
+          console.error('Error fetching watched items:', err);
+        } else {
+          setError('An unknown error occurred');
+          console.error('Error fetching watched items:', err); 
+        }
       } finally {
         setIsLoading(false);
       }
@@ -94,7 +99,7 @@ export default function WatchlistPage() {
       <div className="flex flex-col items-center justify-center min-h-screen">
         <h2 className="text-2xl font-semibold mb-4">Your Watchlist</h2>
         <p className="text-gray-600 dark:text-gray-400">
-          You haven't added any items to your watchlist yet.
+          You haven&apos;t added any items to your watchlist yet.
         </p>
       </div>
     );
