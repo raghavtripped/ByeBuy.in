@@ -20,11 +20,6 @@ export interface WatchlistState {
   };
 }
 
-interface WatchedListingRecord {
-  listing_id: string;
-  user_id: string;
-}
-
 type WatchlistPayload = RealtimePostgresChangesPayload<{
   listing_id: string;
   user_id: string;

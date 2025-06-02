@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { useWatchlistStore, type WatchlistState } from '@/stores/watchlistStore';
