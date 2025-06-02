@@ -16,7 +16,7 @@ export interface WatchlistState {
     fetchAndSyncWatchlist: (userId: string) => Promise<void>;
     clearWatchlistLocal: () => void;
     setupRealtimeSync: (userId: string) => Promise<void>;
-    cleanupRealtimeSync: () => void;
+    cleanupRealtimeSync: () => Promise<void>;
   };
 }
 
@@ -83,16 +83,15 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
         set({ 
           error: errorMessage,
           isLoading: false,
-          hasFetchedInitialWatchlist: true // Still mark as fetched to prevent infinite retries
+          hasFetchedInitialWatchlist: true
         });
-        throw error; // Re-throw for the component to handle
       }
     },
     
     clearWatchlistLocal: () => {
       console.log('Clearing watchlist state');
       const { cleanupRealtimeSync } = get().actions;
-      cleanupRealtimeSync();
+      void cleanupRealtimeSync();
       set({ 
         watchedListingIds: new Set(),
         hasFetchedInitialWatchlist: false,
@@ -107,13 +106,14 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
         return;
       }
 
+      // Clean up any existing subscription first
+      await get().actions.cleanupRealtimeSync();
+
       console.log('Setting up realtime sync for user:', userId);
       try {
-        const { cleanupRealtimeSync } = get().actions;
-        cleanupRealtimeSync(); // Clean up any existing subscription
-
         const channel = supabase.channel(`watched_listings_${userId}`);
         
+        // Set up the channel before subscribing
         channel
           .on(
             'postgres_changes' as const,
@@ -123,7 +123,7 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
               table: 'watched_listings',
               filter: `user_id=eq.${userId}`,
             },
-            (payload: WatchlistPayload) => {
+            async (payload: WatchlistPayload) => {
               console.log('Received watchlist change:', payload.eventType);
               const { eventType, new: newRecord, old: oldRecord } = payload;
               
@@ -142,30 +142,45 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
                   console.log('Unhandled watchlist event type:', eventType);
                   break;
               }
+              // Return false to indicate sync handling is complete
+              return false;
             }
-          )
-          .subscribe((status) => {
+          );
+
+        // Subscribe to the channel
+        const status = await new Promise<'SUBSCRIBED' | string>((resolve) => {
+          channel.subscribe((status) => {
             console.log('Realtime subscription status:', status);
-            if (status === 'SUBSCRIBED') {
-              set({ realtimeSubscription: channel, error: null });
-            } else {
-              throw new Error(`Failed to subscribe to channel: ${status}`);
-            }
+            resolve(status);
           });
+        });
+
+        if (status === 'SUBSCRIBED') {
+          set({ realtimeSubscription: channel, error: null });
+          console.log('Successfully subscribed to watchlist updates');
+        } else {
+          throw new Error(`Failed to subscribe to channel: ${status}`);
+        }
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to setup realtime sync';
         console.error('Realtime sync setup error:', errorMessage);
         set({ error: `Failed to setup realtime sync: ${errorMessage}` });
-        throw error; // Re-throw for the component to handle
+        throw error;
       }
     },
 
-    cleanupRealtimeSync: () => {
+    cleanupRealtimeSync: async () => {
       const subscription = get().realtimeSubscription;
       if (subscription) {
         console.log('Cleaning up realtime subscription');
-        subscription.unsubscribe();
-        set({ realtimeSubscription: null });
+        try {
+          await subscription.unsubscribe();
+          await supabase.removeChannel(subscription);
+          set({ realtimeSubscription: null });
+          console.log('Successfully cleaned up realtime subscription');
+        } catch (error) {
+          console.error('Error cleaning up realtime subscription:', error);
+        }
       }
     },
   },
