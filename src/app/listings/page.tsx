@@ -333,7 +333,7 @@ export default function ListingsPage() {
               
               {/* Subtitle */}
               <p className="text-lg sm:text-xl text-gray-600 dark:text-bye-dark-text-secondary max-w-2xl mx-auto mb-8">
-                Discover amazing deals & bid on items from around the Campus
+                Discover amazing deals on items from around the Campus
               </p>
 
               {/* Stats or CTA */}
