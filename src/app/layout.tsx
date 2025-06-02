@@ -24,8 +24,14 @@ export default function RootLayout({
   const [showSplash, setShowSplash] = useState(true);
   const [isClient, setIsClient] = useState(false);
   const [mainAppVisible, setMainAppVisible] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
+    // Set initial theme from localStorage or system preference
+    const savedTheme = localStorage.getItem('theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const initialTheme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+    setTheme(initialTheme as 'light' | 'dark');
     setIsClient(true);
   }, []);
 
@@ -54,12 +60,13 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className={`h-full ${theme}`}>
       <head>
         <ThemeScript />
       </head>
       <body
         className={`${inter.className} bg-gray-50 dark:bg-bye-dark-bg-primary flex flex-col min-h-screen text-gray-900 dark:text-bye-dark-text-primary`}
+        suppressHydrationWarning
       >
         {showSplash && (
           <SplashScreen onHidden={handleSplashHidden} minDisplayTime={3500} />

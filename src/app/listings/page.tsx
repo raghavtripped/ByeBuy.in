@@ -155,25 +155,70 @@ export default function ListingsPage() {
 
   /* ----------------------- Initial & RT load ------------------------ */
   useEffect(() => {
-    // Fetch listings on mount, category change, or search term change
-    fetchListings(selectedCategory, currentSearchTerm);
+    let isMounted = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
-    // Subscribe to real-time updates for listings
-    const channel = supabase
-      .channel('public-listings-active-page')
-      .on<ListingTablePayload>(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'listings' },
-        () => fetchListings(selectedCategory, currentSearchTerm),
-      )
-      .subscribe();
+    const setupRealtimeSubscription = async () => {
+      try {
+        // Clean up any existing subscription
+        if (channel) {
+          await supabase.removeChannel(channel);
+        }
 
-    return () => {
-      supabase
-        .removeChannel(channel)
-        .then(() => console.log('Listings RT channel unsubscribed.'));
+        // Create and subscribe to new channel
+        channel = supabase.channel('public-listings-active-page');
+        
+        channel
+          .on<ListingTablePayload>(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'listings' },
+            async (payload) => {
+              console.log('Received listings update:', payload.eventType);
+              if (isMounted) {
+                await fetchListings(selectedCategory, currentSearchTerm);
+              }
+            }
+          )
+          .subscribe((status) => {
+            console.log('Listings RT subscription status:', status);
+            if (status === 'SUBSCRIBED') {
+              console.log('Successfully subscribed to listings updates');
+            } else {
+              console.error('Failed to subscribe to listings channel:', status);
+            }
+          });
+
+        console.log('Realtime subscription initialized');
+      } catch (error) {
+        console.error('Error setting up listings realtime subscription:', error);
+      }
     };
-  }, [selectedCategory, fetchListings, currentSearchTerm]); // Added currentSearchTerm
+
+    // Initial fetch and setup
+    const initialize = async () => {
+      try {
+        await fetchListings(selectedCategory, currentSearchTerm);
+        if (isMounted) {
+          await setupRealtimeSubscription();
+        }
+      } catch (error) {
+        console.error('Error during listings page initialization:', error);
+      }
+    };
+
+    initialize();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      if (channel) {
+        console.log('Cleaning up listings RT subscription');
+        supabase.removeChannel(channel)
+          .then(() => console.log('Listings RT channel unsubscribed.'))
+          .catch(err => console.error('Error removing listings channel:', err));
+      }
+    };
+  }, [selectedCategory, fetchListings, currentSearchTerm]);
 
   /* --------------------------- Handlers ----------------------------- */
   // REMOVED: handleCategoryClick function
