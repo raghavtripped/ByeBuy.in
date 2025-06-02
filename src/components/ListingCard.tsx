@@ -8,8 +8,7 @@ import {
   ClockIcon, 
   FireIcon, 
   SparklesIcon, 
-  TrophyIcon,
-  BookmarkIcon} from '@heroicons/react/24/outline';
+  TrophyIcon} from '@heroicons/react/24/outline';
 import { 
   ClockIcon as ClockIconSolid 
 } from '@heroicons/react/24/solid';
@@ -216,17 +215,11 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
           {/* Hover Overlay for Additional Actions */}
           <div className="absolute inset-0 bg-gradient-to-t from-indigo-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
             <div className="absolute bottom-4 left-4 right-4 pointer-events-auto opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0">
-              <div className="flex gap-2">
-                <button className="flex-1 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm text-gray-900 dark:text-bye-dark-text-primary px-4 py-2 rounded-lg font-medium text-sm hover:bg-white dark:hover:bg-bye-dark-bg-hover transition-all duration-200 shadow-lg flex items-center justify-center gap-2">
-                  <BookmarkIcon className="w-4 h-4" />
-                  Save
+              {listing.status === 'active' && !isEffectivelyEnded && (
+                <button className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium text-sm hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg">
+                  Place Bid
                 </button>
-                {listing.status === 'active' && !isEffectivelyEnded && (
-                  <button className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium text-sm hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg">
-                    Place Bid
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           </div>
         </div>
