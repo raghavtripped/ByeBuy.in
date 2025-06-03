@@ -46,7 +46,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
         <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-0 group-hover:opacity-20 transition-all duration-300"></div>
         
         <div className="relative bg-white dark:bg-bye-dark-bg-secondary rounded-2xl shadow-lg hover:shadow-2xl overflow-hidden transition-all duration-300 transform group-hover:-translate-y-1 border border-gray-100 dark:border-bye-dark-border-primary">
-          <Link href={`/listings/${listing.id}`} className="block">
+          <Link href={`/listings/${listing.id}`} className="block" scroll={true}>
             {/* Image Section with Overlays */}
             <div className="relative aspect-[4/3] overflow-hidden">
               {thumbnailUrl ? (
@@ -216,7 +216,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
           <div className="absolute inset-0 bg-gradient-to-t from-indigo-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
             <div className="absolute bottom-4 left-4 right-4 pointer-events-auto opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0">
               {listing.status === 'active' && !isEffectivelyEnded && (
-                <Link href={`/listings/${listing.id}`}>
+                <Link href={`/listings/${listing.id}`} scroll={true}>
                   <button className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium text-sm hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg">
                     Place Bid
                   </button>
@@ -354,13 +354,13 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
               {/* Action Buttons - Reduced height */}
               <div className="flex gap-2">
                 {listing.status === 'active' && !isEffectivelyEnded ? (
-                  <Link href={`/listings/${listing.id}`} className="w-full">
+                  <Link href={`/listings/${listing.id}`} className="w-full" scroll={true}>
                     <button className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150 shadow-sm">
                       Place Bid
                     </button>
                   </Link>
                 ) : (
-                  <Link href={`/listings/${listing.id}`} className="w-full">
+                  <Link href={`/listings/${listing.id}`} className="w-full" scroll={true}>
                     <button className="w-full bg-gray-100 dark:bg-bye-dark-bg-hover text-gray-700 dark:text-bye-dark-text-primary py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150">
                       View Details
                     </button>

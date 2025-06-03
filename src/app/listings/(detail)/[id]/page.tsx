@@ -159,6 +159,11 @@ export default function ListingDetails() {
     listingChannel.subscribe((s,e) => { if (s === 'CHANNEL_ERROR') console.error('Listing RT Error:', e); else if (s === 'TIMED_OUT') console.warn('Listing RT Timeout');});
     return () => { supabase.removeChannel(bidsChannel); supabase.removeChannel(listingChannel); };
   }, [id, loadData]);
+
+  // Add useEffect to scroll to top on mount
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
   
   const auctionEnded = !!(listing && (listing.status === 'closed' || listing.status === 'cancelled'));
   const photos = listing?.photos ?? [];

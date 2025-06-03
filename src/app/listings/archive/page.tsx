@@ -344,7 +344,7 @@ export default function ArchivedListingsPage() {
                 key={listing.id}
                 className="group relative flex flex-col bg-white dark:bg-bye-dark-bg-secondary rounded-lg shadow-sm border border-gray-200 dark:border-bye-dark-border-primary overflow-hidden transition-shadow hover:shadow-md"
               >
-                <Link href={`/listings/${listing.id}`} className="flex flex-col flex-grow">
+                <Link href={`/listings/${listing.id}`} className="flex flex-col flex-grow" scroll={true}>
                   {/* image  */}
                   <div className="aspect-video w-full bg-gray-100 dark:bg-bye-dark-bg-hover overflow-hidden relative rounded-t-lg">
                     {thumbnailUrl ? (
