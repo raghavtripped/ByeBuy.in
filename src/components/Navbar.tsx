@@ -6,7 +6,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { supabase, type User } from '@/lib/supabaseClient';
-import { useNotifications } from '@/hooks/useNotifications'; // Add this import
+import { useNotifications } from '@/hooks/useNotifications';
+import UserAvatar from '@/components/UserAvatar';
 
 // Import icons
 import { 
@@ -40,12 +41,13 @@ export default function Navbar() {
   /* ── State & Hooks ─────────────────────────────── */
   const router = useRouter();
   const pathname = usePathname();
-  const prevPathname = usePrevious(pathname); // Re-added prevPathname declaration
+  const prevPathname = usePrevious(pathname);
   const searchParams = useSearchParams();
   const pageSearchTerm = searchParams.get('search') || '';
-  const { showNotification } = useNotifications(); // Add notifications hook
+  const { showNotification } = useNotifications();
 
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<{ avatar_url: string | null; full_name: string | null } | null>(null);
   const prevUser = usePrevious(user);
   const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -60,16 +62,47 @@ export default function Navbar() {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const userButtonRef = useRef<HTMLButtonElement>(null);
 
-  /* ── Initial session fetch ──────────── */
+  /* ── Initial session and profile fetch ──────────── */
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    const fetchUserProfile = async (userId: string) => {
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('avatar_url, full_name')
+          .eq('id', userId)
+          .single();
+
+        if (profileError && profileError.code !== 'PGRST116') {
+          console.error('Navbar: Error fetching user profile', profileError);
+          setUserProfile(null);
+        } else {
+          setUserProfile(profileData);
+        }
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+        setUserProfile(null);
+      }
+    };
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const initialUser = session?.user ?? null;
+      setUser(initialUser);
+      if (initialUser) {
+        await fetchUserProfile(initialUser.id);
+      }
       setLoading(false);
     });
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_e, session) =>
-      setUser(session?.user ?? null)
-    );
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_e, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        await fetchUserProfile(currentUser.id);
+      } else {
+        setUserProfile(null);
+      }
+    });
+
     return () => authListener?.subscription.unsubscribe();
   }, []);
 
@@ -150,7 +183,7 @@ export default function Navbar() {
         type: 'error' 
       });
     }
-  }, [router, showNotification]); // Add showNotification to deps
+  }, [router, showNotification]);
 
   /* ── Sync search term with URL ──────────────────── */
   useEffect(() => {
@@ -340,9 +373,13 @@ export default function Navbar() {
                     <button
                       ref={userButtonRef}
                       onClick={toggleUserMenu}
-                      className="flex items-center space-x-2 p-2 text-gray-300 dark:text-bye-dark-text-secondary hover:text-white dark:hover:text-bye-dark-text-primary hover:bg-gray-800 dark:hover:bg-bye-dark-bg-hover rounded-lg transition-all duration-200"
+                      className="flex items-center space-x-2 p-1 text-gray-300 dark:text-bye-dark-text-secondary hover:text-white dark:hover:text-bye-dark-text-primary hover:bg-gray-800 dark:hover:bg-bye-dark-bg-hover rounded-full transition-all duration-200"
                     >
-                      <UserCircleIcon className="w-8 h-8" />
+                      <UserAvatar 
+                        avatarUrl={userProfile?.avatar_url} 
+                        fullName={userProfile?.full_name} 
+                        size="sm"
+                      />
                       <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${
                         isUserMenuOpen ? 'rotate-180' : ''
                       }`} />
@@ -535,10 +572,14 @@ export default function Navbar() {
             {user ? (
               <div className="space-y-3">
                 <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-bye-dark-bg-hover rounded-xl">
-                  <UserCircleIcon className="w-8 h-8 text-gray-400 dark:text-bye-dark-text-secondary" />
+                  <UserAvatar 
+                    avatarUrl={userProfile?.avatar_url} 
+                    fullName={userProfile?.full_name} 
+                    size="md"
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 dark:text-bye-dark-text-primary truncate">
-                      {user.email}
+                      {user?.email}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary">
                       Signed in
