@@ -36,14 +36,7 @@ const setupRealtimeChannel = async (
 
   return new Promise((resolve, reject) => {
     let resolved = false;
-    let timeout: NodeJS.Timeout;
-
-    const cleanup = () => {
-      if (timeout) clearTimeout(timeout);
-    };
-
-    // Set a timeout for the subscription attempt
-    timeout = setTimeout(() => {
+    const timeout = setTimeout(() => {
       if (!resolved) {
         cleanup();
         if (retryAttempt < maxRetries) {
@@ -54,6 +47,10 @@ const setupRealtimeChannel = async (
         }
       }
     }, 5000);
+
+    const cleanup = () => {
+      if (timeout) clearTimeout(timeout);
+    };
 
     channel
       .on(
