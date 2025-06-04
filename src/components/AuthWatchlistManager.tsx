@@ -5,6 +5,9 @@ import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { useWatchlistStore, type WatchlistState } from '@/stores/watchlistStore';
 
+// Keep track of whether the component is mounted globally
+let isGloballyMounted = false;
+
 export default function AuthWatchlistManager() {
   const { 
     initializeWatchlist,
@@ -15,21 +18,22 @@ export default function AuthWatchlistManager() {
   const setupAttempts = useRef(0);
   const maxAttempts = 3;
   const authChangeHandled = useRef(false);
+  const authListenerRef = useRef<{ subscription: { unsubscribe: () => void } } | null>(null);
 
   // Memoize the setup function to prevent unnecessary re-renders
   const setupWatchlist = useCallback(async (userId: string) => {
-    if (!isMounted.current || !userId) return;
+    if (!isMounted.current || !userId) {
+      return;
+    }
     
     try {
-      console.log('Setting up watchlist for user:', userId);
       await initializeWatchlist(userId);
       setupAttempts.current = 0;
       authChangeHandled.current = true;
     } catch (error) {
-      console.error('Error setting up watchlist:', error);
+      console.error('[AuthWatchlistManager] Error setting up watchlist:', error);
       if (setupAttempts.current < maxAttempts && isMounted.current) {
         setupAttempts.current++;
-        // Exponential backoff: 1s, 2s, 4s
         const delay = Math.pow(2, setupAttempts.current - 1) * 1000;
         setTimeout(() => {
           if (isMounted.current && !authChangeHandled.current) {
@@ -42,32 +46,41 @@ export default function AuthWatchlistManager() {
 
   // Memoize the auth change handler to prevent unnecessary re-renders
   const handleAuthChange = useCallback(async (event: AuthChangeEvent, session: Session | null) => {
-    if (!isMounted.current) return;
+    if (!isMounted.current) {
+      return;
+    }
     
     const userId = session?.user?.id ?? null;
-    console.log('Auth state change event:', event, 'userId:', userId);
 
     try {
       if (event === 'SIGNED_OUT' || !userId) {
-        console.log('User signed out or no user ID, clearing watchlist');
         await clearWatchlist();
         authChangeHandled.current = true;
       } else if (userId !== currentUserId && !authChangeHandled.current) {
-        console.log('New user session detected, setting up watchlist');
         await setupWatchlist(userId);
       }
     } catch (error) {
-      console.error('Error handling auth change:', error);
+      console.error('[AuthWatchlistManager] Error handling auth change:', error);
     }
   }, [setupWatchlist, clearWatchlist, currentUserId]);
 
   useEffect(() => {
-    // Reset flags on mount
+    // Prevent multiple instances from mounting
+    if (isGloballyMounted) {
+      isMounted.current = false;
+      return;
+    }
+
+    isGloballyMounted = true;
     isMounted.current = true;
     authChangeHandled.current = false;
     setupAttempts.current = 0;
 
-    let authListener: { subscription: { unsubscribe: () => void } } | null = null;
+    // Clean up any existing listener before setting up a new one
+    if (authListenerRef.current?.subscription) {
+      authListenerRef.current.subscription.unsubscribe();
+      authListenerRef.current = null;
+    }
 
     // Initialize auth state
     const initAuth = async () => {
@@ -77,9 +90,9 @@ export default function AuthWatchlistManager() {
         
         // Set up auth listener only after initial check
         const { data: listener } = supabase.auth.onAuthStateChange(handleAuthChange);
-        authListener = listener;
+        authListenerRef.current = listener;
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        console.error('[AuthWatchlistManager] Error initializing auth:', error);
       }
     };
 
@@ -87,10 +100,13 @@ export default function AuthWatchlistManager() {
     
     // Cleanup function
     return () => {
-      console.log('AuthWatchlistManager unmounting, cleaning up');
-      isMounted.current = false;
-      if (authListener?.subscription) {
-        authListener.subscription.unsubscribe();
+      if (isMounted.current) {
+        isGloballyMounted = false;
+        isMounted.current = false;
+        if (authListenerRef.current?.subscription) {
+          authListenerRef.current.subscription.unsubscribe();
+          authListenerRef.current = null;
+        }
       }
     };
   }, [handleAuthChange]); // Only depend on the memoized handler

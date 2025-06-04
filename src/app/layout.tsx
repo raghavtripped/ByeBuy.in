@@ -16,6 +16,19 @@ import AuthWatchlistManager from '@/components/AuthWatchlistManager';
 
 const inter = Inter({ subsets: ['latin'] });
 
+function getInitialTheme(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const stored = localStorage.getItem('theme');
+    if (stored === 'light' || stored === 'dark') {
+      return stored === 'dark';
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  } catch {
+    return false;
+  }
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -24,14 +37,9 @@ export default function RootLayout({
   const [showSplash, setShowSplash] = useState(true);
   const [isClient, setIsClient] = useState(false);
   const [mainAppVisible, setMainAppVisible] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [isDark] = useState(getInitialTheme);
 
   useEffect(() => {
-    // Set initial theme from localStorage or system preference
-    const savedTheme = localStorage.getItem('theme');
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const initialTheme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
-    setTheme(initialTheme as 'light' | 'dark');
     setIsClient(true);
   }, []);
 
@@ -44,13 +52,13 @@ export default function RootLayout({
 
   if (!isClient) {
     return (
-      <html lang="en" className="h-full">
+      <html lang="en" className={`h-full ${isDark ? 'dark' : ''}`}>
         <head>
           <ThemeScript />
           <title>ByeBuy – Loading...</title>
           <meta name="description" content="Your campus marketplace for timed auctions." />
         </head>
-        <body className={`${inter.className} bg-bye-dark-bg-primary flex flex-col min-h-screen`}>
+        <body className={`${inter.className} bg-bye-dark-bg-primary flex flex-col min-h-screen`} suppressHydrationWarning>
           <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gradient-to-br from-bye-dark-bg-primary via-bye-dark-bg-secondary to-bye-dark-bg-primary">
             <LoadingSpinner message="Initializing ByeBuy..." />
           </div>
@@ -60,7 +68,7 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en" className={`h-full ${theme}`}>
+    <html lang="en" className={`h-full ${isDark ? 'dark' : ''}`}>
       <head>
         <ThemeScript />
       </head>

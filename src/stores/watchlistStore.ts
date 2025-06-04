@@ -28,11 +28,33 @@ type WatchlistPayload = RealtimePostgresChangesPayload<{
 const setupRealtimeChannel = async (
   userId: string,
   onInsert: (listingId: string) => void,
-  onDelete: (listingId: string) => void
+  onDelete: (listingId: string) => void,
+  retryAttempt = 0
 ): Promise<RealtimeChannel> => {
+  const maxRetries = 3;
   const channel = supabase.channel(`watched_listings_${userId}`);
 
   return new Promise((resolve, reject) => {
+    let resolved = false;
+    let timeout: NodeJS.Timeout;
+
+    const cleanup = () => {
+      if (timeout) clearTimeout(timeout);
+    };
+
+    // Set a timeout for the subscription attempt
+    timeout = setTimeout(() => {
+      if (!resolved) {
+        cleanup();
+        if (retryAttempt < maxRetries) {
+          console.log(`Retrying subscription (attempt ${retryAttempt + 1}/${maxRetries})`);
+          resolve(setupRealtimeChannel(userId, onInsert, onDelete, retryAttempt + 1));
+        } else {
+          reject(new Error('Subscription timeout after max retries'));
+        }
+      }
+    }, 5000);
+
     channel
       .on(
         'postgres_changes' as const,
@@ -43,7 +65,6 @@ const setupRealtimeChannel = async (
           filter: `user_id=eq.${userId}`,
         },
         (payload: WatchlistPayload) => {
-          console.log('Received watchlist change:', payload.eventType);
           const { eventType, new: newRecord, old: oldRecord } = payload;
           
           switch (eventType) {
@@ -57,19 +78,22 @@ const setupRealtimeChannel = async (
                 onDelete(oldRecord.listing_id);
               }
               break;
-            default:
-              console.log('Unhandled watchlist event type:', eventType);
           }
-          return false; // Indicate sync handling is complete
         }
       )
       .subscribe((status) => {
-        console.log('Realtime subscription status:', status);
         if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to watchlist updates');
+          resolved = true;
+          cleanup();
           resolve(channel);
-        } else {
-          reject(new Error(`Failed to subscribe to channel: ${status}`));
+        } else if (status === 'CHANNEL_ERROR') {
+          cleanup();
+          if (retryAttempt < maxRetries) {
+            console.log(`Channel error, retrying (attempt ${retryAttempt + 1}/${maxRetries})`);
+            resolve(setupRealtimeChannel(userId, onInsert, onDelete, retryAttempt + 1));
+          } else {
+            reject(new Error(`Channel error after ${maxRetries} retries`));
+          }
         }
       });
   });
@@ -124,14 +148,12 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
 
       // If we're already initialized for this user, do nothing
       if (get().currentUserId === userId && get().hasFetchedInitialWatchlist) {
-        console.log('Watchlist already initialized for user:', userId);
         return;
       }
 
       // Clean up any existing subscription
       await cleanupRealtimeChannel(get().realtimeSubscription);
       
-      console.log('Initializing watchlist for user:', userId);
       set({ 
         isLoading: true, 
         error: null,
@@ -149,9 +171,8 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
         if (error) throw error;
         
         const listingIds = data?.map(item => item.listing_id) || [];
-        console.log('Fetched watchlist items:', listingIds.length);
         
-        // Setup realtime channel
+        // Setup realtime channel with retries
         const channel = await setupRealtimeChannel(
           userId,
           (listingId) => get().actions.addToWatchlistLocal(listingId),
@@ -166,9 +187,8 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
           error: null,
           realtimeSubscription: channel
         });
-      } catch (error: unknown) {
-        const errorMessage = error instanceof PostgrestError ? error.message : 'Failed to initialize watchlist';
-        console.error('Error initializing watchlist:', errorMessage);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to initialize watchlist';
         set({ 
           error: errorMessage,
           isLoading: false,
