@@ -7,6 +7,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import Slider from "react-slick";
 import WatchlistButton from '@/components/WatchlistButton';
+import ShareButtons from '@/components/ShareButtons';
 
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
@@ -240,22 +241,24 @@ export default function ListingDetails() {
                 )}
               </div> {/* End Photo Gallery Card */}
 
-              {/* Title & Watchlist Button - MOVED HERE, BELOW GALLERY */}
-              <div className="mt-6 flex items-start justify-between gap-4">
-                <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-bye-dark-text-primary leading-tight break-words">
-                  {listing.title}
-                </h1>
-                <WatchlistButton
-                  listingId={listing.id}
-                  currentUser={user}
-                  size="lg"
-                  className="flex-shrink-0 mt-1 text-gray-500 dark:text-bye-dark-text-secondary hover:text-red-500 dark:hover:text-red-400 bg-white dark:bg-bye-dark-bg-secondary p-2 rounded-full shadow hover:shadow-md"
-                />
+              {/* Title and Action Buttons */}
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-bye-dark-text-primary leading-tight break-words">
+                    {listing.title}
+                  </h1>
+                  <WatchlistButton
+                    listingId={listing.id}
+                    currentUser={user}
+                    size="lg"
+                    className="flex-shrink-0 mt-1 text-gray-500 dark:text-bye-dark-text-secondary hover:text-red-500 dark:hover:text-red-400 bg-white dark:bg-bye-dark-bg-secondary p-2 rounded-full shadow hover:shadow-md"
+                  />
+                </div>
               </div>
             </div> {/* End Left Column */}
 
             {/* RIGHT COLUMN: Core Details, Bidding Box - SHIFTED UP */}
-            <div className="lg:col-span-1 space-y-6"> {/* This will now be the first item in this column */}
+            <div className="lg:col-span-1 space-y-4"> {/* Reduced space-y-6 to space-y-4 */}
               {/* Seller Info - MOVED HERE */}
               {listing.seller_email && (
                 <div className="p-3 bg-white dark:bg-bye-dark-bg-secondary rounded-lg shadow-sm border border-gray-100 dark:border-bye-dark-border-primary">
@@ -327,7 +330,7 @@ export default function ListingDetails() {
 
               {/* "Auction Ended" State Card */}
               {auctionEnded && (
-                <div className={`p-4 rounded-xl shadow-lg my-4 border ${
+                <div className={`p-4 rounded-xl shadow-lg border ${
                     listing.status === 'closed' && listing.winning_bidder_id ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700/50' 
                   : listing.status === 'closed' ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700/50' 
                   : 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700/50'}`}>
@@ -408,29 +411,37 @@ export default function ListingDetails() {
                     )}
                 </div>
               )}
+
+              {/* Share Section */}
+              <div className="bg-white dark:bg-bye-dark-bg-secondary p-4 rounded-xl shadow-lg border border-gray-100 dark:border-bye-dark-border-primary">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary mb-3">Share this listing</h3>
+                <ShareButtons title={listing.title} />
+              </div>
             </div> {/* End Right Column */}
           </section> {/* End Section 1 */}
 
           {/* SECTION 2: Description & Rules (Side-by-Side on larger screens) */}
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8"> {/* Changed mb-12 to mt-8 */}
             <div>
               <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-bye-dark-text-primary border-b border-gray-200 dark:border-bye-dark-border-primary pb-2">Item Description</h2>
               <div className="p-5 bg-white dark:bg-bye-dark-bg-secondary rounded-lg shadow border border-gray-100 dark:border-bye-dark-border-primary prose dark:prose-invert prose-sm max-w-none">
-                 <p className="whitespace-pre-wrap">{listing.description || <span className="italic opacity-75">No detailed description provided.</span>}</p>
+                <p className="whitespace-pre-wrap">{listing.description || <span className="italic opacity-75">No detailed description provided.</span>}</p>
               </div>
             </div>
-            {listing.rules && (
-              <div>
-                 <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-bye-dark-text-primary border-b border-gray-200 dark:border-bye-dark-border-primary pb-2">Auction Rules</h2>
-                 <div className="p-5 bg-white dark:bg-bye-dark-bg-secondary rounded-lg shadow border border-gray-100 dark:border-bye-dark-border-primary prose dark:prose-invert prose-sm max-w-none">
-                    <p className="whitespace-pre-wrap">{listing.rules}</p>
-                 </div>
-              </div>
-            )}
+            <div>
+              <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-bye-dark-text-primary border-b border-gray-200 dark:border-bye-dark-border-primary pb-2">
+                {listing.rules ? 'Auction Rules' : '\u00A0'} {/* Using non-breaking space to maintain height */}
+              </h2>
+              {listing.rules ? (
+                <div className="p-5 bg-white dark:bg-bye-dark-bg-secondary rounded-lg shadow border border-gray-100 dark:border-bye-dark-border-primary prose dark:prose-invert prose-sm max-w-none">
+                  <p className="whitespace-pre-wrap">{listing.rules}</p>
+                </div>
+              ) : null}
+            </div>
           </section>
 
           {/* SECTION 3: Listing Chat */}
-          <section className="mb-12">
+          <section className="mt-12"> {/* Changed mb-12 to mt-12 */}
             {id && user !== undefined && listing && (
                 <ListingChat listingId={id} currentUser={user} />
             )}
