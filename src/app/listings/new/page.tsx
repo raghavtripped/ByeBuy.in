@@ -1,7 +1,7 @@
 // src/app/listings/new/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react'; // Removed FormEvent, ChangeEvent
+import { useState, useEffect, useRef } from 'react'; // Removed FormEvent, ChangeEvent
 import { Camera, X, Plus, Clock, Tag, DollarSign, FileText, Image as ImageIcon, Check, AlertCircle, Info } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -71,6 +71,12 @@ export default function ModernListingPage() {
   const [submitMessage, setSubmitMessage] = useState<SubmitMessage | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
 
+  // Add refs for the first input of each step
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const minPriceInputRef = useRef<HTMLInputElement>(null);
+  const photoUploadRef = useRef<HTMLInputElement>(null);
+  const categoryButtonsRef = useRef<HTMLButtonElement>(null);
+
   const steps = [
     { id: 0, title: 'Basic Info', icon: FileText },
     { id: 1, title: 'Pricing', icon: DollarSign },
@@ -126,14 +132,54 @@ export default function ModernListingPage() {
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      setValidationErrors({}); 
-      setCurrentStep(prev => Math.min(prev + 1, steps.length - 1));
+      setValidationErrors({});
+      setCurrentStep(prev => {
+        const nextStep = Math.min(prev + 1, steps.length - 1);
+        // Focus the appropriate element in the next step
+        setTimeout(() => {
+          switch (nextStep) {
+            case 0: // Basic Info
+              titleInputRef.current?.focus();
+              break;
+            case 1: // Pricing
+              minPriceInputRef.current?.focus();
+              break;
+            case 2: // Photos
+              photoUploadRef.current?.focus();
+              break;
+            case 3: // Category & Rules
+              categoryButtonsRef.current?.focus();
+              break;
+          }
+        }, 100); // Small delay to ensure the new step is rendered
+        return nextStep;
+      });
     }
   };
 
   const handlePrev = () => {
-    setCurrentStep(prev => Math.max(prev - 1, 0));
-    setValidationErrors({}); 
+    setValidationErrors({});
+    setCurrentStep(prev => {
+      const prevStep = Math.max(prev - 1, 0);
+      // Focus the appropriate element in the previous step
+      setTimeout(() => {
+        switch (prevStep) {
+          case 0: // Basic Info
+            titleInputRef.current?.focus();
+            break;
+          case 1: // Pricing
+            minPriceInputRef.current?.focus();
+            break;
+          case 2: // Photos
+            photoUploadRef.current?.focus();
+            break;
+          case 3: // Category & Rules
+            categoryButtonsRef.current?.focus();
+            break;
+        }
+      }, 100);
+      return prevStep;
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -357,6 +403,7 @@ export default function ModernListingPage() {
                   />
                 </label>
                 <input
+                  ref={titleInputRef}
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -476,6 +523,7 @@ export default function ModernListingPage() {
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-bye-dark-text-secondary font-medium">₹</span>
                   <input
+                    ref={minPriceInputRef}
                     type="number"
                     value={minPrice}
                     onChange={(e) => setMinPrice(e.target.value)}
@@ -574,6 +622,7 @@ export default function ModernListingPage() {
                     </div>
                   </div>
                   <input
+                    ref={photoUploadRef}
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/heic,.heic"
                     multiple
@@ -659,6 +708,7 @@ export default function ModernListingPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {CATEGORIES_FOR_FORM.map(category => (
                     <button
+                      ref={categoryButtonsRef}
                       type="button"
                       key={category}
                       role="radio"
