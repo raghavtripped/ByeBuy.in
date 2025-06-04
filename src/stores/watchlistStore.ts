@@ -32,8 +32,9 @@ const setupRealtimeChannel = async (
 ): Promise<RealtimeChannel> => {
   const maxRetries = 3;
   const channel = supabase.channel(`watched_listings_${userId}`);
+  let isSubscribed = false;
 
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     let resolved = false;
     const timeout = setTimeout(() => {
       if (!resolved) {
@@ -42,60 +43,72 @@ const setupRealtimeChannel = async (
           console.log(`Retrying subscription (attempt ${retryAttempt + 1}/${maxRetries})`);
           resolve(setupRealtimeChannel(userId, onInsert, onDelete, retryAttempt + 1));
         } else {
-          console.log('Subscription timeout, but proceeding with channel');
-          resolved = true;
-          resolve(channel);
+          console.log('Subscription timeout, proceeding with error');
+          reject(new Error('Subscription timeout after max retries'));
         }
       }
     }, retryAttempt === 0 ? 2000 : 5000);
 
-    const cleanup = () => {
+    const cleanup = async () => {
       if (timeout) clearTimeout(timeout);
+      if (isSubscribed) {
+        try {
+          await channel.unsubscribe();
+          await supabase.removeChannel(channel);
+        } catch (error) {
+          console.error('Error during channel cleanup:', error);
+        }
+      }
     };
 
-    channel
-      .on(
-        'postgres_changes' as const,
-        {
-          event: '*',
-          schema: 'public',
-          table: 'watched_listings',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload: WatchlistPayload) => {
-          const { eventType, new: newRecord, old: oldRecord } = payload;
-          
-          switch (eventType) {
-            case 'INSERT':
-              if (newRecord?.listing_id) {
-                onInsert(newRecord.listing_id);
-              }
-              break;
-            case 'DELETE':
-              if (oldRecord?.listing_id) {
-                onDelete(oldRecord.listing_id);
-              }
-              break;
+    try {
+      channel
+        .on(
+          'postgres_changes' as const,
+          {
+            event: '*',
+            schema: 'public',
+            table: 'watched_listings',
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload: WatchlistPayload) => {
+            const { eventType, new: newRecord, old: oldRecord } = payload;
+            
+            switch (eventType) {
+              case 'INSERT':
+                if (newRecord?.listing_id) {
+                  onInsert(newRecord.listing_id);
+                }
+                break;
+              case 'DELETE':
+                if (oldRecord?.listing_id) {
+                  onDelete(oldRecord.listing_id);
+                }
+                break;
+            }
           }
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED' || status === 'TIMED_OUT') {
-          resolved = true;
-          cleanup();
-          resolve(channel);
-        } else if (status === 'CHANNEL_ERROR') {
-          cleanup();
-          if (retryAttempt < maxRetries) {
-            console.log(`Channel error, retrying (attempt ${retryAttempt + 1}/${maxRetries})`);
-            resolve(setupRealtimeChannel(userId, onInsert, onDelete, retryAttempt + 1));
-          } else {
-            console.log('Channel error, but proceeding with channel');
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            isSubscribed = true;
             resolved = true;
             resolve(channel);
+          } else if (status === 'CHANNEL_ERROR') {
+            cleanup().then(() => {
+              if (retryAttempt < maxRetries) {
+                console.log(`Channel error, retrying (attempt ${retryAttempt + 1}/${maxRetries})`);
+                resolve(setupRealtimeChannel(userId, onInsert, onDelete, retryAttempt + 1));
+              } else {
+                console.log('Channel error after max retries');
+                reject(new Error('Channel error after max retries'));
+              }
+            });
           }
-        }
-      });
+        });
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
   });
 };
 
@@ -158,7 +171,8 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
         isLoading: true, 
         error: null,
         currentUserId: userId,
-        hasFetchedInitialWatchlist: false 
+        hasFetchedInitialWatchlist: false,
+        realtimeSubscription: null // Clear the subscription immediately
       });
       
       try {
@@ -172,56 +186,35 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
         
         const listingIds = data?.map(item => item.listing_id) || [];
         
-        // For empty watchlists, we can skip waiting for the realtime subscription
-        if (listingIds.length === 0) {
-          console.log('Empty watchlist detected, skipping realtime subscription wait');
-          set({ 
-            watchedListingIds: new Set(),
-            hasFetchedInitialWatchlist: true,
-            isLoading: false,
-            error: null,
-            realtimeSubscription: null,
-            currentUserId: userId
-          });
-          
-          // Set up realtime subscription in the background
-          setupRealtimeChannel(
-            userId,
-            (listingId) => get().actions.addToWatchlistLocal(listingId),
-            (listingId) => get().actions.removeFromWatchlistLocal(listingId)
-          ).then(channel => {
-            if (get().currentUserId === userId) {  // Only update if still same user
-              set({ realtimeSubscription: channel });
-            } else {
-              cleanupRealtimeChannel(channel);
-            }
-          }).catch(console.error);  // Log any errors but don't affect UI
-          
-          return;
-        }
-        
-        // Setup realtime channel with retries for non-empty watchlists
+        // Set up realtime channel
         const channel = await setupRealtimeChannel(
           userId,
           (listingId) => get().actions.addToWatchlistLocal(listingId),
           (listingId) => get().actions.removeFromWatchlistLocal(listingId)
         );
         
-        // Update state with initial data and channel
-        set({ 
-          watchedListingIds: new Set(listingIds),
-          hasFetchedInitialWatchlist: true,
-          isLoading: false,
-          error: null,
-          realtimeSubscription: channel
-        });
+        // Only update state if we're still on the same user
+        if (get().currentUserId === userId) {
+          set({ 
+            watchedListingIds: new Set(listingIds),
+            hasFetchedInitialWatchlist: true,
+            isLoading: false,
+            error: null,
+            realtimeSubscription: channel
+          });
+        } else {
+          // Clean up if user has changed
+          await cleanupRealtimeChannel(channel);
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to initialize watchlist';
+        console.error('[WatchlistStore] Error:', errorMessage);
         set({ 
           error: errorMessage,
           isLoading: false,
           hasFetchedInitialWatchlist: true,
-          currentUserId: null
+          currentUserId: null,
+          realtimeSubscription: null
         });
       }
     },

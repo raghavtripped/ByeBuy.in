@@ -10,6 +10,7 @@ export default function AuthWatchlistManager() {
     clearWatchlist
   } = useWatchlistStore((state: WatchlistState) => state.actions);
   const isMounted = useRef(false);
+  const initializationAttempted = useRef(false);
   const authListenerRef = useRef<{ subscription: { unsubscribe: () => void } } | null>(null);
 
   useEffect(() => {
@@ -17,6 +18,9 @@ export default function AuthWatchlistManager() {
 
     // Initial auth check
     const initializeAuth = async () => {
+      if (initializationAttempted.current) return;
+      initializationAttempted.current = true;
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user && isMounted.current) {
@@ -47,7 +51,14 @@ export default function AuthWatchlistManager() {
 
     return () => {
       isMounted.current = false;
-      authListenerRef.current?.subscription.unsubscribe();
+      if (authListenerRef.current?.subscription) {
+        try {
+          authListenerRef.current.subscription.unsubscribe();
+          authListenerRef.current = null;
+        } catch (error) {
+          console.error('[AuthWatchlistManager] Error during cleanup:', error);
+        }
+      }
       void clearWatchlist();
     };
   }, [initializeWatchlist, clearWatchlist]);
