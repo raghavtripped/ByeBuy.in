@@ -779,14 +779,14 @@ export default function ModernListingPage() {
       <div className="bg-white dark:bg-bye-dark-bg-secondary border-b border-gray-200 dark:border-bye-dark-border-primary sticky top-0 z-30 shadow-sm">
         <div className="px-4 py-3 sm:py-4">
           <div className="max-w-2xl mx-auto">
-            <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <div className="flex items-center justify-between mb-4 sm:mb-4">
               <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-bye-dark-text-primary">Create New Listing</h1>
               <div className="text-xs sm:text-sm text-gray-500 dark:text-bye-dark-text-secondary">
                 Step {currentStep + 1} of {steps.length}: <span className="font-semibold text-gray-700 dark:text-bye-dark-text-primary">{steps[currentStep].title}</span>
               </div>
             </div>
             
-            <div className="flex items-center">
+            <div className="flex items-center min-w-0">
               {steps.map((step, index) => {
                 const IconComponent = step.icon;
                 const isActive = index === currentStep;
@@ -795,32 +795,36 @@ export default function ModernListingPage() {
                 return (
                   <div key={step.id} className={`flex items-center ${index > 0 ? 'flex-1' : ''}`}>
                     {index > 0 && (
-                       <div className={`flex-auto border-t-2 transition-colors duration-300 ease-in-out ${
+                      <div className={`flex-shrink flex-grow border-t-2 transition-colors duration-300 ease-in-out mx-1 sm:mx-2 ${
                         isCompleted || isActive ? 'border-indigo-600 dark:border-indigo-400' : 'border-gray-300 dark:border-bye-dark-border-primary'
                       }`}></div>
                     )}
                     <div 
-                        className={`flex flex-col items-center cursor-pointer transition-all duration-200 ${isActive ? 'scale-110' : 'opacity-70 hover:opacity-100'}`}
-                        onClick={isCompleted ? () => setCurrentStep(index) : undefined}
+                      className={`flex flex-col items-center cursor-pointer transition-all duration-200 flex-shrink-0 ${
+                        isActive ? 'scale-110' : 'opacity-70 hover:opacity-100'
+                      }`}
+                      onClick={isCompleted ? () => setCurrentStep(index) : undefined}
                     >
-                        <div className={`flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 mb-1 transition-all duration-300 ease-in-out ${
+                      <div className={`flex items-center justify-center w-8 h-8 sm:w-12 sm:h-12 rounded-full border-2 mb-1 transition-all duration-300 ease-in-out ${
                         isCompleted 
-                            ? 'border-green-500 bg-green-500 dark:border-green-400 dark:bg-green-400' 
-                            : isActive 
+                          ? 'border-green-500 bg-green-500 dark:border-green-400 dark:bg-green-400' 
+                          : isActive 
                             ? 'border-indigo-600 bg-indigo-600 dark:border-indigo-500 dark:bg-indigo-500 shadow-lg' 
                             : 'border-gray-300 dark:border-bye-dark-border-primary bg-white dark:bg-bye-dark-bg-secondary'
-                        }`}>
+                      }`}>
                         {isCompleted ? (
-                            <Check className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                          <Check className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                         ) : (
-                            <IconComponent className={`w-5 h-5 sm:w-6 sm:h-6 ${isActive ? 'text-white' : 'text-gray-400 dark:text-bye-dark-text-secondary'}`} />
+                          <IconComponent className={`w-4 h-4 sm:w-6 sm:h-6 ${
+                            isActive ? 'text-white' : 'text-gray-400 dark:text-bye-dark-text-secondary'
+                          }`} />
                         )}
-                        </div>
-                        <span className={`text-xs text-center font-medium transition-colors ${
-                            isActive ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-500 dark:text-bye-dark-text-secondary'
-                        }`}>
+                      </div>
+                      <span className={`text-[10px] sm:text-xs text-center font-medium whitespace-nowrap px-0.5 transition-colors ${
+                        isActive ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-500 dark:text-bye-dark-text-secondary'
+                      }`}>
                         {step.title}
-                        </span>
+                      </span>
                     </div>
                   </div>
                 );
