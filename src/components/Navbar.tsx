@@ -223,7 +223,7 @@ export default function Navbar() {
   ];
 
   /* ── Styles ────────────────────────── */
-  const navLinkClasses = (href: string, isActive: boolean = pathname === href) =>
+  const navLinkClasses = (href: string, isActive: boolean = pathname === href || (href === '/' && (pathname === '/' || pathname === '/listings'))) =>
     `group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
       isActive
         ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/25'

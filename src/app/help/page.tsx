@@ -347,13 +347,14 @@ export default function HelpCenterPage() {
           
           {/* Search Bar */}
           <div className="max-w-2xl mx-auto relative">
-            <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-bye-dark-text-secondary" />
+            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
+              <MagnifyingGlassIcon className="w-5 h-5 text-white" />
+            </div>
             <input
               type="text"
               placeholder="Search help articles..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              // Updated background to match gradient feel
               className="w-full pl-12 pr-4 py-4 bg-white/10 backdrop-blur-sm border-0 rounded-2xl text-white placeholder-white/70 text-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-transparent shadow-xl
                          dark:bg-white/10 dark:text-bye-dark-text-primary dark:placeholder-bye-dark-text-secondary"
             />
