@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
-import { PostgrestError } from '@supabase/postgrest-js';
 import { supabase } from '@/lib/supabaseClient';
 
 export interface WatchlistState {
