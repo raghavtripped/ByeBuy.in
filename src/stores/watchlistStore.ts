@@ -33,7 +33,7 @@ const setupRealtimeChannel = async (
   const maxRetries = 3;
   const channel = supabase.channel(`watched_listings_${userId}`);
 
-  return new Promise((resolve, reject) => {
+  return new Promise(resolve => {
     let resolved = false;
     const timeout = setTimeout(() => {
       if (!resolved) {
