@@ -46,7 +46,8 @@ export default function InfoPopover({
   // Enhanced mobile-aware positioning
   const getPanelPositionClasses = () => {
     if (isMobile) {
-      return 'fixed inset-0 flex items-center justify-center z-50 p-4';
+      // Center the popup and constrain its size to 60% width and 70% height (35% on each side from center)
+      return 'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] max-h-[70%] z-50';
     }
 
     const baseClasses = 'absolute z-50';
@@ -72,7 +73,7 @@ export default function InfoPopover({
   // Get panel width classes based on mobile state
   const getPanelWidthClasses = () => {
     if (isMobile) {
-      return 'w-full max-w-sm mx-auto';
+      return ''; // Width is handled by getPanelPositionClasses for mobile
     }
     return panelWidth;
   };
@@ -104,59 +105,60 @@ export default function InfoPopover({
             <Transition
               as={Fragment}
               show={isOpen}
-              enter="transition ease-out duration-200"
-              enterFrom="opacity-0 scale-95"
+              enter="transition ease-out duration-300"
+              enterFrom="opacity-0 scale-90"
               enterTo="opacity-100 scale-100"
-              leave="transition ease-in duration-150"
+              leave="transition ease-in duration-200"
               leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
+              leaveTo="opacity-0 scale-90"
             >
               <Popover.Panel 
                 className={`${getPanelPositionClasses()} ${getPanelWidthClasses()}
                            bg-white dark:bg-bye-dark-bg-secondary 
                            border border-gray-200 dark:border-bye-dark-border-primary 
-                           rounded-xl shadow-xl focus:outline-none
+                           rounded-xl shadow-lg focus:outline-none
                            overflow-hidden`}
                 static
               >
                 {({ close }) => (
                   <div className="relative">
-                    {/* Mobile backdrop */}
+                    {/* Mobile backdrop - now just semi-transparent without blur */}
                     {isMobile && (
                       <div 
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm -z-10"
+                        className="fixed inset-0 bg-black/40 -z-10"
                         onClick={() => close()}
                         aria-hidden="true"
                       />
                     )}
 
-                    <div className={`p-4 ${isMobile ? 'p-5' : 'p-4'}`}>
-                      {/* Mobile close button */}
+                    <div className={`${isMobile ? 'p-4' : 'p-4'}`}>
+                      {/* Mobile close button - fixed position */}
                       {isMobile && (
                         <button
                           onClick={() => close()}
-                          className="absolute top-4 right-4 p-2 rounded-full
-                                   text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-200
+                          className="absolute top-2 right-2 p-1.5 rounded-full
+                                   bg-gray-100 dark:bg-bye-dark-bg-hover
+                                   text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200
                                    focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500
                                    transition-colors"
                           aria-label="Close"
                         >
-                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
                       )}
 
                       {title && (
-                        <h4 className={`font-semibold mb-2 pr-8
+                        <h4 className={`font-medium mb-2 pr-7
                                      text-gray-900 dark:text-bye-dark-text-primary
-                                     ${isMobile ? 'text-base' : 'text-sm'}`}>
+                                     ${isMobile ? 'text-sm' : 'text-sm'}`}>
                           {title}
                         </h4>
                       )}
                       
-                      <div className={`space-y-2 text-gray-600 dark:text-bye-dark-text-secondary
-                                    ${isMobile ? 'text-base leading-relaxed' : 'text-sm'}`}>
+                      <div className={`space-y-1.5 text-gray-600 dark:text-bye-dark-text-secondary
+                                    ${isMobile ? 'text-xs leading-relaxed' : 'text-sm'}`}>
                         {content}
                       </div>
                     </div>
