@@ -259,16 +259,22 @@ export default function ListingDetails() {
               {/* Seller Info - MOVED HERE */}
               {listing.seller_email && (
                 <div className="p-3 bg-white dark:bg-bye-dark-bg-secondary rounded-lg shadow-sm border border-gray-100 dark:border-bye-dark-border-primary">
-                    <p className="text-sm text-gray-600 dark:text-bye-dark-text-secondary flex items-center">
-                        <UserIcon /> Sold by: {' '}
-                        {listing.seller_id ? (
-                            <Link href={`/user/${listing.seller_id}`} className="ml-1 font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline">
-                                {listing.seller_email.split('@')[0]}
-                            </Link>
-                        ) : (
-                            <span className="ml-1 font-medium text-gray-700 dark:text-bye-dark-text-primary">{listing.seller_email.split('@')[0]}</span>
-                        )}
-                    </p>
+                  <p className="text-sm text-gray-600 dark:text-bye-dark-text-secondary flex items-center">
+                    <UserIcon /> Sold by: {' '}
+                    {listing.seller_id ? (
+                      <Link
+                        href={`/sellers/${listing.seller_id}`}
+                        className="ml-1 font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline"
+                        scroll={true}
+                      >
+                        {listing.seller_email.split('@')[0]}
+                      </Link>
+                    ) : (
+                      <span className="ml-1 font-medium text-gray-700 dark:text-bye-dark-text-primary">
+                        {listing.seller_email.split('@')[0]}
+                      </span>
+                    )}
+                  </p>
                 </div>
               )}
 
