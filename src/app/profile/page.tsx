@@ -63,6 +63,7 @@ const ProfileLinkItem: React.FC<ProfileLinkItemProps> = ({
 /* ------------------------------ page ------------------------------------ */
 export default function ProfilePage() {
   const router = useRouter();
+  console.log('[ProfilePage] Component mounted');
 
   /* ----------------------------- state ----------------------------------- */
   const [authUser, setAuthUser] = useState<User | null>(null);
@@ -87,19 +88,28 @@ export default function ProfilePage() {
 
   /* ---------------------- fetch auth & profile -------------------------- */
   useEffect(() => {
+    console.log('[ProfilePage] Starting auth & profile fetch');
     const fetchAuthAndProfile = async () => {
+      console.log('[ProfilePage] Fetching session');
       const { data: sessRes, error: sessErr } =
         await supabase.auth.getSession();
       const session = sessRes?.session;
 
-      if (sessErr || !session?.user) {
+      if (sessErr) {
+        console.error('[ProfilePage] Session error:', sessErr);
+      }
+
+      if (!session?.user) {
+        console.log('[ProfilePage] No session, redirecting to auth');
         router.replace('/auth?redirect=/profile');
         return;
       }
 
+      console.log('[ProfilePage] Got user session');
       const user = session.user;
       setAuthUser(user);
 
+      console.log('[ProfilePage] Fetching profile data');
       const { data: pData, error: pErr } = await supabase
         .from('profiles')
         .select('full_name, avatar_url, hostel, batch, bio')
@@ -107,11 +117,13 @@ export default function ProfilePage() {
         .single();
 
       if (pErr && pErr.code !== 'PGRST116') {
-        console.error('Profile fetch error:', pErr.message);
+        console.error('[ProfilePage] Profile fetch error:', pErr.message);
       } else {
+        console.log('[ProfilePage] Profile data fetched:', pData);
         setProfileData(pData ?? null);
       }
 
+      console.log('[ProfilePage] Setting page loading to false');
       setPageLoading(false);
     };
 
@@ -119,17 +131,28 @@ export default function ProfilePage() {
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_evt, ses) => {
-        if (_evt === 'SIGNED_OUT') router.replace('/auth');
+        console.log('[ProfilePage] Auth state changed:', _evt);
+        if (_evt === 'SIGNED_OUT') {
+          console.log('[ProfilePage] User signed out, redirecting');
+          router.replace('/auth');
+        }
         setAuthUser(ses?.user ?? null);
       }
     );
-    return () => listener?.subscription.unsubscribe();
+    return () => {
+      console.log('[ProfilePage] Cleaning up auth listener');
+      listener?.subscription.unsubscribe();
+    }
   }, [router]);
 
   /* --------------------------- fetch stats ----------------------------- */
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser) {
+      console.log('[ProfilePage] No auth user, skipping stats fetch');
+      return;
+    }
 
+    console.log('[ProfilePage] Starting stats fetch');
     const fetchStats = async () => {
       setStatsLoading(true);
       setStatsError(null);
@@ -161,11 +184,12 @@ export default function ProfilePage() {
             .eq('winning_bidder_id', authUser.id),
         ]);
 
+        console.log('[ProfilePage] Stats fetched:', { act, sold, won });
         setActiveListingsCount(act ?? 0);
         setItemsSoldCount(sold ?? 0);
         setAuctionsWonCount(won ?? 0);
       } catch (err) {
-        console.error('Stats fetch error:', err);
+        console.error('[ProfilePage] Stats fetch error:', err);
         setStatsError('Could not load stats');
         setActiveListingsCount(0);
         setItemsSoldCount(0);
@@ -180,19 +204,25 @@ export default function ProfilePage() {
 
   /* ------------------------------ logout ------------------------------ */
   const handleLogout = async () => {
+    console.log('[ProfilePage] Starting logout');
     setPageLoading(true);
     const { error } = await supabase.auth.signOut();
-    if (error) alert(`Logout failed: ${error.message}`);
+    if (error) {
+      console.error('[ProfilePage] Logout error:', error);
+      alert(`Logout failed: ${error.message}`);
+    }
     setPageLoading(false);
   };
 
   /* --------------------------- render guards -------------------------- */
-  if (pageLoading)
+  if (pageLoading) {
+    console.log('[ProfilePage] Rendering loading state');
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-bye-dark-bg-primary p-4">
         <LoadingSpinner message="Loading profile" />
       </div>
     );
+  }
 
   if (!authUser)
     return (

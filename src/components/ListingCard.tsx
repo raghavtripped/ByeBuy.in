@@ -57,7 +57,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                   style={{ objectFit: 'cover' }}
                   className="transition-all duration-500 group-hover:scale-110"
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
-                  priority={false}
+                  priority={true}
                   onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-image.svg'; }}
                 />
               ) : (
@@ -216,11 +216,15 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
           <div className="absolute inset-0 bg-gradient-to-t from-indigo-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
             <div className="absolute bottom-4 left-4 right-4 pointer-events-auto opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0">
               {listing.status === 'active' && !isEffectivelyEnded && (
-                <Link href={`/listings/${listing.id}`} scroll={true}>
-                  <button className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium text-sm hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg">
-                    Place Bid
-                  </button>
-                </Link>
+                <button 
+                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium text-sm hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                >
+                  Place Bid
+                </button>
               )}
             </div>
           </div>
@@ -354,17 +358,25 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
               {/* Action Buttons - Reduced height */}
               <div className="flex gap-2">
                 {listing.status === 'active' && !isEffectivelyEnded ? (
-                  <Link href={`/listings/${listing.id}`} className="w-full" scroll={true}>
-                    <button className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150 shadow-sm">
-                      Place Bid
-                    </button>
-                  </Link>
+                  <button 
+                    className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150 shadow-sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                  >
+                    Place Bid
+                  </button>
                 ) : (
-                  <Link href={`/listings/${listing.id}`} className="w-full" scroll={true}>
-                    <button className="w-full bg-gray-100 dark:bg-bye-dark-bg-hover text-gray-700 dark:text-bye-dark-text-primary py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150">
-                      View Details
-                    </button>
-                  </Link>
+                  <button 
+                    className="w-full bg-gray-100 dark:bg-bye-dark-bg-hover text-gray-700 dark:text-bye-dark-text-primary py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                  >
+                    View Details
+                  </button>
                 )}
               </div>
             </div>
