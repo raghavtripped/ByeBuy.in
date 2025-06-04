@@ -42,10 +42,12 @@ const setupRealtimeChannel = async (
           console.log(`Retrying subscription (attempt ${retryAttempt + 1}/${maxRetries})`);
           resolve(setupRealtimeChannel(userId, onInsert, onDelete, retryAttempt + 1));
         } else {
-          reject(new Error('Subscription timeout after max retries'));
+          console.log('Subscription timeout, but proceeding with channel');
+          resolved = true;
+          resolve(channel);
         }
       }
-    }, 5000);
+    }, retryAttempt === 0 ? 2000 : 5000);
 
     const cleanup = () => {
       if (timeout) clearTimeout(timeout);
@@ -78,7 +80,7 @@ const setupRealtimeChannel = async (
         }
       )
       .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
+        if (status === 'SUBSCRIBED' || status === 'TIMED_OUT') {
           resolved = true;
           cleanup();
           resolve(channel);
@@ -88,7 +90,9 @@ const setupRealtimeChannel = async (
             console.log(`Channel error, retrying (attempt ${retryAttempt + 1}/${maxRetries})`);
             resolve(setupRealtimeChannel(userId, onInsert, onDelete, retryAttempt + 1));
           } else {
-            reject(new Error(`Channel error after ${maxRetries} retries`));
+            console.log('Channel error, but proceeding with channel');
+            resolved = true;
+            resolve(channel);
           }
         }
       });
@@ -168,7 +172,35 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
         
         const listingIds = data?.map(item => item.listing_id) || [];
         
-        // Setup realtime channel with retries
+        // For empty watchlists, we can skip waiting for the realtime subscription
+        if (listingIds.length === 0) {
+          console.log('Empty watchlist detected, skipping realtime subscription wait');
+          set({ 
+            watchedListingIds: new Set(),
+            hasFetchedInitialWatchlist: true,
+            isLoading: false,
+            error: null,
+            realtimeSubscription: null,
+            currentUserId: userId
+          });
+          
+          // Set up realtime subscription in the background
+          setupRealtimeChannel(
+            userId,
+            (listingId) => get().actions.addToWatchlistLocal(listingId),
+            (listingId) => get().actions.removeFromWatchlistLocal(listingId)
+          ).then(channel => {
+            if (get().currentUserId === userId) {  // Only update if still same user
+              set({ realtimeSubscription: channel });
+            } else {
+              cleanupRealtimeChannel(channel);
+            }
+          }).catch(console.error);  // Log any errors but don't affect UI
+          
+          return;
+        }
+        
+        // Setup realtime channel with retries for non-empty watchlists
         const channel = await setupRealtimeChannel(
           userId,
           (listingId) => get().actions.addToWatchlistLocal(listingId),

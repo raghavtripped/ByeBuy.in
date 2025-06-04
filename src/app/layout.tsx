@@ -13,6 +13,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import NotificationProvider from '@/components/NotificationProvider';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import AuthWatchlistManager from '@/components/AuthWatchlistManager';
+import { supabase } from '@/lib/supabaseClient';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -38,9 +39,23 @@ export default function RootLayout({
   const [isClient, setIsClient] = useState(false);
   const [mainAppVisible, setMainAppVisible] = useState(false);
   const [isDark] = useState(getInitialTheme);
+  const [authInitialized, setAuthInitialized] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
+    // Initialize auth first
+    supabase.auth.getSession().then(() => {
+      setAuthInitialized(true);
+      setIsClient(true);
+    }).catch(console.error);
+
+    // Set up auth listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      setAuthInitialized(true);
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const handleSplashHidden = () => {
@@ -50,7 +65,7 @@ export default function RootLayout({
     }, 50);
   };
 
-  if (!isClient) {
+  if (!isClient || !authInitialized) {
     return (
       <html lang="en" className={`h-full ${isDark ? 'dark' : ''}`}>
         <head>
