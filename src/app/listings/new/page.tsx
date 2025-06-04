@@ -139,14 +139,18 @@ export default function ModernListingPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const filesArr = Array.from(e.target.files);
-    const imageFiles = filesArr.filter((f) => f.type.startsWith('image/'));
+    const imageFiles = filesArr.filter((f) => 
+      f.type.startsWith('image/') || 
+      f.name.toLowerCase().endsWith('.heic') || 
+      f.type === 'image/heic'
+    );
 
     if (imageFiles.length === 0 && filesArr.length > 0) {
-        showNotification({ message: 'Only image files (PNG, JPG, WEBP) are accepted.', type: 'error' });
-        return;
+      showNotification({ message: 'Only image files (PNG, JPG, WEBP, HEIC) are accepted.', type: 'error' });
+      return;
     }
     if (photos.length + imageFiles.length > MAX_PHOTOS) {
-        showNotification({ message: `You can upload a maximum of ${MAX_PHOTOS} photos.`, type: 'error' });
+      showNotification({ message: `You can upload a maximum of ${MAX_PHOTOS} photos.`, type: 'error' });
     }
 
     setPhotos(prev => {
@@ -549,7 +553,7 @@ export default function ModernListingPage() {
                         <li>Show item from multiple angles.</li>
                         <li>Highlight key features and any defects.</li>
                         <li>First photo is your cover image.</li>
-                        <li>Max {MAX_PHOTOS} photos. JPG, PNG, WEBP accepted.</li>
+                        <li>Max {MAX_PHOTOS} photos. JPG, PNG, WEBP, HEIC accepted.</li>
                       </ul>
                     </div>
                   }
@@ -571,7 +575,7 @@ export default function ModernListingPage() {
                   </div>
                   <input
                     type="file"
-                    accept="image/jpeg,image/png,image/webp"
+                    accept="image/jpeg,image/png,image/webp,image/heic,.heic"
                     multiple
                     onChange={handleFileChange}
                     className="sr-only"
@@ -612,7 +616,7 @@ export default function ModernListingPage() {
                         <span className="text-[10px] text-gray-400 dark:text-bye-dark-text-secondary/70">({MAX_PHOTOS - photos.length} left)</span>
                         <input
                           type="file"
-                          accept="image/jpeg,image/png,image/webp"
+                          accept="image/jpeg,image/png,image/webp,image/heic,.heic"
                           multiple
                           onChange={handleFileChange}
                           className="sr-only"
