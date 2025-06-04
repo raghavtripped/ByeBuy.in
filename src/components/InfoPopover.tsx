@@ -15,7 +15,7 @@ export default function InfoPopover({
   title, 
   content, 
   iconSize = 'w-5 h-5', 
-  panelWidth = 'w-72 max-w-[calc(100vw-2rem)]', // Improved mobile width handling
+  panelWidth = 'w-72 max-w-[calc(100vw-2rem)]',
   panelPlacement = 'bottom-start',
   className 
 }: InfoPopoverProps) {
@@ -46,7 +46,7 @@ export default function InfoPopover({
   // Enhanced mobile-aware positioning
   const getPanelPositionClasses = () => {
     if (isMobile) {
-      return 'fixed inset-x-4 bottom-4 z-50';
+      return 'fixed inset-0 flex items-center justify-center z-50 p-4';
     }
 
     const baseClasses = 'absolute z-50';
@@ -67,6 +67,14 @@ export default function InfoPopover({
       default:
         return `${baseClasses} left-0 mt-2`;
     }
+  };
+
+  // Get panel width classes based on mobile state
+  const getPanelWidthClasses = () => {
+    if (isMobile) {
+      return 'w-full max-w-sm mx-auto';
+    }
+    return panelWidth;
   };
 
   return (
@@ -97,17 +105,17 @@ export default function InfoPopover({
               as={Fragment}
               show={isOpen}
               enter="transition ease-out duration-200"
-              enterFrom="opacity-0 translate-y-2"
-              enterTo="opacity-100 translate-y-0"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
               leave="transition ease-in duration-150"
-              leaveFrom="opacity-100 translate-y-0"
-              leaveTo="opacity-0 translate-y-2"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
             >
               <Popover.Panel 
-                className={`${getPanelPositionClasses()} ${panelWidth}
+                className={`${getPanelPositionClasses()} ${getPanelWidthClasses()}
                            bg-white dark:bg-bye-dark-bg-secondary 
                            border border-gray-200 dark:border-bye-dark-border-primary 
-                           rounded-lg shadow-lg focus:outline-none
+                           rounded-xl shadow-xl focus:outline-none
                            overflow-hidden`}
                 static
               >
@@ -116,38 +124,39 @@ export default function InfoPopover({
                     {/* Mobile backdrop */}
                     {isMobile && (
                       <div 
-                        className="fixed inset-0 bg-black/50 -z-10"
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm -z-10"
                         onClick={() => close()}
                         aria-hidden="true"
                       />
                     )}
 
-                    <div className="p-4">
+                    <div className={`p-4 ${isMobile ? 'p-5' : 'p-4'}`}>
                       {/* Mobile close button */}
                       {isMobile && (
                         <button
                           onClick={() => close()}
-                          className="absolute top-3 right-3 p-2 rounded-full
+                          className="absolute top-4 right-4 p-2 rounded-full
                                    text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-200
                                    focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500
                                    transition-colors"
                           aria-label="Close"
                         >
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
                       )}
 
                       {title && (
-                        <h4 className="text-sm font-semibold mb-2 pr-8
-                                     text-gray-900 dark:text-bye-dark-text-primary">
+                        <h4 className={`font-semibold mb-2 pr-8
+                                     text-gray-900 dark:text-bye-dark-text-primary
+                                     ${isMobile ? 'text-base' : 'text-sm'}`}>
                           {title}
                         </h4>
                       )}
                       
-                      <div className="text-sm space-y-2 
-                                    text-gray-600 dark:text-bye-dark-text-secondary">
+                      <div className={`space-y-2 text-gray-600 dark:text-bye-dark-text-secondary
+                                    ${isMobile ? 'text-base leading-relaxed' : 'text-sm'}`}>
                         {content}
                       </div>
                     </div>
