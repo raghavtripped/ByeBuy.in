@@ -4,5 +4,24 @@
   "deno.unstable": true,
   "deno.enablePaths": [
     "./supabase/functions" // Correct path
-  ]
+  ],
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+  "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+  "[typescript]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  },
+  "eslint.format.enable": true,
+  "eslint.lintTask.enable": true,
+  "eslint.debug": false
 }

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { supabase, User } from '@/lib/supabaseClient';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import InfoPopover from '@/components/InfoPopover';
 
 /* ---------- Constants ---------------------------------------------------- */
 const CATEGORIES_FOR_FORM = [
@@ -340,13 +341,25 @@ export default function NewListingPage() {
 
         {/* Title */}
         <div>
-          <label
-            htmlFor="title"
-            className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-bye-dark-text-primary"
-          >
-            Listing Title{' '}
-            <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
-          </label>
+          <div className="flex items-center gap-x-1.5 mb-1.5">
+            <label
+              htmlFor="title"
+              className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary"
+            >
+              Listing Title
+            </label>
+            <span className="text-red-500 dark:text-red-400">*</span>
+            <InfoPopover
+              iconSize="w-4 h-4"
+              title="Crafting a Great Title"
+              panelPlacement="bottom-start"
+              content={
+                <p>
+                  Make your title clear, concise, and descriptive. Include key details like item name, brand, and condition (e.g., &ldquo;Used iPhone 12 Pro, 128GB, Excellent Condition&rdquo;).
+                </p>
+              }
+            />
+          </div>
           <input
             id="title"
             type="text"
@@ -395,13 +408,25 @@ export default function NewListingPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-6">
           {/* Min price */}
           <div>
-            <label
-              htmlFor="minPrice"
-              className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-bye-dark-text-primary"
-            >
-              Minimum Bid Price (₹){' '}
-              <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
-            </label>
+            <div className="flex items-center gap-x-1.5 mb-1.5">
+              <label
+                htmlFor="minPrice"
+                className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary"
+              >
+                Minimum Bid Price (₹)
+              </label>
+              <span className="text-red-500 dark:text-red-400">*</span>
+              <InfoPopover
+                iconSize="w-4 h-4"
+                title="Setting Your Starting Bid"
+                panelPlacement="bottom-start"
+                content={
+                  <p>
+                    This is the lowest price you&apos;re willing to accept. The first bid must be at least this amount. You cannot change this once bidding starts.
+                  </p>
+                }
+              />
+            </div>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-bye-dark-text-secondary pointer-events-none">
                 ₹
@@ -428,13 +453,25 @@ export default function NewListingPage() {
 
           {/* Upper cap */}
           <div>
-            <label
-              htmlFor="upperCap"
-              className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-bye-dark-text-primary"
-            >
-              Buy Now Price (₹){' '}
+            <div className="flex items-center gap-x-1.5 mb-1.5">
+              <label
+                htmlFor="upperCap"
+                className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary"
+              >
+                Buy Now Price (₹)
+              </label>
               <span className="text-gray-500 text-xs">(Optional)</span>
-            </label>
+              <InfoPopover
+                iconSize="w-4 h-4"
+                title="What's a Buy Now Price?"
+                panelPlacement="bottom-start"
+                content={
+                  <p>
+                    If a bidder places a bid equal to or greater than this price, the auction ends immediately, and they win the item. This price must be higher than your Minimum Bid. Can be edited if no bids are placed.
+                  </p>
+                }
+              />
+            </div>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-bye-dark-text-secondary pointer-events-none">
                 ₹
@@ -461,13 +498,25 @@ export default function NewListingPage() {
 
         {/* End time */}
         <div>
-          <label
-            htmlFor="endTime"
-            className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-bye-dark-text-primary"
-          >
-            Auction End Time{' '}
-            <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
-          </label>
+          <div className="flex items-center gap-x-1.5 mb-1.5">
+            <label
+              htmlFor="endTime"
+              className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary"
+            >
+              Auction End Time
+            </label>
+            <span className="text-red-500 dark:text-red-400">*</span>
+            <InfoPopover
+              iconSize="w-4 h-4"
+              title="Auction Duration"
+              panelPlacement="bottom-start"
+              content={
+                <p>
+                  Select when your auction will automatically close. Listings must be active for at least 1 hour and up to 45 days. Time is based on your browser&apos;s local timezone.
+                </p>
+              }
+            />
+          </div>
           <input
             id="endTime"
             type="datetime-local"
@@ -490,12 +539,24 @@ export default function NewListingPage() {
 
         {/* Rules */}
         <div>
-          <label
-            htmlFor="rules"
-            className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-bye-dark-text-primary"
-          >
-            Auction Rules <span className="text-gray-500 text-xs">(Optional)</span>
-          </label>
+          <div className="flex items-center gap-x-1.5 mb-1.5">
+            <label
+              htmlFor="rules"
+              className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary"
+            >
+              Auction Rules
+            </label>
+            <span className="text-gray-500 text-xs">(Optional)</span>
+            <InfoPopover
+              iconSize="w-4 h-4"
+              title="Setting Auction Rules"
+              content={
+                <p>
+                  Clearly state any specific terms for your auction, like &ldquo;Pickup only from Hostel X,&rdquo; &ldquo;Payment via UPI within 24 hours of winning,&rdquo; or &ldquo;No returns.&rdquo; Keep it fair and concise.
+                </p>
+              }
+            />
+          </div>
           <textarea
             id="rules"
             rows={3}
@@ -543,13 +604,28 @@ export default function NewListingPage() {
 
         {/* Photo upload */}
         <div>
-          <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-bye-dark-text-primary">
-            Upload Photos{' '}
-            <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
-            <span className="text-gray-500 dark:text-bye-dark-text-secondary text-xs ml-2">
+          <div className="flex items-center gap-x-1.5 mb-1.5">
+            <label className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary">
+              Upload Photos
+            </label>
+            <span className="text-red-500 dark:text-red-400">*</span>
+            <span className="text-gray-500 dark:text-bye-dark-text-secondary text-xs">
               (Up to {MAX_PHOTOS} images)
             </span>
-          </label>
+            <InfoPopover
+              iconSize="w-4 h-4"
+              title="Photo Guidelines"
+              content={
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>Clear, well-lit photos are key!</li>
+                  <li>Show the item from multiple angles</li>
+                  <li>Highlight any flaws or damage</li>
+                  <li>First photo will be the cover image</li>
+                  <li>PNG, JPG, WEBP accepted</li>
+                </ul>
+              }
+            />
+          </div>
 
           <label
             htmlFor="photo-upload"
