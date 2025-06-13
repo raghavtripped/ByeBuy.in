@@ -339,11 +339,12 @@ export default function Navbar() {
               <Link href="/" className="flex items-center space-x-3 group">
                 <div className="relative">
                   <Image
-                    src="/bidly-logo.svg" // Assuming your logo handles dark/light mode or is neutral
+                    src="/bidly-logo.svg"
                     alt="ByeBuy logo"
                     width={32}
                     height={32}
                     priority
+                    unoptimized={true}
                     className="h-8 w-8 transition-transform duration-200 group-hover:scale-110"
                   />
                   <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-400 dark:to-purple-500 rounded-full blur opacity-0 group-hover:opacity-20 transition-opacity duration-200" />

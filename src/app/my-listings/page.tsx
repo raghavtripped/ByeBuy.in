@@ -597,6 +597,7 @@ export default function MyListingsPage() {
                         height={80}
                         style={{ objectFit: 'cover' }}
                         className="w-full h-full transition-transform duration-300 group-hover:scale-105"
+                        quality={85}
                         onError={(e) => {
                           (e.target as HTMLImageElement).src =
                             '/placeholder-image.svg';

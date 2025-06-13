@@ -38,6 +38,14 @@ const nextConfig: NextConfig = {
       //   pathname: '/images/**',
       // },
     ],
+    // Optimize for common device sizes
+    deviceSizes: [640, 750, 828, 1080, 1200],
+    // Optimize for common image sizes in UI
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    // Use WebP for optimal compression
+    formats: ['image/webp'],
+    // Cache optimized images for 31 days
+    minimumCacheTTL: 2678400,
   },
   // Add other Next.js config options here if needed in the future
 };

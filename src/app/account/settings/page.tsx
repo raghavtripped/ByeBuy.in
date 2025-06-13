@@ -265,12 +265,15 @@ export default function AccountSettingsPage() {
         <div className="flex flex-col items-center sm:flex-row sm:items-start gap-4 sm:gap-6">
           <div className="flex-shrink-0">
             <Image
-              src={avatarPreview || '/default-avatar.png'} // Provide a default avatar placeholder
-              alt="Profile Avatar Preview"
-              width={96} // w-24
-              height={96} // h-24
-              className="rounded-full object-cover w-24 h-24 border-2 border-gray-300 dark:border-bye-dark-border-primary shadow-sm"
-              onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
+              src={avatarPreview || '/placeholder-avatar.svg'}
+              alt="Profile"
+              width={120}
+              height={120}
+              className="rounded-full object-cover"
+              quality={85}
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/placeholder-avatar.svg';
+              }}
             />
           </div>
           <div className="flex-grow text-center sm:text-left">

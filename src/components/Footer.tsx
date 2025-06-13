@@ -38,7 +38,7 @@ const SocialIcon: React.FC<{ href: string; iconSrc: string; label: string }> = (
                dark:text-bye-dark-text-secondary dark:hover:text-indigo-400
                transition-colors"
   >
-    <Image src={iconSrc} alt={label} width={20} height={20} />
+    <Image src={iconSrc} alt={label} width={20} height={20} unoptimized={true} />
   </a>
 );
 
@@ -99,6 +99,8 @@ const Footer: React.FC = () => {
                 width={32}
                 height={32}
                 className="h-8 w-auto group-hover:opacity-90 transition-opacity"
+                unoptimized={true}
+                priority={true}
               />
               <span className="font-bold text-xl text-slate-800
                                dark:text-bye-dark-text-primary
@@ -178,6 +180,8 @@ const Footer: React.FC = () => {
                         width={32}
                         height={32}
                         className="h-8 w-auto group-hover:opacity-90 transition-opacity"
+                        unoptimized={true}
+                        priority={true}
                     />
                     <span className="font-bold text-xl text-slate-800
                                    dark:text-bye-dark-text-primary

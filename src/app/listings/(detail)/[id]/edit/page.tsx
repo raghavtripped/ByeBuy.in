@@ -674,7 +674,15 @@ export default function EditListingPage() {
                       !photo.isNew && photosToDeleteFromStorage.includes(photo.url) ? 'opacity-40' : ''
                     }`}
                   >
-                    <Image src={photo.url} alt={`Photo ${index + 1}`} fill sizes="(max-width: 640px) 33vw, 20vw" className="object-cover" />
+                    <Image 
+                      src={photo.url} 
+                      alt={`Photo ${index + 1}`} 
+                      fill 
+                      sizes="(max-width: 640px) 33vw, 20vw" 
+                      className="object-cover" 
+                      quality={85}
+                      priority={index === 0}
+                    />
                     {!(!photo.isNew && photosToDeleteFromStorage.includes(photo.url)) && (
                       <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity flex flex-col items-center justify-center p-1 space-y-1 opacity-0 group-hover:opacity-100">
                         {index > 0 && (

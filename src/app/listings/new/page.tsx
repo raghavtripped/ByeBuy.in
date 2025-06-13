@@ -642,6 +642,8 @@ export default function ModernListingPage() {
                           fill
                           sizes="(max-width: 640px) 50vw, 33vw"
                           className="object-cover rounded-xl border-2 border-gray-200 dark:border-bye-dark-border-primary"
+                          quality={85}
+                          priority={idx === 0}
                         />
                         {idx === 0 && (
                           <div className="absolute top-1.5 left-1.5 bg-indigo-600 dark:bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">

@@ -58,6 +58,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                   className="transition-all duration-500 group-hover:scale-110"
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
                   priority={true}
+                  quality={85}
                   onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-image.svg'; }}
                 />
               ) : (
@@ -250,6 +251,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                   style={{ objectFit: 'cover' }}
                   sizes="(max-width: 640px) 100vw, 50vw"
                   priority={false}
+                  quality={75}
                   onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-image.svg'; }}
                 />
               ) : (

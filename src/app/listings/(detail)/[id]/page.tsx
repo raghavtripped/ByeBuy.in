@@ -223,6 +223,7 @@ export default function ListingDetails() {
                             style={{ objectFit: 'contain' }} 
                             sizes="(max-width: 1024px) 100vw, 67vw" 
                             priority={index === 0}
+                            quality={85}
                             className="bg-gray-50 dark:bg-bye-dark-bg-hover"
                           />
                         </div>

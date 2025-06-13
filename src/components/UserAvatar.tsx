@@ -68,6 +68,8 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
         }
         style={{ objectFit: 'cover' }}
         onError={handleImageError}
+        quality={75}
+        priority={size === 'lg' || size === 'xl'}
       />
     </div>
   );
