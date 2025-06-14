@@ -110,7 +110,7 @@ const Footer: React.FC = () => {
               </span>
             </Link>
             <p className="text-sm text-slate-500 dark:text-bye-dark-text-secondary">
-              Your campus marketplace.
+              Your friendly campus marketplace.
             </p>
           </div>
 

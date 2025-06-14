@@ -50,6 +50,12 @@ export default function WatchlistButton({
         const { error } = await supabase
           .from('watched_listings')
           .insert([{ user_id: currentUser.id, listing_id: listingId }]);
+        
+        // If we get a conflict error, it means the item is already in the watchlist
+        if (error?.code === '23505') { // PostgreSQL unique violation code
+          // Keep the optimistic update since the item is actually in the watchlist
+          return;
+        }
         if (error) throw error;
       } else {
         const { error } = await supabase
