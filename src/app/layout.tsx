@@ -86,13 +86,17 @@ export default function RootLayout({
     <html lang="en" className={`h-full ${isDark ? 'dark' : ''}`}>
       <head>
         <ThemeScript />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <meta name="theme-color" content="#000000" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body
         className={`${inter.className} bg-gray-50 dark:bg-bye-dark-bg-primary flex flex-col min-h-screen text-gray-900 dark:text-bye-dark-text-primary`}
         suppressHydrationWarning
       >
         {showSplash && (
-          <SplashScreen onHidden={handleSplashHidden} minDisplayTime={3500} />
+          <SplashScreen onHidden={handleSplashHidden} minDisplayTime={2000} />
         )}
         
         <div 
@@ -102,7 +106,7 @@ export default function RootLayout({
           <ErrorBoundary>
             <AuthWatchlistManager />
             <Navbar />
-            <main className="pt-4 flex-grow container mx-auto px-4 sm:px-6 lg:p-8">
+            <main className="pt-4 flex-grow container mx-auto px-3 sm:px-4 md:px-6 lg:p-8">
               <ErrorBoundary>
                 {children}
               </ErrorBoundary>
