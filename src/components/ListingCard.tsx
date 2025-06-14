@@ -208,7 +208,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                     <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
                       <FireIcon className="w-3 h-3" />
                       <span className="text-xs font-medium">
-                        {Math.floor(Math.random() * 8) + 2} bids
+                        {listing.bid_count} bid{listing.bid_count === 1 ? '' : 's'}
                       </span>
                     </div>
                   )}
@@ -359,7 +359,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                 {hasActiveBids && (
                   <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
                     <FireIcon className="w-3 h-3" />
-                    <span className="font-medium">{Math.floor(Math.random() * 8) + 2} bids</span>
+                    <span className="font-medium">{listing.bid_count} bid{listing.bid_count === 1 ? '' : 's'}</span>
                   </div>
                 )}
               </div>
