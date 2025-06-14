@@ -42,6 +42,16 @@ export default function RootLayout({
   const [authInitialized, setAuthInitialized] = useState(false);
 
   useEffect(() => {
+    // Check if this is a visibility change refresh
+    const isVisibilityRefresh = new URLSearchParams(window.location.search).get('visibility_refresh') === 'true';
+    if (isVisibilityRefresh) {
+      // Skip splash screen for visibility refresh
+      setShowSplash(false);
+      setMainAppVisible(true);
+      // Clean up the URL parameter without refreshing
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
     // Initialize auth first
     supabase.auth.getSession().then(() => {
       setAuthInitialized(true);
@@ -53,8 +63,21 @@ export default function RootLayout({
       setAuthInitialized(true);
     });
 
+    // Add visibility change handler
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Add visibility_refresh parameter before reloading
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('visibility_refresh', 'true');
+        window.location.href = currentUrl.toString();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       subscription?.unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
