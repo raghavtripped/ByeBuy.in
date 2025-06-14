@@ -111,8 +111,8 @@ export default function AuthPage() {
                           inputPlaceholder: '#94a3b8',
                           messageText: '#ef4444',
                           messageTextDanger: '#dc2626',
-                          anchorTextColor: '#4285F4', // Google Blue
-                          anchorTextHoverColor: '#357ABD', // Darker Google Blue
+                          anchorTextColor: '#7c3aed', // violet-600
+                          anchorTextHoverColor: '#6d28d9', // violet-700
                         },
                         space: { // Keeping space consistent
                           spaceSmall: '4px', spaceMedium: '8px', spaceLarge: '16px',
@@ -134,7 +134,7 @@ export default function AuthPage() {
                       },
                     },
                     className: { // Overriding specific component classes
-                      anchor: 'font-medium text-[#4285F4] hover:text-[#357ABD] dark:text-[#4285F4] dark:hover:text-[#357ABD] transition-colors hover:underline',
+                      anchor: 'font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300 transition-colors hover:underline',
                       button: 'font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 bg-[#4285F4] hover:bg-[#357ABD] dark:bg-[#4285F4] dark:hover:bg-[#357ABD]',
                       container: 'space-y-6', // Spacing between elements in the form
                       input: 'transition-all duration-200 focus:ring-2 focus:ring-[#4285F4]/30 dark:focus:ring-[#4285F4]/30 focus:border-[#4285F4] dark:focus:border-[#4285F4] bg-white dark:bg-bye-dark-bg-hover border-gray-300 dark:border-bye-dark-border-primary text-gray-900 dark:text-bye-dark-text-primary placeholder-gray-400 dark:placeholder-bye-dark-text-secondary',
