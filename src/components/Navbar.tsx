@@ -646,17 +646,17 @@ export default function Navbar() {
           </div>
 
           {/* Mobile Menu Footer */}
-          <div className="p-6 border-t border-gray-200 dark:border-gray-800">
+          <div className="p-4 border-t border-gray-200 dark:border-gray-800">
             {user ? (
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2 p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
                   <UserAvatar
                     avatarUrl={userProfile?.avatar_url}
                     fullName={userProfile?.full_name}
-                    size="md" // Slightly larger for mobile footer
+                    size="sm" // Smaller size for compactness
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    <p className="text-xs font-medium text-gray-900 dark:text-white truncate">
                       {userProfile?.full_name || user?.email}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -666,9 +666,9 @@ export default function Navbar() {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center justify-center px-4 py-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-medium transition-all duration-200"
+                  className="w-full flex items-center justify-center px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg font-medium transition-all duration-200"
                 >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
                   Sign Out
@@ -677,7 +677,7 @@ export default function Navbar() {
             ) : (
               <Link
                 href="/auth"
-                className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500 text-white rounded-xl font-medium transition-all duration-200 hover:shadow-lg"
+                className="w-full flex items-center justify-center px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500 text-white rounded-lg font-medium transition-all duration-200 hover:shadow-lg"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Sign In
