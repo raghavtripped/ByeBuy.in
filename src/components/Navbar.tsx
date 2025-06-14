@@ -544,26 +544,26 @@ export default function Navbar() {
       >
         <div className="flex flex-col h-full">
           {/* Mobile Menu Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Menu</h2>
-            <div className="flex items-center space-x-2">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">Menu</h2>
+            <div className="flex items-center space-x-1">
               {/* Theme Toggle in Mobile Menu */}
               <button
                 onClick={toggleTheme}
-                className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
+                className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
                 aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
               >
                 {theme === 'light' ? (
-                  <MoonIcon className="w-5 h-5" />
+                  <MoonIcon className="w-4 h-4" />
                 ) : (
-                  <SunIcon className="w-5 h-5" />
+                  <SunIcon className="w-4 h-4" />
                 )}
               </button>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
+                className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
               >
-                <XMarkIcon className="w-6 h-6" />
+                <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
           </div>
