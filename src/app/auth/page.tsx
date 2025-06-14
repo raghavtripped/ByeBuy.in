@@ -107,12 +107,33 @@ export default function AuthPage() {
                     }}
                     providers={['google']} 
                     socialLayout="horizontal" 
-                    theme="dark" // This tells Supabase Auth UI to use its dark variant.
-                                 // It will pick up OS preference if not set, but 'dark' forces it.
-                                 // You could also make this dynamic based on your ThemeScript:
-                                 // theme={document.documentElement.classList.contains('dark') ? 'dark' : 'light'}
-                                 // (but that requires careful handling of isMounted and theme state)
-                    redirectTo={getRedirectUrlClientSide()}
+                    theme="dark"
+                    localization={{
+                        variables: {
+                            sign_in: {
+                                email_label: 'Email address',
+                                password_label: 'Password',
+                            },
+                            sign_up: {
+                                email_label: 'Email address',
+                                password_label: 'Password',
+                            },
+                        },
+                    }}
+                    onError={(error) => {
+                        // Handle specific error messages
+                        if (error.message.includes('Access Denied') || error.message.includes('email addresses are allowed')) {
+                            showNotification({
+                                message: 'Please use your @iimidr.ac.in email address to sign up.',
+                                type: 'error'
+                            });
+                        } else {
+                            showNotification({
+                                message: 'An error occurred during authentication. Please try again.',
+                                type: 'error'
+                            });
+                        }
+                    }}
                 />
             )}
             {!isMounted && ( // Optional: Show a simple loader while waiting for mount
@@ -120,6 +141,15 @@ export default function AuthPage() {
                     <p className="text-sm text-gray-500 dark:text-bye-dark-text-secondary">Loading authentication form...</p>
                 </div>
             )}
+            {/* Informative text about email domain restriction */}
+            <div className="mt-4 text-center">
+                <p className="text-sm text-gray-500 dark:text-bye-dark-text-secondary">
+                    Only @iimidr.ac.in email addresses are allowed
+                </p>
+                <p className="text-xs text-gray-400 dark:text-bye-dark-text-secondary mt-1">
+                    This ensures a safe and trusted campus marketplace
+                </p>
+            </div>
         </div>
     </div>
   );
