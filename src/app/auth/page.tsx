@@ -94,18 +94,18 @@ export default function AuthPage() {
                     variables: {
                       default: { // Overrides for both light and dark unless specified
                         colors: {
-                          brand: '#4285F4', // Google Blue
-                          brandAccent: '#357ABD', // Darker Google Blue
+                          brand: '#7c3aed', // Changed to violet-600
+                          brandAccent: '#6d28d9', // Changed to violet-700
                           brandButtonText: 'white',
-                          defaultButtonBackground: '#f8fafc',
-                          defaultButtonBackgroundHover: '#f1f5f9',
+                          defaultButtonBackground: '#f1f5f9', // Changed to match hover state
+                          defaultButtonBackgroundHover: '#e2e8f0', // Darker hover state
                           defaultButtonBorder: '#e2e8f0',
                           defaultButtonText: '#334155',
                           dividerBackground: '#e2e8f0',
                           inputBackground: '#ffffff',
                           inputBorder: '#e2e8f0',
                           inputBorderHover: '#c7d2fe',
-                          inputBorderFocus: '#4285F4', // Google Blue
+                          inputBorderFocus: '#7c3aed', // Changed to violet-600
                           inputText: '#1e293b',
                           inputLabelText: '#475569',
                           inputPlaceholder: '#94a3b8',
@@ -135,9 +135,9 @@ export default function AuthPage() {
                     },
                     className: { // Overriding specific component classes
                       anchor: 'font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300 transition-colors hover:underline',
-                      button: 'font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 bg-[#4285F4] hover:bg-[#357ABD] dark:bg-[#4285F4] dark:hover:bg-[#357ABD]',
+                      button: 'font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 bg-violet-600 hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-700',
                       container: 'space-y-6', // Spacing between elements in the form
-                      input: 'transition-all duration-200 focus:ring-2 focus:ring-[#4285F4]/30 dark:focus:ring-[#4285F4]/30 focus:border-[#4285F4] dark:focus:border-[#4285F4] bg-white dark:bg-bye-dark-bg-hover border-gray-300 dark:border-bye-dark-border-primary text-gray-900 dark:text-bye-dark-text-primary placeholder-gray-400 dark:placeholder-bye-dark-text-secondary',
+                      input: 'transition-all duration-200 focus:ring-2 focus:ring-violet-500/30 dark:focus:ring-violet-500/30 focus:border-violet-600 dark:focus:border-violet-600 bg-white dark:bg-bye-dark-bg-hover border-gray-300 dark:border-bye-dark-border-primary text-gray-900 dark:text-bye-dark-text-primary placeholder-gray-400 dark:placeholder-bye-dark-text-secondary',
                       label: 'font-medium text-gray-700 dark:text-bye-dark-text-primary',
                       message: 'text-sm p-3 rounded-md bg-red-50 dark:bg-red-900/25 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700/50', // For error messages
                     },
