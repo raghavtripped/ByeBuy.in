@@ -110,7 +110,7 @@ const Footer: React.FC = () => {
               </span>
             </Link>
             <p className="text-sm text-slate-500 dark:text-bye-dark-text-secondary">
-              Your campus marketplace for buying and selling amazing finds.
+              Your campus marketplace.
             </p>
           </div>
 
@@ -192,7 +192,7 @@ const Footer: React.FC = () => {
                 </Link>
             </div>
             <p className="text-sm text-slate-500 dark:text-bye-dark-text-secondary mb-6"> {/* Added mb-6 for spacing */}
-              Your campus marketplace for buying and selling amazing finds.
+              Your campus marketplace.
             </p>
 
             {/* Using the new FooterSection component for mobile collapsibles */}
@@ -232,7 +232,7 @@ const Footer: React.FC = () => {
 
         {/* ---------- Bottom line ---------- */}
         {/* MODIFIED: Reduced pt for compactness */}
-        <div className="mt-6 pt-2 border-t border-slate-200
+        <div className="mt-4 pt-2 border-t border-slate-200
                         dark:border-bye-dark-border-primary text-center">
           <p className="text-sm text-slate-500 dark:text-bye-dark-text-secondary">
             © {currentYear} {APP_NAME}. All rights reserved.

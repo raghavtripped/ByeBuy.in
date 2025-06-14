@@ -88,7 +88,7 @@ export default function ListingsPage() {
         let query = supabase
           .from('listings_with_highest_bid')
           .select(
-            `id, title, min_price, photos, current_highest_bid, end_time, status, created_at, tags, description`,
+            `id, title, min_price, photos, current_highest_bid, end_time, status, created_at, tags, description, bid_count`,
           )
           .eq('status', 'active');
 
@@ -125,7 +125,8 @@ export default function ListingsPage() {
             status: (item.status as ListingCardItem['status']) || 'unknown',
             current_highest_bid: item.current_highest_bid ?? null,
             end_time: item.end_time ?? null,
-            description: item.description || '', // Add description to typed output
+            description: item.description || '',
+            bid_count: item.bid_count ?? 0,
           }))
           .filter((i) => i.id) as ListingCardItem[];
 
@@ -327,7 +328,7 @@ export default function ListingsPage() {
               </div>
               
               {/* Main Title */}
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-violet-600 via-purple-600 to-blue-600 bg-clip-text text-transparent mb-4">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-violet-600 via-purple-600 to-blue-600 bg-clip-text text-transparent mb-4 pb-1 sm:pb-2">
                 Live Listings
               </h1>
               

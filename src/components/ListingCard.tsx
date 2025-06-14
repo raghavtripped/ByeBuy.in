@@ -23,6 +23,7 @@ export type ListingCardItem = {
   current_highest_bid?: number | null;
   end_time?: string | null;
   status: 'active' | 'closed' | 'cancelled' | string;
+  bid_count: number;
 };
 
 interface ListingCardProps {
@@ -137,6 +138,9 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                       <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary mb-1">Current Bid</p>
                       <p className="text-xl font-bold text-green-600 dark:text-green-400">
                         {formatCurrency(listing.current_highest_bid!)}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary">
+                        {listing.bid_count} bid{listing.bid_count === 1 ? '' : 's'}
                       </p>
                     </div>
                   )}
@@ -314,6 +318,9 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                       <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary mb-0.5">Current Bid</p>
                       <p className="text-lg font-bold text-green-600 dark:text-green-400">
                         {formatCurrency(listing.current_highest_bid!)}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary">
+                        {listing.bid_count} bid{listing.bid_count === 1 ? '' : 's'}
                       </p>
                     </div>
                   )}

@@ -449,7 +449,7 @@ export default function ListingDetails() {
           </section>
 
           {/* SECTION 4: Bid History */}
-          <section>
+          <section className="mt-12">
              <h2 className="text-2xl font-semibold mb-6 text-gray-800 dark:text-bye-dark-text-primary border-b border-gray-200 dark:border-bye-dark-border-primary pb-3"> Bid History ({bids.length}) </h2>
              {bids.length === 0 ? ( 
                 <div className="p-5 text-center text-gray-600 dark:text-bye-dark-text-secondary bg-white dark:bg-bye-dark-bg-secondary rounded-lg shadow border border-gray-100 dark:border-bye-dark-border-primary">
