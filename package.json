@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "security:sql-injection": "node sql-injection-test-suite.js",
+    "security:sql-injection:prod": "node sql-injection-test-suite.js https://byebuy.in",
+    "security:test-all": "npm run security:sql-injection"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.3",
