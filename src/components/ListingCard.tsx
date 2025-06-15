@@ -361,25 +361,25 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                 {/* Action Buttons - Reduced height */}
                 <div className="flex gap-2">
                   {listing.status === 'active' && !isEffectivelyEnded ? (
-                    <button 
-                      className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150 shadow-sm"
+                    <Link 
+                      href={`/listings/${listing.id}`}
+                      className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150 shadow-sm text-center"
                       onClick={(e) => {
-                        e.preventDefault();
                         e.stopPropagation();
                       }}
                     >
                       Place Bid
-                    </button>
+                    </Link>
                   ) : (
-                    <button 
-                      className="w-full bg-gray-100 dark:bg-bye-dark-bg-hover text-gray-700 dark:text-bye-dark-text-primary py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150"
+                    <Link 
+                      href={`/listings/${listing.id}`}
+                      className="w-full bg-gray-100 dark:bg-bye-dark-bg-hover text-gray-700 dark:text-bye-dark-text-primary py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150 text-center"
                       onClick={(e) => {
-                        e.preventDefault();
                         e.stopPropagation();
                       }}
                     >
                       View Details
-                    </button>
+                    </Link>
                   )}
                 </div>
               </div>
