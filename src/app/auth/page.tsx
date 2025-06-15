@@ -3,18 +3,82 @@
 
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation'; // Import useSearchParams
 import { SparklesIcon, ShieldCheckIcon, UserGroupIcon, BoltIcon } from '@heroicons/react/24/outline';
+import { supabase } from '@/lib/supabaseClient';
+// Assuming you might use the notification system for auth errors if needed
+// import { useNotifications } from '@/hooks/useNotifications';
 
 export default function AuthPage() {
   const [mounted, setMounted] = useState(false);
-  const supabase = createClientComponentClient();
+  const router = useRouter();
+  const searchParams = useSearchParams(); // For reading redirect query param
+  // const { showNotification } = useNotifications(); // If you want custom notifications for auth errors
 
   useEffect(() => {
-    setMounted(true); // Indicates client-side rendering is ready
-  }, []);
+    setMounted(true);
+
+    // Function to handle redirection
+    const handleRedirect = () => {
+      // Check for redirect URL from query params, e.g., ?redirect=/my-profile
+      const redirectPath = searchParams.get('redirect');
+      const nextPath = redirectPath || '/listings'; // Default to /listings
+      router.replace(nextPath); // Use replace to avoid adding auth page to history
+    };
+
+    // Check initial session
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        // Only redirect if not on a specific auth callback path (magic link, oauth, recovery)
+        const currentPath = window.location.pathname + window.location.search + window.location.hash;
+        if (!currentPath.includes('/auth/callback') && 
+            !window.location.hash.includes('type=recovery') && 
+            !window.location.search.includes('code=')) { // Supabase adds 'code' for OAuth sometimes
+          handleRedirect();
+        }
+      }
+    });
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      // console.log('[AuthPage] Auth Event:', event, 'Session:', session);
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') { // USER_UPDATED can happen after password reset
+        // Check again for callback paths before redirecting
+        const currentPath = window.location.pathname + window.location.search + window.location.hash;
+        if (!currentPath.includes('/auth/callback') && 
+            !window.location.hash.includes('type=recovery') &&
+            !window.location.search.includes('code=')) {
+          handleRedirect();
+        }
+      }
+      // Note: SIGNED_OUT event is typically handled by a global listener (e.g., in Navbar or a layout component)
+      // to redirect to /auth if the user logs out from another page.
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [router, searchParams, supabase]); // Add supabase to dependencies if using createClientComponentClient inside effect, but it's stable here.
+
+  // Function to determine the redirectTo URL for Supabase Auth UI (for magic links, password recovery etc.)
+  const getSupabaseRedirectUrl = (): string => {
+    if (typeof window === 'undefined') {
+      // This function should ideally only be called client-side when Auth UI is rendered
+      return ''; // Or a default server-side known origin for absolute URLs if needed
+    }
+    // For Supabase internal redirects, usually point back to the auth page or a specific callback handler
+    // OAuth redirects are configured in Supabase project settings.
+    // If you have a 'next' query param meant for Supabase to use after its flow:
+    const nextParam = searchParams.get('next'); // Example: /update-password
+    if (nextParam && nextParam.startsWith('/')) {
+      return `${window.location.origin}${nextParam}`;
+    }
+    // Default for things like magic link confirmations that might land back here
+    return window.location.origin + '/auth'; 
+  };
+
 
   // Enhanced loading state matching listings page hero spinner
   if (!mounted) {
@@ -47,20 +111,16 @@ export default function AuthPage() {
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-md space-y-8">
           
-          {/* Logo/Brand section */}
           <div className="text-center">
             <div className="flex items-center justify-center mb-8">
               <div className="relative">
-                {/* Adjusted icon box gradient to be more subtle purple/indigo */}
                 <div className="absolute inset-0 bg-gradient-to-r from-purple-400 to-indigo-500 rounded-2xl blur opacity-25 animate-pulse"></div>
                 <div className="relative bg-white dark:bg-bye-dark-bg-secondary rounded-2xl p-4 shadow-xl">
-                  {/* Adjusted icon color to subtle purple */}
                   <SparklesIcon className="w-10 h-10 text-purple-500 dark:text-purple-400" />
                 </div>
               </div>
             </div>
             
-            {/* Main Title - Updated gradient to match listings page */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-violet-600 via-purple-600 to-blue-600 bg-clip-text text-transparent mb-4 pb-1 sm:pb-2">
               Welcome to ByeBuy
             </h1>
@@ -69,7 +129,6 @@ export default function AuthPage() {
               Join the campus marketplace
             </p>
             
-            {/* Email restriction badge - Updated colors to match listings */}
             <div className="inline-flex items-center gap-2 bg-white/80 dark:bg-bye-dark-bg-secondary/80 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg border border-indigo-100 dark:border-indigo-900/30">
               <ShieldCheckIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
               <span className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary">
@@ -78,73 +137,60 @@ export default function AuthPage() {
             </div>
           </div>
 
-          {/* Auth form container */}
           <div className="relative">
-            {/* Glassmorphism container */}
             <div className="relative bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 dark:border-bye-dark-border-primary/20 p-8 sm:p-10">
               
-              {/* Decorative gradient border - Adjusted to subtle purple/indigo */}
               <div className="absolute inset-0 bg-gradient-to-r from-purple-400/10 via-indigo-400/10 to-blue-400/10 rounded-3xl blur-xl opacity-30"></div>
               
               <div className="relative z-10">
                 <Auth
                   supabaseClient={supabase}
                   appearance={{
-                    theme: ThemeSupa, // Supabase's own theme, good starting point
+                    theme: ThemeSupa, 
                     variables: {
-                      default: { // Overrides for both light and dark unless specified
+                      default: { 
                         colors: {
-                          brand: '#7c3aed', // violet-600 for light mode
-                          brandAccent: '#6d28d9', // violet-700 for light mode
-                          brandButtonText: 'white',
-                          defaultButtonBackground: '#f1f5f9', // grey for Google button in light mode
-                          defaultButtonBackgroundHover: '#e2e8f0', // darker grey for hover in light mode
-                          defaultButtonBorder: '#e2e8f0',
-                          defaultButtonText: '#334155',
-                          dividerBackground: '#e2e8f0',
-                          inputBackground: '#ffffff',
-                          inputBorder: '#e2e8f0',
-                          inputBorderHover: '#c7d2fe',
-                          inputBorderFocus: '#7c3aed', // violet-600
-                          inputText: '#1e293b',
-                          inputLabelText: '#475569',
-                          inputPlaceholder: '#94a3b8',
-                          messageText: '#ef4444',
-                          messageTextDanger: '#dc2626',
-                          anchorTextColor: '#7c3aed', // violet-600
-                          anchorTextHoverColor: '#6d28d9', // violet-700
+                          brand: '#7c3aed', brandAccent: '#6d28d9', brandButtonText: 'white',
+                          defaultButtonBackground: '#f1f5f9', defaultButtonBackgroundHover: '#e2e8f0',
+                          defaultButtonBorder: '#e2e8f0', defaultButtonText: '#334155',
+                          dividerBackground: '#e2e8f0', inputBackground: '#ffffff',
+                          inputBorder: '#e2e8f0', inputBorderHover: '#c7d2fe', inputBorderFocus: '#7c3aed',
+                          inputText: '#1e293b', inputLabelText: '#475569', inputPlaceholder: '#94a3b8',
+                          messageText: '#ef4444', messageTextDanger: '#dc2626',
+                          anchorTextColor: '#7c3aed', anchorTextHoverColor: '#6d28d9',
                         },
-                        space: { // Keeping space consistent
-                          spaceSmall: '4px', spaceMedium: '8px', spaceLarge: '16px',
-                          labelBottomMargin: '8px', anchorBottomMargin: '4px',
-                          buttonPadding: '10px 15px', inputPadding: '10px 15px',
-                        },
-                        fontSizes: { // Keeping font sizes consistent
-                          baseBodySize: '14px', baseInputSize: '14px',
-                          baseLabelSize: '14px', baseButtonSize: '14px',
-                        },
-                        fonts: { // Using Tailwind's default sans-serif stack
-                          bodyFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"`,
-                          buttonFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"`,
-                          inputFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"`,
-                          labelFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"`,
-                        },
+                        space: { spaceSmall: '4px', spaceMedium: '8px', spaceLarge: '16px', labelBottomMargin: '8px', anchorBottomMargin: '4px', buttonPadding: '10px 15px', inputPadding: '10px 15px' },
+                        fontSizes: { baseBodySize: '14px', baseInputSize: '14px', baseLabelSize: '14px', baseButtonSize: '14px' },
+                        fonts: { bodyFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"`, buttonFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"`, inputFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"` },
                         borderWidths: { buttonBorderWidth: '1px', inputBorderWidth: '1px' },
-                        radii: { borderRadiusButton: '12px', buttonBorderRadius: '12px', inputBorderRadius: '12px' }, // Slightly larger radius
+                        radii: { borderRadiusButton: '12px', buttonBorderRadius: '12px', inputBorderRadius: '12px' },
                       },
+                      // You can add a 'dark' block here to specifically override ThemeSupa's dark variables
+                      // if they don't perfectly align with your bye-dark-* theme for the Auth UI's internals.
+                      // For example:
+                      // dark: {
+                      //   colors: {
+                      //     inputBackground: '#2A2A2B', // bye-dark-bg-hover
+                      //     inputBorder: '#343536',    // bye-dark-border-primary
+                      //     inputText: '#D7DADC',      // bye-dark-text-primary
+                      //     // ... and so on for other internal Auth UI colors
+                      //   }
+                      // }
                     },
-                    className: { // Overriding specific component classes
+                    className: { 
                       anchor: 'font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300 transition-colors hover:underline',
                       button: 'font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 bg-violet-600 hover:bg-violet-700 dark:bg-green-500 dark:hover:bg-green-600 data-[provider=google]:bg-[#f1f5f9] data-[provider=google]:hover:bg-[#e2e8f0] dark:data-[provider=google]:bg-zinc-800 dark:data-[provider=google]:hover:bg-zinc-700 data-[provider=google]:text-gray-900 dark:data-[provider=google]:text-gray-100',
-                      container: 'space-y-6', // Spacing between elements in the form
+                      container: 'space-y-6', 
                       input: 'transition-all duration-200 focus:ring-2 focus:ring-violet-500/30 dark:focus:ring-violet-500/30 focus:border-violet-600 dark:focus:border-violet-600 bg-white dark:bg-bye-dark-bg-hover border-gray-300 dark:border-bye-dark-border-primary text-gray-900 dark:text-bye-dark-text-primary placeholder-gray-400 dark:placeholder-bye-dark-text-secondary',
                       label: 'font-medium text-gray-700 dark:text-bye-dark-text-primary',
-                      message: 'text-sm p-3 rounded-md bg-red-50 dark:bg-red-900/25 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700/50', // For error messages
+                      message: 'text-sm p-3 rounded-md bg-red-50 dark:bg-red-900/25 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700/50',
                     },
                   }}
                   providers={['google']}
                   socialLayout="horizontal"
-                  theme={typeof window !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'} // Dynamically set theme
+                  // Dynamically set theme for Supabase Auth UI based on document class
+                  theme={mounted && document.documentElement.classList.contains('dark') ? 'dark' : 'light'}
+                  redirectTo={getSupabaseRedirectUrl()} // Used for magic links, password recovery, etc.
                   localization={{
                     variables: {
                       sign_in: {
@@ -159,6 +205,7 @@ export default function AuthPage() {
                         button_label: 'Join ByeBuy',
                         social_provider_text: 'Continue with {{provider}}',
                       },
+                      // You can add more localizations if needed, e.g., for forgot_password
                     },
                   }}
                 />
@@ -166,46 +213,32 @@ export default function AuthPage() {
             </div>
           </div>
 
-          {/* Features section */}
           <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="text-center p-4 bg-white/60 dark:bg-bye-dark-bg-secondary/60 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20">
               <div className="w-12 h-12 bg-gradient-to-r from-violet-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-3">
                 <BoltIcon className="w-6 h-6 text-white" />
               </div>
-              <h3 className="font-semibold text-gray-900 dark:text-bye-dark-text-primary text-sm mb-1">
-                Fast Bidding
-              </h3>
-              <p className="text-xs text-gray-600 dark:text-bye-dark-text-secondary">
-                Real-time auctions
-              </p>
+              <h3 className="font-semibold text-gray-900 dark:text-bye-dark-text-primary text-sm mb-1">Fast Bidding</h3>
+              <p className="text-xs text-gray-600 dark:text-bye-dark-text-secondary">Real-time auctions</p>
             </div>
             
             <div className="text-center p-4 bg-white/60 dark:bg-bye-dark-bg-secondary/60 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20">
               <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-3">
                 <ShieldCheckIcon className="w-6 h-6 text-white" />
               </div>
-              <h3 className="font-semibold text-gray-900 dark:text-bye-dark-text-primary text-sm mb-1">
-                Secure
-              </h3>
-              <p className="text-xs text-gray-600 dark:text-bye-dark-text-secondary">
-                Campus verified
-              </p>
+              <h3 className="font-semibold text-gray-900 dark:text-bye-dark-text-primary text-sm mb-1">Secure</h3>
+              <p className="text-xs text-gray-600 dark:text-bye-dark-text-secondary">Campus verified</p>
             </div>
             
             <div className="text-center p-4 bg-white/60 dark:bg-bye-dark-bg-secondary/60 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20">
               <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center mx-auto mb-3">
                 <UserGroupIcon className="w-6 h-6 text-white" />
               </div>
-              <h3 className="font-semibold text-gray-900 dark:text-bye-dark-text-primary text-sm mb-1">
-                Community
-              </h3>
-              <p className="text-xs text-gray-600 dark:text-bye-dark-text-secondary">
-                Students only
-              </p>
+              <h3 className="font-semibold text-gray-900 dark:text-bye-dark-text-primary text-sm mb-1">Community</h3>
+              <p className="text-xs text-gray-600 dark:text-bye-dark-text-secondary">Students only</p>
             </div>
           </div>
 
-          {/* Footer text - Updated link colors */}
           <div className="text-center">
             <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary">
               By continuing, you agree to our{' '}
