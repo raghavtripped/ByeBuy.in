@@ -31,6 +31,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/storage/v1/object/public/avatars/**', // Add this line for avatars
       },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        port: '',
+        pathname: '/a/**', // Allow Google profile images
+      },
       // Example of adding another domain in the future:
       // {
       //   protocol: 'https',

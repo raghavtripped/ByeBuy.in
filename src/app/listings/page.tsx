@@ -7,10 +7,11 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import EmptyState from '@/components/EmptyState';
 import ListingCard, { ListingCardItem } from '@/components/ListingCard';
 import CategoryFilterModal from '@/components/CategoryFilterModal';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 import { CATEGORIES_DATA } from '@/lib/categories';
-import { FunnelIcon, SparklesIcon, FireIcon } from '@heroicons/react/24/outline';
+import { FunnelIcon, SparklesIcon, FireIcon, ChevronDownIcon, AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
+import SortOptionModal from '@/components/SortOptionModal';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -47,6 +48,19 @@ type ListingTablePayload = Partial<
 };
 
 /* ------------------------------------------------------------------ */
+/*  Sort Options Configuration                                        */
+/* ------------------------------------------------------------------ */
+type SortOptionValue = 'created_at_desc' | 'end_time_asc' | 'price_asc' | 'price_desc' | 'bid_count_desc';
+
+const sortOptions = [
+  { value: 'created_at_desc', label: 'Newest First' },
+  { value: 'end_time_asc', label: 'Ending Soonest' },
+  { value: 'price_asc', label: 'Price: Low to High' },
+  { value: 'price_desc', label: 'Price: High to Low' },
+  { value: 'bid_count_desc', label: 'Most Bids' },
+] as const;
+
+/* ------------------------------------------------------------------ */
 /*  Component                                                         */
 /* ------------------------------------------------------------------ */
 export default function ListingsPage() {
@@ -59,7 +73,15 @@ export default function ListingsPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const searchParams = useSearchParams();
+  const router = useRouter();
   const currentSearchTerm = searchParams.get('search');
+  
+  // Sort state - read from URL or default to 'created_at_desc'
+  const urlSortParam = searchParams.get('sort') as SortOptionValue | null;
+  const [sortOption, setSortOption] = useState<SortOptionValue>(
+    urlSortParam && sortOptions.find(opt => opt.value === urlSortParam) ? urlSortParam : 'created_at_desc'
+  );
+  const [isSortModalOpen, setIsSortModalOpen] = useState(false);
 
   /* ---------------------------- Auth -------------------------------- */
   useEffect(() => {
@@ -81,7 +103,7 @@ export default function ListingsPage() {
   // Fetch listings, memoized and updated when selectedCategory changes
   
   const fetchListings = useCallback(
-    async (category: string | null, searchTerm: string | null = null) => {
+    async (category: string | null, searchTerm: string | null = null, sortBy: SortOptionValue = 'created_at_desc') => {
       setLoading(true);
       setError(null);
       try {
@@ -107,10 +129,27 @@ export default function ListingsPage() {
           }
         }
 
-        // Order by creation date (newest first)
-        const { data, error: fetchErr } = await query.order('created_at', {
-          ascending: false,
-        });
+        // Apply dynamic ordering based on sortBy parameter
+        switch (sortBy) {
+          case 'end_time_asc':
+            query = query.order('end_time', { ascending: true, nullsFirst: false });
+            break;
+          case 'price_asc':
+            query = query.order('min_price', { ascending: true });
+            break;
+          case 'price_desc':
+            query = query.order('min_price', { ascending: false });
+            break;
+          case 'bid_count_desc':
+            query = query.order('bid_count', { ascending: false, nullsFirst: false });
+            break;
+          case 'created_at_desc':
+          default:
+            query = query.order('created_at', { ascending: false });
+            break;
+        }
+
+        const { data, error: fetchErr } = await query;
 
         if (fetchErr) throw fetchErr;
 
@@ -151,7 +190,7 @@ export default function ListingsPage() {
         setLoading(false);
       }
     },
-    [selectedCategory, currentSearchTerm], // eslint-disable-line react-hooks/exhaustive-deps
+    [selectedCategory, currentSearchTerm, sortOption], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   /* ----------------------- Initial & RT load ------------------------ */
@@ -176,7 +215,7 @@ export default function ListingsPage() {
             async (payload) => {
               console.log('Received listings update:', payload.eventType);
               if (isMounted) {
-                await fetchListings(selectedCategory, currentSearchTerm);
+                await fetchListings(selectedCategory, currentSearchTerm, sortOption);
               }
             }
           )
@@ -198,7 +237,7 @@ export default function ListingsPage() {
     // Initial fetch and setup
     const initialize = async () => {
       try {
-        await fetchListings(selectedCategory, currentSearchTerm);
+        await fetchListings(selectedCategory, currentSearchTerm, sortOption);
         if (isMounted) {
           await setupRealtimeSubscription();
         }
@@ -219,7 +258,7 @@ export default function ListingsPage() {
           .catch(err => console.error('Error removing listings channel:', err));
       }
     };
-  }, [selectedCategory, fetchListings, currentSearchTerm]);
+  }, [selectedCategory, fetchListings, currentSearchTerm, sortOption]);
 
   /* --------------------------- Handlers ----------------------------- */
   // REMOVED: handleCategoryClick function
@@ -234,6 +273,18 @@ export default function ListingsPage() {
     setSelectedCategory(null);
     setIsCategoryModalOpen(false);
   };
+
+  // Handle sort option change with URL persistence
+  const handleSortChange = useCallback((newSortOption: SortOptionValue) => {
+    setSortOption(newSortOption);
+    
+    // Update URL with new sort parameter
+    const currentParams = new URLSearchParams(searchParams.toString());
+    currentParams.set('sort', newSortOption);
+    
+    // Use replace to avoid adding to browser history for every sort change
+    router.replace(`/listings?${currentParams.toString()}`, { scroll: false });
+  }, [searchParams, router]);
 
   /* ------------------------------------------------------------------ */
   /*  Render guards                                                     */
@@ -280,7 +331,7 @@ export default function ListingsPage() {
             {/* Error Message */}
             <p className="text-sm text-gray-600 dark:text-bye-dark-text-secondary mb-6">{error}</p>
             <button
-              onClick={() => fetchListings(selectedCategory)}
+              onClick={() => fetchListings(selectedCategory, currentSearchTerm, sortOption)}
               className="w-full px-6 py-3 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-medium rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
             >
               Try Again
@@ -371,50 +422,63 @@ export default function ListingsPage() {
                 : 'pt-4 sm:pt-6 mb-3'
             }`}
           >
-            {/* Filter Button */}
-            <button
-              onClick={() => setIsCategoryModalOpen(true)}
-              className={`group w-full max-w-sm sm:max-w-md lg:max-w-lg z-40 ${
-                currentSearchTerm ? 'transform -translate-y-1' : ''
-              }`}
-            >
-              {/* Button Background - Reduce padding during search */}
-              <div 
-                className={`relative bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl shadow-lg transition-all duration-300 group-hover:shadow-xl z-10 ${
-                  currentSearchTerm ? 'p-2.5' : 'p-4'
-                }`}
+            {/* Filter and Sort Controls Container */}
+            <div className={`flex flex-row items-center gap-2 w-full max-w-sm sm:max-w-md lg:max-w-lg ${
+              currentSearchTerm ? 'transform -translate-y-1' : ''
+            }`}>
+              {/* Filter Button */}
+              <button
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="group flex-1 z-40"
               >
-                <div className="flex items-center">
-                  {/* Funnel Icon - Smaller during search */}
-                  <div className={`bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl mr-3 ${
-                    currentSearchTerm ? 'p-1.5' : 'p-2' // Smaller padding during search
-                  }`}>
-                    <FunnelIcon className={`text-white ${
-                      currentSearchTerm ? 'w-4 h-4' : 'w-5 h-5' // Smaller icon during search
-                    }`} />
+                <div
+                  className={`relative bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl shadow-lg transition-all duration-300 group-hover:shadow-xl z-10 p-4`}
+                >
+                  <div className="flex items-center">
+                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl mr-3 p-2">
+                      <FunnelIcon className="text-white w-5 h-5" />
+                    </div>
+                    <span className="flex-grow text-left font-medium text-gray-700 dark:text-bye-dark-text-primary">
+                      {selectedCategory
+                        ? `Category: ${selectedCategory}`
+                        : 'Filter All Categories'}
+                    </span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      className="w-5 h-5 text-gray-400 dark:text-bye-dark-text-secondary group-hover:text-indigo-500 transition-colors"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
                   </div>
-                  {/* Button Text */}
-                  <span className="flex-grow text-left font-medium text-gray-700 dark:text-bye-dark-text-primary">
-                    {selectedCategory
-                      ? `Category: ${selectedCategory}`
-                      : 'Filter All Categories'}
-                  </span>
-                  {/* Chevron Icon */}
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="w-5 h-5 text-gray-400 dark:text-bye-dark-text-secondary group-hover:text-indigo-500 transition-colors"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
                 </div>
-              </div>
-            </button>
+              </button>
+
+              {/* Sort Button */}
+              <button
+                onClick={() => setIsSortModalOpen(true)}
+                className="group flex-1 z-40"
+              >
+                <div
+                  className={`relative bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl shadow-lg transition-all duration-300 group-hover:shadow-xl z-10 p-4`}
+                >
+                  <div className="flex items-center">
+                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl mr-3 p-2">
+                      <AdjustmentsHorizontalIcon className="text-white w-5 h-5" />
+                    </div>
+                    <span className="flex-grow text-left font-medium text-gray-700 dark:text-bye-dark-text-primary">
+                      Sort: {sortOptions.find(o => o.value === sortOption)?.label || 'Default'}
+                    </span>
+                    <ChevronDownIcon className="w-5 h-5 text-gray-400 dark:text-bye-dark-text-secondary group-hover:text-indigo-500 transition-colors" />
+                  </div>
+                </div>
+              </button>
+            </div>
 
             {/* Active Filter Indicator */}
             {selectedCategory && (
@@ -556,6 +620,14 @@ export default function ListingsPage() {
         onCategorySelect={handleModalCategorySelect}
         onClearFilter={handleModalClearFilter}
         categories={CATEGORIES_DATA}
+      />
+
+      <SortOptionModal
+        isOpen={isSortModalOpen}
+        onClose={() => setIsSortModalOpen(false)}
+        selectedSort={sortOption}
+        onSortSelect={(val) => handleSortChange(val as SortOptionValue)}
+        sortOptions={sortOptions}
       />
     </div>
   );
