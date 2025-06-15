@@ -60,7 +60,7 @@ export default function AuthPage() {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [router, searchParams, supabase]); // Add supabase to dependencies if using createClientComponentClient inside effect, but it's stable here.
+  }, [router, searchParams]); // Removed supabase from dependencies as it's stable
 
   // Function to determine the redirectTo URL for Supabase Auth UI (for magic links, password recovery etc.)
   const getSupabaseRedirectUrl = (): string => {

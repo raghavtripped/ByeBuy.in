@@ -82,7 +82,7 @@ additional_redirect_urls = [
     "https://byebuy.in/**", 
     "https://byebuy.in/update-password", 
     "http://localhost:3000/**", 
-    "https://bidly-pi.vercel.app/**"
+    "https://byebuy-pi.vercel.app/**"
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600

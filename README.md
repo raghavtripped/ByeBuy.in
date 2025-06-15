@@ -1,4 +1,4 @@
-# ByeBuy (formerly Bidly)
+# ByeBuy (formerly ByeBuy)
 
 A modern, campus-centric online auction platform designed specifically for students. ByeBuy provides a secure and intuitive marketplace where students can buy and sell items within their campus community, featuring real-time bidding, instant notifications, and a seamless user experience.
 

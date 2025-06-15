@@ -1,4 +1,4 @@
-// /workspaces/bidly/tsconfig.json
+// /workspaces/byebuy/tsconfig.json
 {
   "compilerOptions": {
     "target": "ES2017",

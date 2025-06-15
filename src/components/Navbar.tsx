@@ -339,7 +339,7 @@ export default function Navbar() {
               <Link href="/" className="flex items-center space-x-3 group">
                 <div className="relative">
                   <Image
-                    src="/bidly-logo.svg"
+                    src="/byebuy-logo.svg"
                     alt="ByeBuy logo"
                     width={32}
                     height={32}

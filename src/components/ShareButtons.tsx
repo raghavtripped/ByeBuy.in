@@ -27,7 +27,7 @@ export default function ShareButtons({ title, className = '' }: ShareButtonsProp
     }
   }, []);
 
-  const shareTitle = `Check out this listing on Bidly: ${title}`;
+  const shareTitle = `Check out this listing on ByeBuy: ${title}`;
 
   const handleCopyLink = async () => {
     try {
@@ -51,7 +51,7 @@ export default function ShareButtons({ title, className = '' }: ShareButtonsProp
         <TwitterIcon size={32} round />
       </TwitterShareButton>
 
-      <FacebookShareButton url={shareUrl} hashtag="#BidlyAuction">
+      <FacebookShareButton url={shareUrl} hashtag="#ByeBuyAuction">
         <FacebookIcon size={32} round />
       </FacebookShareButton>
       

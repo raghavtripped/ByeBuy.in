@@ -94,7 +94,7 @@ const Footer: React.FC = () => {
           <div className="col-span-2 sm:col-span-3 md:col-span-1">
             <Link href="/" className="flex items-center space-x-2 mb-2 group"> {/* Changed mb-3 to mb-2 */}
               <Image
-                src="/bidly-logo.svg"
+                src="/byebuy-logo.svg"
                 alt={`${APP_NAME} logo`}
                 width={32}
                 height={32}
@@ -175,7 +175,7 @@ const Footer: React.FC = () => {
             <div className="flex items-center space-x-2 mb-4"> {/* Changed mb-3 to mb-4 for spacing */}
                 <Link href="/" className="flex items-center space-x-2 group">
                     <Image
-                        src="/bidly-logo.svg"
+                        src="/byebuy-logo.svg"
                         alt={`${APP_NAME} logo`}
                         width={32}
                         height={32}
