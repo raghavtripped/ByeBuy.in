@@ -188,6 +188,13 @@ export default function ListingDetails() {
     if (!listing) return;
     if (auctionEnded || (listing.end_time && isPast(listing.end_time))) { setBidStatusMessage('⚠️ Auction ended.'); if (!auctionEnded) loadData(); return; }
     if (user.id === listing.seller_id) { setBidStatusMessage('⚠️ Cannot bid on own item.'); return; }
+    
+    // Check if current highest bid equals buy now price
+    if (listing.upper_cap && currentHighestBidVal >= listing.upper_cap) {
+      setBidStatusMessage('🏁 This auction has reached the Buy Now price and will close shortly. No more bids can be placed.');
+      return;
+    }
+    
     const amt = parseInt(price, 10);
     if (isNaN(amt) || amt <= 0) { setBidStatusMessage('⚠️ Invalid bid.'); return; }
     if (listing.upper_cap && amt > listing.upper_cap) { setBidStatusMessage(`⚠️ Max bid is ${formatCurrency(listing.upper_cap)}.`); return; }
