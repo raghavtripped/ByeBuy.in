@@ -84,6 +84,17 @@ const UserIcon = () => (
   </svg>
 );
 
+// --- Helper to close auction if buy now is met ---
+async function closeAuctionWithWinner(listingId: string, bidId: string, bidderId: string, bidPrice: number) {
+  // Update the listing to closed, set winner and final sale price
+  await supabase.from('listings').update({
+    status: 'closed',
+    winning_bidder_id: bidderId,
+    winning_bid_id: bidId,
+    final_sale_price: bidPrice,
+  }).eq('id', listingId);
+}
+
 // --- Component ---
 export default function ListingDetails() {
   const { id } = useParams<{ id: string }>();
@@ -171,8 +182,40 @@ export default function ListingDetails() {
   const currentHighestBidVal = useMemo(() => bids[0]?.bid_price ?? 0, [bids]);
   const { sliderMin, sliderMax, sliderStep, displaySlider } = useMemo(() => { if (!listing || auctionEnded) return { sliderMin: 1, sliderMax: 100, sliderStep: 1, displaySlider: false }; const nextValidBid = Math.max(listing.min_price, currentHighestBidVal + 1); if (listing.upper_cap && nextValidBid >= listing.upper_cap) return { sliderMin: nextValidBid, sliderMax: nextValidBid, sliderStep: 1, displaySlider: false }; const sMin = nextValidBid; let sMax; if (listing.upper_cap && listing.upper_cap > sMin) { sMax = listing.upper_cap - 1; } else { const base = currentHighestBidVal || listing.min_price; const jump3 = base + Math.max(500, Math.ceil(base * 0.30 / 50) * 50); sMax = Math.max(sMin + 500, jump3); sMax = Math.min(sMax, 200000); } if (sMax <= sMin) sMax = sMin + Math.max(100, Math.ceil(sMin * 0.1)); if (listing.upper_cap && sMax >= listing.upper_cap) sMax = listing.upper_cap - 1; if (sMax <= sMin) return { sliderMin: sMin, sliderMax: sMin + (sMin === 0 ? 100 : Math.max(100, Math.ceil(sMin * 0.1))), sliderStep: 1, displaySlider: sMin === 0 ? true : false }; let sStep = 1; const range = sMax - sMin; if (range <= 100) sStep = 1; else if (range <= 500) sStep = 5; else if (range <= 2000) sStep = 10; else if (range <= 10000) sStep = 50; else if (range <= 50000) sStep = 100; else sStep = 250; return { sliderMin: Math.max(1, sMin), sliderMax: Math.max(sMin + sStep, sMax), sliderStep: sStep, displaySlider: true }; }, [listing, auctionEnded, currentHighestBidVal]);
   useEffect(() => { if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) { setCountdown(null); return; } const updateTimer = (): boolean => { if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) { setCountdown(null); return true; } const remaining = formatCountdown(listing.end_time); setCountdown(remaining); if (remaining === "Auction Ended") { if (!auctionEnded) { loadData(); } return true; } return false; }; if (updateTimer()) return; const intervalId = window.setInterval(() => { if (updateTimer()) clearInterval(intervalId); }, 1000); return () => clearInterval(intervalId);}, [listing?.end_time, listing?.status, auctionEnded, loadData, id]);
-  const executePlaceBid = async () => { if (!user || !listing || auctionEnded || isPlacingBid) { setIsPlacingBid(false); setIsConfirmModalOpen(false); return; } const amt = parseInt(price, 10); if (isNaN(amt) || amt <= 0) { setBidStatusMessage('⚠️ Invalid bid.'); setIsPlacingBid(false); setIsConfirmModalOpen(false); return; } setIsPlacingBid(true); setBidStatusMessage(null); try { const { error: insertError } = await supabase.from('bids').insert({ item_id: id, bidder_id: user.id, bid_price: amt }); if (insertError) throw insertError; setPrice(''); setBidStatusMessage('✅ Bid placed!'); setTimeout(() => setBidStatusMessage(null), 4000); } catch (err: unknown) { let userMessage = '❌ Bid failed.'; if (err instanceof Error) { userMessage = `❌ Bid failed: ${err.message.substring(0,100)}`; const pe = err as {code?:string;details?:string;message?:string}; if (pe.code === '23514' || pe.details?.includes('violates check constraint')) userMessage = '❌ Invalid bid amount.'; else if (pe.message?.toLowerCase().includes('rls')) userMessage = '❌ Permission denied.';} setBidStatusMessage(userMessage); } finally { setIsPlacingBid(false); setIsConfirmModalOpen(false); }};
-  const handlePlaceBidClick = () => { setBidStatusMessage(null); if (!user) { router.push(`/auth?redirect=/listings/${id}`); return; } if (!listing) return; if (auctionEnded || (listing.end_time && isPast(listing.end_time))) { setBidStatusMessage('⚠️ Auction ended.'); if (!auctionEnded) loadData(); return; } if (user.id === listing.seller_id) { setBidStatusMessage('⚠️ Cannot bid on own item.'); return; } const amt = parseInt(price, 10); if (isNaN(amt) || amt <= 0) { setBidStatusMessage('⚠️ Invalid bid.'); return; } if (listing.upper_cap && amt >= listing.upper_cap) { setBidStatusMessage(`⚠️ Max bid is ${formatCurrency(listing.upper_cap-1)}.`); return; } const minRequired = Math.max(listing.min_price, currentHighestBidVal + 1); if (amt < minRequired) { setBidStatusMessage(`⚠️ Min bid: ${formatCurrency(minRequired)}.`); return; } setIsConfirmModalOpen(true); };
+  const handlePlaceBidClick = () => {
+    setBidStatusMessage(null);
+    if (!user) { router.push(`/auth?redirect=/listings/${id}`); return; }
+    if (!listing) return;
+    if (auctionEnded || (listing.end_time && isPast(listing.end_time))) { setBidStatusMessage('⚠️ Auction ended.'); if (!auctionEnded) loadData(); return; }
+    if (user.id === listing.seller_id) { setBidStatusMessage('⚠️ Cannot bid on own item.'); return; }
+    const amt = parseInt(price, 10);
+    if (isNaN(amt) || amt <= 0) { setBidStatusMessage('⚠️ Invalid bid.'); return; }
+    if (listing.upper_cap && amt > listing.upper_cap) { setBidStatusMessage(`⚠️ Max bid is ${formatCurrency(listing.upper_cap)}.`); return; }
+    const minRequired = Math.max(listing.min_price, currentHighestBidVal + 1);
+    if (amt < minRequired) { setBidStatusMessage(`⚠️ Min bid: ${formatCurrency(minRequired)}.`); return; }
+    setIsConfirmModalOpen(true);
+  };
+
+  const executePlaceBid = async () => {
+    if (!user || !listing || auctionEnded || isPlacingBid) { setIsPlacingBid(false); setIsConfirmModalOpen(false); return; }
+    const amt = parseInt(price, 10);
+    if (isNaN(amt) || amt <= 0) { setBidStatusMessage('⚠️ Invalid bid.'); setIsPlacingBid(false); setIsConfirmModalOpen(false); return; }
+    setIsPlacingBid(true); setBidStatusMessage(null);
+    try {
+      const { data: bidInsertData, error: insertError } = await supabase.from('bids').insert({ item_id: id, bidder_id: user.id, bid_price: amt }).select().single();
+      if (insertError) throw insertError;
+      setPrice(''); setBidStatusMessage('✅ Bid placed!'); setTimeout(() => setBidStatusMessage(null), 4000);
+      // If bid is exactly the buy now price, close the auction
+      if (listing.upper_cap && amt === listing.upper_cap && bidInsertData) {
+        await closeAuctionWithWinner(id, bidInsertData.id, user.id, amt);
+        await loadData(); // Refresh UI
+      }
+    } catch (err: unknown) {
+      let userMessage = '❌ Bid failed.';
+      if (err instanceof Error) { userMessage = `❌ Bid failed: ${err.message.substring(0,100)}`; const pe = err as {code?:string;details?:string;message?:string}; if (pe.code === '23514' || pe.details?.includes('violates check constraint')) userMessage = '❌ Invalid bid amount.'; else if (pe.message?.toLowerCase().includes('rls')) userMessage = '❌ Permission denied.';}
+      setBidStatusMessage(userMessage);
+    } finally { setIsPlacingBid(false); setIsConfirmModalOpen(false); }
+  };
 
   // --- RENDER GUARDS ---
   if (loading && !listing) return <div className="flex justify-center items-center min-h-[70vh]"><LoadingSpinner message="Summoning Listing Details..." /></div>;
