@@ -46,6 +46,7 @@ const CATEGORIES_FOR_FORM = [
   'Textbooks & Study Materials',
   'Apparel & Accessories',
   'Sports & Hobby Gear',
+  'Other',
 ] as const;
 
 const MAX_PHOTOS = 5;
@@ -753,6 +754,7 @@ export default function ModernListingPage() {
                           <li>&ldquo;Pickup from campus only.&rdquo;</li>
                           <li>&ldquo;Payment via UPI within 24 hours.&rdquo;</li>
                           <li>&ldquo;No returns accepted.&rdquo;</li>
+                          <li>&ldquo;Item must be picked up within 48 hours of auction end.&rdquo;</li>
                         </ul>
                       </div>
                     }
@@ -765,7 +767,7 @@ export default function ModernListingPage() {
                   placeholder="e.g., Pickup from Hostel X only, payment via UPI preferred within 24 hours of auction end..."
                   className={`${inputBaseClasses} ${inputTextColors} ${inputBgColors} ${placeholderColors} resize-none ${inputNormalBorder}`}
                 />
-                <p className="text-gray-500 dark:text-bye-dark-text-secondary text-xs mt-1.5">Set clear expectations for buyers (e.g., pickup, payment).</p>
+                <p className="text-gray-500 dark:text-bye-dark-text-secondary text-xs mt-1.5">Set clear expectations for buyers regarding pickup and payment terms.</p>
               </div>
             </div>
           </div>
