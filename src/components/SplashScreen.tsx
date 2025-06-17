@@ -131,7 +131,7 @@ const SplashScreen = ({ onHidden, minDisplayTime = 3500 }: SplashScreenProps) =>
           animationPhase === 'show' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
         }`} style={{ transitionDelay: animationPhase === 'show' ? '500ms' : '0ms' }}>
           <p className={`text-2xl md:text-3xl ${subtitleColor} font-light mb-8 leading-relaxed`}>
-            Discover Great Deals On IIM Indore Campus
+            Discover Great Deals On Campus
           </p>
         </div>
 
