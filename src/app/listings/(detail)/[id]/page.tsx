@@ -211,6 +211,21 @@ export default function ListingDetails() {
     try {
       const { data: bidInsertData, error: insertError } = await supabase.from('bids').insert({ item_id: id, bidder_id: user.id, bid_price: amt }).select().single();
       if (insertError) throw insertError;
+      // Optimistically update local bid list so UI reflects the new bid immediately
+      if (bidInsertData) {
+        const optimisticBid: Bid = {
+          id: bidInsertData.id,
+          bid_price: bidInsertData.bid_price,
+          bidder_id: bidInsertData.bidder_id,
+          timestamp: bidInsertData.timestamp,
+          bidder_email: user.email ?? undefined,
+        } as Bid;
+        setBids(prev => {
+          if (prev.find(b => b.id === optimisticBid.id)) return prev; // avoid duplicates
+          const updated = [optimisticBid, ...prev];
+          return updated.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        });
+      }
       setPrice(''); setBidStatusMessage('✅ Bid placed!'); setTimeout(() => setBidStatusMessage(null), 4000);
       // If bid is exactly the buy now price, close the auction
       if (listing.upper_cap && amt === listing.upper_cap && bidInsertData) {
