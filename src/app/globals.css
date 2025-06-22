@@ -147,3 +147,9 @@ body {
 body, .button-primary, .button-secondary, .button-danger, .link, .icon, .card {
   transition: all 0.3s ease-in-out;
 }
+
+/***** Fluid root font-size *****/
+html {
+  /* 14px at 320px viewport up to 18px at 1536px viewport */
+  font-size: clamp(14px, 0.875rem + 0.25vw, 18px);
+}

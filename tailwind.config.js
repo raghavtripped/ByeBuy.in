@@ -23,5 +23,17 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    require('tailwindcss-fluid-type')({
+      settings: {
+        fontSizeMin: 0.75,   // 12px at the smallest screen
+        fontSizeMax: 1.25,   // 20px at screenMax
+        ratioMin: 1.125,     // Minor third
+        ratioMax: 1.2,       // Major third
+        screenMin: 320,      // Start scaling at 320px viewport width
+        screenMax: 1536,     // Stop scaling at the default 2xl breakpoint
+        unit: 'rem',         // Use rem so it obeys user zoom preferences
+      },
+    }),
+  ],
 };
