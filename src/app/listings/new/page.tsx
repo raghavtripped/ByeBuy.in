@@ -14,6 +14,7 @@ import {
 import { useNotifications } from '@/hooks/useNotifications';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
+import InfoPopover from '@/components/InfoPopover';
 
 // --- TYPES ---
 
@@ -65,7 +66,7 @@ const CATEGORIES_FOR_FORM = [
 // --- REUSABLE SUB-COMPONENTS ---
 
 const FormInput: FC<{
-  id: keyof Omit<FormData, 'photos'>; // Adjusted type for safety
+  id: keyof Omit<FormData, 'photos'>;
   label: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
@@ -74,37 +75,34 @@ const FormInput: FC<{
   error?: string;
   charLimit?: number;
   as?: 'textarea';
-}> = ({ id, label, value, onChange, type = 'text', placeholder, error, charLimit, as }) => {
+  infoPopoverContent?: React.ReactNode;
+}> = ({ id, label, value, onChange, type = 'text', placeholder, error, charLimit, as, infoPopoverContent }) => {
   const InputComponent = as === 'textarea' ? 'textarea' : 'input';
   return (
-    <div className="relative">
+    <div className="space-y-1">
+      <label htmlFor={id} className="flex items-center gap-1.5 text-base font-semibold text-gray-700 dark:text-bye-dark-text-primary">
+        <span>{label}</span>
+        {infoPopoverContent && <InfoPopover content={infoPopoverContent} />}
+      </label>
       <InputComponent
         id={id}
         name={id}
         value={value}
         onChange={onChange}
         type={type}
-        placeholder={placeholder || " "}
+        placeholder={placeholder}
         rows={as === 'textarea' ? 4 : undefined}
-        className={`peer block w-full px-4 pt-6 pb-2 bg-white/50 dark:bg-black/20 rounded-lg border-2 transition-colors duration-200
-          ${error 
-            ? 'border-red-400 focus:border-red-500' 
-            : 'border-transparent focus:border-indigo-400'}
-          focus:outline-none focus:ring-0`}
+        autoComplete="off"
+        className={`block w-full px-4 py-2.5 bg-white dark:bg-bye-dark-bg-hover rounded-lg border-2 transition-colors duration-200
+          ${error ? 'border-red-400 focus:border-red-500' : 'border-gray-200 dark:border-bye-dark-border-primary focus:border-indigo-500 dark:focus:border-indigo-400'}
+          focus:outline-none`}
       />
-      <label
-        htmlFor={id}
-        className={`absolute text-sm text-gray-600 dark:text-gray-400 duration-300 transform -translate-y-3.5 scale-75 top-4 z-10 origin-[0] left-4
-          peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3.5`}
-      >
-        {label}
-      </label>
       {charLimit && (
-        <div className="absolute bottom-2 right-3 text-xs text-gray-500 dark:text-gray-400">
+        <div className="text-right text-xs text-gray-500 dark:text-gray-400">
           {value.length} / {charLimit}
         </div>
       )}
-      {error && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{error}</p>}
+      {error && <p className="text-xs text-red-500 dark:text-red-400 mt-0.5">{error}</p>}
     </div>
   );
 };
@@ -119,7 +117,7 @@ const PhotoUploader: FC<{
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
   const { showNotification } = useNotifications();
-  const MAX_PHOTOS = 5;
+const MAX_PHOTOS = 5;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -273,7 +271,7 @@ export default function UltimateListingCreationPage() {
   const router = useRouter();
   const { showNotification } = useNotifications();
   const { user: currentUser, loading: loadingUser } = useAuth();
-
+  
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -399,9 +397,9 @@ export default function UltimateListingCreationPage() {
            return;
          }
        }
-       return;
+        return;
     }
-
+    
     setIsSubmitting(true);
 
     // ------------ Upload Photos -------------
@@ -450,7 +448,7 @@ export default function UltimateListingCreationPage() {
     try {
       const minPriceFloat = parseFloat(formData.minPrice);
       const upperCapFloat = formData.upperCap.trim() ? parseFloat(formData.upperCap) : null;
-
+      
       const { data: newListing, error: insertError } = await supabase
         .from('listings')
         .insert({
@@ -466,8 +464,8 @@ export default function UltimateListingCreationPage() {
           status: 'active',
         })
         .select()
-        .single();
-
+        .single(); 
+      
       if (insertError || !newListing) {
         throw insertError || new Error('Listing insertion failed');
       }
@@ -482,7 +480,7 @@ export default function UltimateListingCreationPage() {
       setIsSubmitting(false);
     }
   };
-  
+
   const steps = [
     { num: 1, title: 'Details', icon: FileText },
     { num: 2, title: 'Photos', icon: ImageIcon },
@@ -500,37 +498,101 @@ export default function UltimateListingCreationPage() {
     switch (step) {
       case 1:
         return (
-          <div className="space-y-6">
+            <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Item Details</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Start with the basics. A great title and description attract more bidders.</p>
-            <FormInput id="title" label="Item Title" value={formData.title} onChange={handleFormChange} error={errors.title} charLimit={80} placeholder="e.g., Like New AirPods Pro 2" />
-            <FormInput id="description" label="Description" as="textarea" value={formData.description} onChange={handleFormChange} error={errors.description} placeholder="Describe the condition, features, and any flaws."/>
+            <p className="text-base text-gray-600 dark:text-gray-300">Start with the basics. A great title and description attract more bidders.</p>
+            <FormInput
+              id="title"
+              label="Item Title"
+              value={formData.title}
+              onChange={handleFormChange}
+              error={errors.title}
+              charLimit={80}
+              placeholder="e.g., Like New AirPods Pro 2"
+              infoPopoverContent={<p className="text-xs">A clear, concise title helps bidders find your item.</p>}
+            />
+            <FormInput
+              id="description"
+              label="Description"
+              as="textarea"
+              value={formData.description}
+              onChange={handleFormChange}
+              error={errors.description}
+              placeholder="Describe the condition, features, and any flaws."
+              infoPopoverContent={<p className="text-xs">Provide details about condition, features, defects, and (optionally) why you&apos;re selling.</p>}
+            />
           </div>
         );
       case 2:
         return (
-          <div className="space-y-6">
+            <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Upload Photos</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Show off your item! The first photo will be the cover image. You can drag to reorder.</p>
+            <p className="text-base text-gray-600 dark:text-gray-300">Show off your item! The first photo will be the cover image. You can drag to reorder.</p>
             <PhotoUploader photos={formData.photos} onPhotosChange={handlePhotosChange} error={errors.photos} />
           </div>
         );
       case 3:
         return (
-          <div className="space-y-6">
+            <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Set Your Price</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Choose a starting bid and an optional &quot;Buy Now&quot; price for a quick sale.</p>
-            <FormInput id="minPrice" label="Starting Bid (₹)" type="number" value={formData.minPrice} onChange={handleFormChange} error={errors.minPrice} placeholder="500" />
-            <FormInput id="upperCap" label="Buy Now Price (₹) - Optional" type="number" value={formData.upperCap} onChange={handleFormChange} error={errors.upperCap} placeholder="2000" />
-            <FormInput id="endTime" label="Auction End Time" type="datetime-local" value={formData.endTime} onChange={handleFormChange} error={errors.endTime} />
+            <p className="text-base text-gray-600 dark:text-gray-300">Choose a starting bid and an optional &quot;Buy Now&quot; price for a quick sale.</p>
+            <FormInput
+              id="minPrice"
+              label="Starting Bid (₹)"
+              type="number"
+              value={formData.minPrice}
+              onChange={handleFormChange}
+              error={errors.minPrice}
+              placeholder="500"
+              infoPopoverContent={
+                <ul className="list-disc list-inside text-xs space-y-0.5">
+                  <li>Absolutely lowest price you are willing to accept</li>
+                  <li>Market value for similar items in similar condition</li>
+                  <li>Cannot change after first bid</li>
+                </ul>
+              }
+            />
+            <FormInput
+              id="upperCap"
+              label="Buy Now Price (₹) – Optional"
+              type="number"
+              value={formData.upperCap}
+              onChange={handleFormChange}
+              error={errors.upperCap}
+              placeholder="2000"
+              infoPopoverContent={
+                <ul className="list-disc list-inside text-xs space-y-0.5">
+                  <li>Highest price you are hoping it&apos;d sell for</li>
+                  <li>Must exceed starting bid</li>
+                  <li>Ends auction instantly if met</li>
+                  <li>Great for quick sales</li>
+                </ul>
+              }
+            />
+            <FormInput
+              id="endTime"
+              label="Auction End Time"
+              type="datetime-local"
+              value={formData.endTime}
+              onChange={handleFormChange}
+              error={errors.endTime}
+              infoPopoverContent={
+                <ul className="list-disc list-inside text-xs space-y-0.5">
+                  <li>Min&nbsp;1 hour from now</li>
+                  <li>Max&nbsp;90 days from now</li>
+                  <li>Uses your local timezone</li>
+                  <li>Cannot be changed later</li>
+                </ul>
+              }
+            />
           </div>
         );
       case 4:
         return (
-          <div className="space-y-6">
+            <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Final Details</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Select a category and add any specific rules for buyers.</p>
-            <div>
+            <p className="text-base text-gray-600 dark:text-gray-300">Select a category and add any specific rules for buyers.</p>
+              <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category</label>
               <div className="grid grid-cols-2 gap-3">
                 {CATEGORIES_FOR_FORM.map(cat => (
@@ -541,8 +603,8 @@ export default function UltimateListingCreationPage() {
                         : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
                     }`}>
                       <span className="font-semibold">{cat}</span>
-                  </button>
-                ))}
+                    </button>
+                  ))}
               </div>
               {errors.category && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.category}</p>}
             </div>
@@ -581,7 +643,7 @@ export default function UltimateListingCreationPage() {
         <header className="flex items-center justify-between mb-6">
           <div className="font-bold text-xl text-gray-800 dark:text-white">
             Create Listing
-          </div>
+              </div>
           <button
             onClick={handleSaveDraft}
             disabled={isSaving}
@@ -606,16 +668,16 @@ export default function UltimateListingCreationPage() {
                           ${step < s.num ? 'bg-white/50 dark:bg-slate-700/50 border-gray-300 dark:border-gray-600' : ''}
                         `}>
                           {step > s.num ? <Check className="w-5 h-5" /> : <s.icon className="w-5 h-5" />}
-                        </div>
+            </div>
                         <p className={`mt-2 text-xs font-semibold transition-colors ${step >= s.num ? 'text-gray-800 dark:text-white' : 'text-gray-400 dark:text-gray-500'}`}>{s.title}</p>
                       </div>
                       {index < steps.length - 1 && <div className={`flex-1 h-1 mx-2 rounded-full transition-colors ${step > s.num ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'}`}></div>}
                     </Fragment>
                   ))}
-                </div>
+      </div>
               </div>
             )}
-            
+
             <div className="relative bg-white dark:bg-bye-dark-bg-secondary border border-gray-200 dark:border-bye-dark-border-primary shadow-xl rounded-2xl p-6 sm:p-8 flex-grow">
               <AnimatePresence mode="wait" custom={animationDirection}>
                 <motion.div
@@ -627,31 +689,31 @@ export default function UltimateListingCreationPage() {
                   exit="exit"
                   transition={{ type: 'tween', ease: 'easeInOut', duration: 0.4 }}
                 >
-                  {renderStepContent()}
+            {renderStepContent()}
                 </motion.div>
               </AnimatePresence>
-            </div>
-            
+          </div>
+
             {step <= 4 && (
               <div className="mt-8 flex items-center justify-between">
-                <button 
-                  onClick={handlePrev} 
+              <button
+                onClick={handlePrev}
                   disabled={step === 1}
                   className="flex items-center gap-2 px-5 py-2.5 font-semibold text-gray-700 dark:text-gray-200 bg-white/70 dark:bg-slate-700/50 rounded-lg shadow-md hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
+              >
                   <ArrowLeft className="w-5 h-5"/> Previous
-                </button>
+              </button>
                 {step < 4 ? (
-                  <button 
-                    onClick={handleNext}
+              <button
+                onClick={handleNext}
                     className="flex items-center gap-2 px-5 py-2.5 font-semibold text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-                  >
+              >
                     Next <ArrowRight className="w-5 h-5"/>
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
                     className="flex items-center gap-2 px-5 py-2.5 font-semibold text-white bg-gradient-to-r from-green-500 to-teal-600 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-70 disabled:cursor-wait transition-all"
                   >
                     {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
