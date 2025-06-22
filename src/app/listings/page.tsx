@@ -10,7 +10,7 @@ import CategoryFilterModal from '@/components/CategoryFilterModal';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 import { CATEGORIES_DATA } from '@/lib/categories';
-import { FunnelIcon, SparklesIcon, FireIcon, ChevronDownIcon, AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
+import { FunnelIcon, SparklesIcon, FireIcon, ChevronDownIcon, AdjustmentsHorizontalIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import SortOptionModal from '@/components/SortOptionModal';
 
 /* ------------------------------------------------------------------ */
@@ -76,6 +76,8 @@ export default function ListingsPage() {
   const router = useRouter();
   const currentSearchTerm = searchParams.get('search');
   
+  const [searchInput, setSearchInput] = useState(currentSearchTerm || '');
+  
   // Sort state - read from URL or default to 'created_at_desc'
   const urlSortParam = searchParams.get('sort') as SortOptionValue | null;
   const [sortOption, setSortOption] = useState<SortOptionValue>(
@@ -98,6 +100,10 @@ export default function ListingsPage() {
       authListener?.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    setSearchInput(currentSearchTerm || '');
+  }, [currentSearchTerm]);
 
   /* ------------------------- Fetch listings ------------------------- */
   // Fetch listings, memoized and updated when selectedCategory changes
@@ -286,6 +292,18 @@ export default function ListingsPage() {
     router.replace(`/listings?${currentParams.toString()}`, { scroll: false });
   }, [searchParams, router]);
 
+  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const term = searchInput.trim();
+    const currentParams = new URLSearchParams(searchParams.toString());
+    if (term) {
+      currentParams.set('search', term);
+    } else {
+      currentParams.delete('search');
+    }
+    router.replace(`/listings?${currentParams.toString()}`, { scroll: false });
+  };
+
   /* ------------------------------------------------------------------ */
   /*  Render guards                                                     */
   /* ------------------------------------------------------------------ */
@@ -414,6 +432,24 @@ export default function ListingsPage() {
             </header>
           ) : null}
 
+          {/* Search Bar */}
+          <div className="relative z-30 max-w-lg mx-auto mb-6 px-4 sm:px-0">
+            <form onSubmit={handleSearchSubmit}>
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <MagnifyingGlassIcon className="h-6 w-6 text-gray-400 dark:text-gray-500" />
+                    </div>
+                    <input
+                        type="text"
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        placeholder="Search listings by title or description..."
+                        className="w-full pl-12 pr-4 py-4 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl shadow-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-300 text-base sm:text-lg"
+                    />
+                </div>
+            </form>
+          </div>
+
           {/* Universal category filter section */}
           <div
             className={`flex flex-col items-center space-y-1 relative z-30 ${
@@ -423,7 +459,7 @@ export default function ListingsPage() {
             }`}
           >
             {/* Filter and Sort Controls Container */}
-            <div className={`flex flex-row items-center gap-2 w-full max-w-sm sm:max-w-md lg:max-w-lg ${
+            <div className={`flex flex-row items-center gap-2 w-full max-w-lg ${
               currentSearchTerm ? 'transform -translate-y-1' : ''
             }`}>
               {/* Filter Button */}
@@ -438,10 +474,15 @@ export default function ListingsPage() {
                     <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl mr-3 p-2">
                       <FunnelIcon className="text-white w-5 h-5" />
                     </div>
-                    <span className="flex-grow text-left font-medium text-gray-700 dark:text-bye-dark-text-primary">
-                      {selectedCategory
-                        ? `Category: ${selectedCategory}`
-                        : 'Filter All Categories'}
+                    <span className="flex-grow text-left font-medium text-gray-700 dark:text-bye-dark-text-primary truncate whitespace-nowrap">
+                      {/* Mobile label */}
+                      <span className="sm:hidden">Filter</span>
+                      {/* Desktop / tablet label */}
+                      <span className="hidden sm:inline">
+                        {selectedCategory
+                          ? `Category: ${selectedCategory}`
+                          : 'Filter All Categories'}
+                      </span>
                     </span>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -471,8 +512,13 @@ export default function ListingsPage() {
                     <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl mr-3 p-2">
                       <AdjustmentsHorizontalIcon className="text-white w-5 h-5" />
                     </div>
-                    <span className="flex-grow text-left font-medium text-gray-700 dark:text-bye-dark-text-primary">
-                      Sort: {sortOptions.find(o => o.value === sortOption)?.label || 'Default'}
+                    <span className="flex-grow text-left font-medium text-gray-700 dark:text-bye-dark-text-primary truncate whitespace-nowrap">
+                      {/* Mobile label */}
+                      <span className="sm:hidden">Sort</span>
+                      {/* Desktop / tablet label */}
+                      <span className="hidden sm:inline">
+                        Sort: {sortOptions.find(o => o.value === sortOption)?.label || 'Default'}
+                      </span>
                     </span>
                     <ChevronDownIcon className="w-5 h-5 text-gray-400 dark:text-bye-dark-text-secondary group-hover:text-indigo-500 transition-colors" />
                   </div>
