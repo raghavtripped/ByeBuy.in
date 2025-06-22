@@ -17,7 +17,8 @@ export default function WatchlistPage() {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        router.push('/login');
+        /* Redirect unauthenticated users to the central auth flow, preserving the intended return path */
+        router.push('/auth?redirect=/my-watchlist');
       }
     };
     void checkAuth();
