@@ -77,6 +77,7 @@ export default function ListingsPage() {
   const currentSearchTerm = searchParams.get('search');
   
   const [searchInput, setSearchInput] = useState(currentSearchTerm || '');
+  const [searchFocused, setSearchFocused] = useState(false);
   
   // Sort state - read from URL or default to 'created_at_desc'
   const urlSortParam = searchParams.get('sort') as SortOptionValue | null;
@@ -304,6 +305,9 @@ export default function ListingsPage() {
     router.replace(`/listings?${currentParams.toString()}`, { scroll: false });
   };
 
+  const handleSearchFocus = () => setSearchFocused(true);
+  const handleSearchBlur = () => setSearchFocused(false);
+
   /* ------------------------------------------------------------------ */
   /*  Render guards                                                     */
   /* ------------------------------------------------------------------ */
@@ -433,20 +437,22 @@ export default function ListingsPage() {
           ) : null}
 
           {/* Search Bar */}
-          <div className="relative z-30 max-w-lg mx-auto mb-6 px-4 sm:px-0">
-            <form onSubmit={handleSearchSubmit}>
-                <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <MagnifyingGlassIcon className="h-6 w-6 text-gray-400 dark:text-gray-500" />
-                    </div>
-                    <input
-                        type="text"
-                        value={searchInput}
-                        onChange={(e) => setSearchInput(e.target.value)}
-                        placeholder="Search listings by title or description..."
-                        className="w-full pl-12 pr-4 py-4 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl shadow-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-300 text-base sm:text-lg"
-                    />
-                </div>
+          <div className="relative z-30 max-w-xl mx-auto mb-6 px-4 sm:px-0">
+            <form onSubmit={handleSearchSubmit} className="relative">
+              <div className={`relative transition-all duration-300 ${searchFocused ? 'transform scale-105' : ''}`}>
+                <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500 z-20" />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search listings by title or description... (⌘K)"
+                  onFocus={handleSearchFocus}
+                  onBlur={handleSearchBlur}
+                  className="w-full pl-12 pr-4 py-3.5 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl text-gray-900 dark:text-bye-dark-text-primary placeholder-gray-500 dark:placeholder-bye-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-all duration-200 hover:bg-white dark:hover:bg-bye-dark-bg-secondary"
+                />
+                {/* Gradient overlay */}
+                <div className={`absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-2xl transition-opacity duration-200 pointer-events-none z-10 ${searchFocused ? 'opacity-100' : 'opacity-0'}`} />
+              </div>
             </form>
           </div>
 
