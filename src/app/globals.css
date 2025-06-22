@@ -150,6 +150,6 @@ body, .button-primary, .button-secondary, .button-danger, .link, .icon, .card {
 
 /***** Fluid root font-size *****/
 html {
-  /* 16px at very small screens, scales gradually to 20px on wide desktops */
-  font-size: clamp(16px, 1rem + 0.25vw, 20px);
+  /* 14px at 320px viewport up to 18px at 1536px viewport */
+  font-size: clamp(14px, 0.875rem + 0.25vw, 18px);
 }
