@@ -349,7 +349,7 @@ export default function Navbar() {
                   />
                   <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-400 dark:to-purple-500 rounded-full blur opacity-0 group-hover:opacity-20 transition-opacity duration-200" />
                 </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent hidden md:block">
+                <span className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent hidden md:block">
                   ByeBuy
                 </span>
               </Link>
@@ -357,7 +357,7 @@ export default function Navbar() {
 
             {/* Center brand (mobile only) */}
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
-              <Link href="/" className="text-lg font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+              <Link href="/" className="text-xl font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
                 ByeBuy
               </Link>
             </div>
