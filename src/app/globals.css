@@ -13,8 +13,8 @@
   --background-dark: #111827; /* Dark mode background */
   --foreground-dark: #F3F4F6; /* Dark mode text color */
 
-  --primary-button-bg: #FF4500; /* Reddit orange for primary buttons */
-  --primary-button-hover: #E03D00; /* Darker orange on hover */
+  --primary-button-bg: #2563EB; /* Blue 600 for primary buttons */
+  --primary-button-hover: #1D4ED8; /* Darker blue on hover */
 
   --secondary-button-bg: #F3F4F6; /* Light gray for secondary buttons */
   --secondary-button-text: #111827; /* Dark text for secondary buttons */
@@ -22,11 +22,11 @@
   --danger-button-bg: #DC2626; /* Red color for danger buttons */
   --danger-button-hover: #B91C1C; /* Hover state for danger buttons */
 
-  --link-color: #FF4500; /* Reddit orange for links */
-  --link-hover: #E03D00; /* Hover state for links */
+  --link-color: #2563EB; /* Blue for links */
+  --link-hover: #1D4ED8; /* Hover state for links */
 
   --icon-color: #6B7280; /* Default gray for icons */
-  --icon-hover: #FF4500; /* Hover state for icons */
+  --icon-hover: #2563EB; /* Hover state for icons */
 }
 
 /* Media query for dark mode */

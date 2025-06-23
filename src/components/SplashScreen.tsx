@@ -84,15 +84,15 @@ const SplashScreen = ({ onHidden, minDisplayTime = 3500 }: SplashScreenProps) =>
   // Theme-based color classes
   const bgGradient = isDarkMode 
     ? 'bg-gradient-to-br from-bye-dark-bg-primary via-bye-dark-bg-secondary to-bye-dark-bg-primary'
-    : 'bg-gradient-to-br from-gray-50 via-white to-gray-100';
+    : 'bg-gradient-to-br from-blue-50 via-white to-blue-100';
 
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
   const subtitleColor = isDarkMode ? 'text-white/90' : 'text-gray-700';
   const taglineColor = isDarkMode ? 'text-white/70' : 'text-gray-600';
   
   const bgElement1 = isDarkMode ? 'bg-bye-dark-bg-hover/20' : 'bg-blue-200/30';
-  const bgElement2 = isDarkMode ? 'bg-bye-dark-border-primary/10' : 'bg-indigo-200/20';
-  const bgElement3 = isDarkMode ? 'bg-indigo-500/5' : 'bg-purple-300/15';
+  const bgElement2 = isDarkMode ? 'bg-bye-dark-border-primary/10' : 'bg-blue-200/20';
+  const bgElement3 = isDarkMode ? 'bg-indigo-500/5' : 'bg-blue-300/15';
   
   const rupeeSymbolBg = isDarkMode ? 'bg-white/10' : 'bg-gray-900/10';
   const rupeeSymbolBorder = isDarkMode ? 'border-white/20' : 'border-gray-900/20';
