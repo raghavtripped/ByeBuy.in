@@ -66,8 +66,8 @@ const MobileBottomNav: React.FC = () => {
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40
-                    bg-white dark:bg-bye-dark-bg-secondary
-                    border-t border-slate-200 dark:border-bye-dark-border-primary
+                    bg-blue-50 dark:bg-bye-dark-bg-secondary
+                    border-t border-blue-200 dark:border-bye-dark-border-primary
                     shadow-top-nav">
       <div className="max-w-md mx-auto flex justify-around items-center h-16">
         {navItems.map(({ href, label, inactiveIcon, activeIcon, isCreateButton }) => {
