@@ -330,21 +330,21 @@ export default function HelpCenterPage() {
   return (
     // Updated page background for dark mode
     <div className="min-h-screen bg-gray-50 dark:bg-bye-dark-bg-primary">
-      {/* Hero Section */}
-      {/* Added rounded-2xl to the hero section */}
-      <section className="relative bg-gradient-to-r from-indigo-600 to-purple-700 overflow-hidden rounded-2xl lg:w-1/2 lg:mx-auto lg:my-8">
-        <div className="absolute inset-0 bg-black/20 dark:bg-black/40"></div>
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 p-8 sm:p-12 text-center text-white">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl mb-8">
-            <QuestionMarkCircleIcon className="w-8 h-8" />
+      {/* Hero Section – styled to mirror "Additional Resources" */}
+      <section className="lg:w-3/4 lg:mx-auto lg:my-8">
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-700 rounded-3xl p-12 sm:p-16 text-center text-white overflow-hidden">
+          {/* Icon */}
+          <div className="mx-auto mb-6">
+            <QuestionMarkCircleIcon className="w-16 h-16 mx-auto opacity-90" />
           </div>
-          <h1 className="text-4xl sm:text-5xl font-bold mb-4 tracking-tight">
+          {/* Heading */}
+          <h1 className="text-3xl font-bold mb-4">
             ByeBuy Help Center
           </h1>
-          <p className="text-lg sm:text-xl text-white/90 mb-6 max-w-2xl mx-auto leading-relaxed">
+          {/* Subtitle */}
+          <p className="text-xl opacity-90 mb-8 max-w-2xl mx-auto">
             Your complete guide to buying and selling amazing finds on campus
           </p>
-          
           {/* Search Bar */}
           <div className="max-w-2xl mx-auto relative">
             <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
