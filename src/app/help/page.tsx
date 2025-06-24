@@ -332,7 +332,7 @@ export default function HelpCenterPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-bye-dark-bg-primary">
       {/* Hero Section */}
       {/* Added rounded-2xl to the hero section */}
-      <section className="relative bg-gradient-to-r from-indigo-600 to-purple-700 overflow-hidden rounded-2xl">
+      <section className="relative bg-gradient-to-r from-indigo-600 to-purple-700 overflow-hidden rounded-2xl lg:w-1/2 lg:mx-auto lg:my-8">
         <div className="absolute inset-0 bg-black/20 dark:bg-black/40"></div>
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 p-8 sm:p-12 text-center text-white">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl mb-8">
