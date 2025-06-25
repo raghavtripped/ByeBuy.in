@@ -218,15 +218,21 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
           <div className="absolute inset-0 bg-gradient-to-t from-indigo-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
             <div className="absolute bottom-4 left-4 right-4 pointer-events-auto opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0">
               {listing.status === 'active' && !isEffectivelyEnded && (
-                <button 
-                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium text-sm hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg"
+                <Link
+                  href={`/listings/${listing.id}`}
+                  scroll={true}
+                  className="block w-full active:scale-[0.98] transition-transform duration-150"
                   onClick={(e) => {
-                    e.preventDefault();
+                    // Prevent the parent hover link from triggering twice
                     e.stopPropagation();
                   }}
                 >
-                  Place Bid
-                </button>
+                  <span
+                    className="w-full inline-block bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium text-sm text-center hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg"
+                  >
+                    Place Bid
+                  </span>
+                </Link>
               )}
             </div>
           </div>
