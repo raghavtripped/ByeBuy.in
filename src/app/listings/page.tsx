@@ -500,10 +500,10 @@ export default function ListingsPage() {
                 </div>
               )}
               {currentSearchTerm && (
-                <div className="inline-flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full px-3 py-1">
+                <div className="inline-flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full px-3 py-1">
                   Search: &quot;{currentSearchTerm}&quot;
                   <Link href="/listings" className="ml-1" onClick={() => setSearchInput('')}>
-                    <XMarkIcon className="w-4 h-4 hover:text-blue-900 dark:hover:text-blue-100" />
+                    <XMarkIcon className="w-4 h-4 hover:text-indigo-900 dark:hover:text-indigo-100" />
                   </Link>
                 </div>
               )}

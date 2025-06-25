@@ -299,7 +299,7 @@ export default function Navbar() {
   const userMenuLinkClasses = (href: string, isActive: boolean = pathname === href) =>
     `group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
       isActive
-        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400'
         : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white'
     }`;
 
@@ -380,7 +380,7 @@ export default function Navbar() {
                     unoptimized={true}
                     className="h-8 w-8 transition-transform duration-200 group-hover:scale-110"
                   />
-                  <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-400 dark:to-purple-500 rounded-full blur opacity-0 group-hover:opacity-20 transition-opacity duration-200" />
+                  <div className="absolute -inset-1 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-500 rounded-full blur opacity-0 group-hover:opacity-20 transition-opacity duration-200" />
                 </div>
                 <span className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent hidden md:block">
                   ByeBuy

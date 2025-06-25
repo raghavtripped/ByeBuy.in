@@ -44,7 +44,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
       {/* Desktop View - Hidden on Mobile */}
       <div className={`group relative hidden md:block ${className}`}>
         {/* Glow effect on hover */}
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-0 group-hover:opacity-20 transition-all duration-300"></div>
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl blur opacity-0 group-hover:opacity-20 transition-all duration-300"></div>
         
         <div className="relative bg-white dark:bg-bye-dark-bg-secondary rounded-2xl shadow-lg hover:shadow-2xl overflow-hidden transition-all duration-300 transform group-hover:-translate-y-1 border border-gray-100 dark:border-bye-dark-border-primary">
           {/* Watchlist Button - Moved outside Link and positioned absolutely */}
@@ -116,7 +116,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
             {/* Content Section */}
             <div className="p-5">
               {/* Title */}
-              <h3 className="text-xl font-bold text-gray-900 dark:text-bye-dark-text-primary mb-3 line-clamp-2 leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-200">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-bye-dark-text-primary mb-3 line-clamp-2 leading-tight group-hover:text-indigo-700 dark:group-hover:text-indigo-400 transition-colors duration-200">
                 {listing.title}
               </h3>
 
@@ -147,7 +147,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                 {hasActiveBids && (
                   <div className="w-full bg-gray-200 dark:bg-bye-dark-bg-hover rounded-full h-2 overflow-hidden">
                     <div 
-                      className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-500 relative"
+                      className="h-full bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full transition-all duration-500 relative"
                       style={{ 
                         width: `${Math.min(100, (listing.current_highest_bid! / (listing.min_price * 2)) * 100)}%` 
                       }}
@@ -228,7 +228,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                   }}
                 >
                   <span
-                    className="w-full inline-block bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg font-medium text-sm text-center hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg"
+                    className="w-full inline-block bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-lg font-medium text-sm text-center hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-lg"
                   >
                     Place Bid
                   </span>
@@ -300,7 +300,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
               {/* Content Section - Reduced padding */}
               <div className="p-3">
                 {/* Title - Slightly smaller text */}
-                <h3 className="text-base font-bold text-gray-900 dark:text-bye-dark-text-primary line-clamp-2 mb-2 leading-snug active:text-indigo-600 dark:active:text-indigo-400 transition-colors">
+                <h3 className="text-base font-bold text-gray-900 dark:text-bye-dark-text-primary line-clamp-2 mb-2 leading-snug active:text-indigo-700 dark:active:text-indigo-400 transition-colors">
                   {listing.title}
                 </h3>
 
@@ -331,7 +331,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                 {hasActiveBids && (
                   <div className="w-full bg-gray-200 dark:bg-bye-dark-bg-hover rounded-full h-1 overflow-hidden mb-2">
                     <div 
-                      className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-500"
+                      className="h-full bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full transition-all duration-500"
                       style={{ width: `${Math.min(100, (listing.current_highest_bid! / (listing.min_price * 2)) * 100)}%` }}
                     ></div>
                   </div>
@@ -369,7 +369,7 @@ export default function ListingCard({ listing, className = '' }: ListingCardProp
                   {listing.status === 'active' && !isEffectivelyEnded ? (
                     <Link 
                       href={`/listings/${listing.id}`}
-                      className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150 shadow-sm text-center"
+                      className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2 rounded-lg font-medium text-xs active:scale-[0.98] transition-transform duration-150 shadow-sm text-center"
                       onClick={(e) => {
                         e.stopPropagation();
                       }}

@@ -20,43 +20,20 @@ module.exports = {
         'bye-dark-text-secondary': '#818384',   // Secondary text, metadata (Reddit #818384)
         'bye-dark-border-primary': '#343536',   // Borders, separators (Reddit #343536)
 
-        // Brand blue scale – override indigo/purple/violet to a unified blue palette (similar to LinkedIn/Twitter blue)
-        indigo: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6', // base blue (Tailwind blue-500)
-          600: '#2563eb', // primary accent (blue-600)
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-        },
-        purple: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-        },
-        violet: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-        },
+        // Light-mode palette for exceptional polish
+        'light-bg-primary': '#FFFFFF',          // Pure white for maximum crispness
+        'light-bg-secondary': '#F9FAFB',        // Tailwind gray-50 for cards/sections
+        'light-bg-hover': '#F3F4F6',            // Tailwind gray-100 for hover states
+        'light-text-primary': '#111827',        // Tailwind gray-900 for primary text
+        'light-text-secondary': '#4B5563',      // Tailwind gray-600 for secondary text
+        'light-border-primary': '#E5E7EB',      // Tailwind gray-200 for subtle borders
+        'light-border-interactive': '#D1D5DB',  // Tailwind gray-300 for input borders
+
+        // Remove the temporary blue overrides so that Tailwind's default
+        // Indigo / Purple / Violet scales are used again. Those defaults
+        // provide the vibrant indigo-600 → purple-600 gradient in light mode
+        // and the lighter indigo-500 → purple-500 variant when the `dark:`
+        // prefix is applied, exactly matching the requested colour scheme.
       },
     },
   },

@@ -175,7 +175,7 @@ export default function IntegratedSearchBar({
                     {selectedCategory && (
                       <button
                         onClick={() => { onCategoryChange(null); close(); }}
-                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 font-medium transition-colors"
+                        className="text-xs text-indigo-700 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 font-medium transition-colors"
                       >
                         Clear
                       </button>
@@ -186,7 +186,7 @@ export default function IntegratedSearchBar({
                       onClick={() => { onCategoryChange(null); close(); }}
                       className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all duration-150 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover ${
                         !selectedCategory 
-                          ? 'font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' 
+                          ? 'font-semibold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' 
                           : 'text-gray-700 dark:text-bye-dark-text-secondary'
                       }`}
                     >
@@ -203,7 +203,7 @@ export default function IntegratedSearchBar({
                           onClick={() => { onCategoryChange(cat.name); close(); }}
                           className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all duration-150 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover ${
                             selectedCategory === cat.name 
-                              ? 'font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' 
+                              ? 'font-semibold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' 
                               : 'text-gray-700 dark:text-bye-dark-text-secondary'
                           }`}
                         >
@@ -259,7 +259,7 @@ export default function IntegratedSearchBar({
                         onClick={() => { onSortChange(opt.value); close(); }}
                         className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all duration-150 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover ${
                           selectedSort === opt.value 
-                            ? 'font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' 
+                            ? 'font-semibold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' 
                             : 'text-gray-700 dark:text-bye-dark-text-secondary'
                         }`}
                       >
