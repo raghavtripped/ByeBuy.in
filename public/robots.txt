@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+
+# Block API routes from being indexed
+Disallow: /api/
+Disallow: /auth/callback
+Disallow: /account/
+Disallow: /my-*
+
+# Allow public pages
+Allow: /listings/
+Allow: /sellers/
+Allow: /about
+Allow: /help
+Allow: /terms
+
+# Sitemap location
+Sitemap: https://byebuy.in/sitemap.xml 
