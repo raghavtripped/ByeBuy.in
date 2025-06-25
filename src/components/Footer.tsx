@@ -192,7 +192,7 @@ const Footer: React.FC = () => {
                 </Link>
             </div>
             <p className="text-sm text-slate-500 dark:text-bye-dark-text-secondary mb-6"> {/* Added mb-6 for spacing */}
-              Your campus marketplace.
+              Your friendly campus marketplace.
             </p>
 
             {/* Using the new FooterSection component for mobile collapsibles */}
