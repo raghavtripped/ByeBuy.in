@@ -12,7 +12,7 @@
     "security:test-all": "npm run security:sql-injection"
   },
   "dependencies": {
-    "@headlessui/react": "^2.2.3",
+    "@headlessui/react": "^2.2.4",
     "@heroicons/react": "^2.2.0",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/auth-ui-react": "^0.4.7",
@@ -22,7 +22,7 @@
     "lucide-react": "^0.513.0",
     "next": "15.3.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react-dom": "^19.1.0",
     "react-hot-toast": "^2.5.2",
     "react-icons": "^5.5.0",
     "react-share": "^5.2.2",

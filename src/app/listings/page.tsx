@@ -10,8 +10,9 @@ import CategoryFilterModal from '@/components/CategoryFilterModal';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 import { CATEGORIES_DATA } from '@/lib/categories';
-import { FunnelIcon, SparklesIcon, FireIcon, ChevronDownIcon, AdjustmentsHorizontalIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { FunnelIcon, SparklesIcon, FireIcon, AdjustmentsHorizontalIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import SortOptionModal from '@/components/SortOptionModal';
+import IntegratedSearchBar from '@/components/IntegratedSearchBar';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -77,7 +78,6 @@ export default function ListingsPage() {
   const currentSearchTerm = searchParams.get('search');
   
   const [searchInput, setSearchInput] = useState(currentSearchTerm || '');
-  const [searchFocused, setSearchFocused] = useState(false);
   
   // Sort state - read from URL or default to 'created_at_desc'
   const urlSortParam = searchParams.get('sort') as SortOptionValue | null;
@@ -281,6 +281,11 @@ export default function ListingsPage() {
     setIsCategoryModalOpen(false);
   };
 
+  // Handler for category changes from IntegratedSearchBar
+  const handleCategoryFilterChange = useCallback((categoryName: string | null) => {
+    setSelectedCategory(categoryName);
+  }, []);
+
   // Handle sort option change with URL persistence
   const handleSortChange = useCallback((newSortOption: SortOptionValue) => {
     setSortOption(newSortOption);
@@ -305,8 +310,7 @@ export default function ListingsPage() {
     router.replace(`/listings?${currentParams.toString()}`, { scroll: false });
   };
 
-  const handleSearchFocus = () => setSearchFocused(true);
-  const handleSearchBlur = () => setSearchFocused(false);
+
 
   /* ------------------------------------------------------------------ */
   /*  Render guards                                                     */
@@ -436,147 +440,74 @@ export default function ListingsPage() {
             </header>
           ) : null}
 
-          {/* Search Bar */}
-          <div className="relative z-30 max-w-xl mx-auto mb-6 px-4 sm:px-0">
-            <form onSubmit={handleSearchSubmit} className="relative">
-              <div className={`relative transition-all duration-300 ${searchFocused ? 'transform scale-105' : ''}`}>
-                <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500 z-20" />
+          {/* New Integrated Search and Filter Section */}
+          <div className="relative z-30 max-w-4xl mx-auto mb-8 px-4 sm:px-0">
+            {/* Desktop Search Bar */}
+            <div className="hidden md:block">
+              <IntegratedSearchBar
+                searchInput={searchInput}
+                setSearchInput={setSearchInput}
+                onSearchSubmit={handleSearchSubmit}
+                selectedCategory={selectedCategory}
+                onCategoryChange={handleCategoryFilterChange}
+                categoriesData={CATEGORIES_DATA}
+                selectedSort={sortOption}
+                onSortChange={handleSortChange}
+                sortOptionsData={sortOptions}
+              />
+            </div>
+
+            {/* Mobile Search Bar & Filters */}
+            <div className={`md:hidden ${currentSearchTerm || selectedCategory ? 'space-y-2' : 'space-y-3'}`}>
+              {/* Mobile Search Input */}
+              <form onSubmit={handleSearchSubmit} className="relative">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
                 <input
                   type="text"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="Search listings by title or description... (⌘K)"
-                  onFocus={handleSearchFocus}
-                  onBlur={handleSearchBlur}
-                  className="w-full pl-12 pr-4 py-3.5 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl text-gray-900 dark:text-bye-dark-text-primary placeholder-gray-500 dark:placeholder-bye-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-all duration-200 hover:bg-white dark:hover:bg-bye-dark-bg-secondary"
+                  placeholder="Search listings..."
+                  className={`w-full pl-10 pr-4 ${currentSearchTerm || selectedCategory ? 'py-2.5' : 'py-3'} bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-xl text-gray-900 dark:text-bye-dark-text-primary placeholder-gray-500 dark:placeholder-bye-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500`}
                 />
-                {/* Gradient overlay */}
-                <div className={`absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-2xl transition-opacity duration-200 pointer-events-none z-10 ${searchFocused ? 'opacity-100' : 'opacity-0'}`} />
-              </div>
-            </form>
-          </div>
-
-          {/* Universal category filter section */}
-          <div
-            className={`flex flex-col items-center space-y-1 relative z-30 ${
-              currentSearchTerm || selectedCategory
-                ? 'pt-2 sm:pt-3 mb-2'
-                : 'pt-4 sm:pt-6 mb-3'
-            }`}
-          >
-            {/* Filter and Sort Controls Container */}
-            <div className={`grid grid-cols-2 gap-2 w-full max-w-lg ${
-              currentSearchTerm ? 'transform -translate-y-1' : ''
-            }`}>
-              {/* Filter Button */}
-              <button
-                onClick={() => setIsCategoryModalOpen(true)}
-                className="group z-40 min-w-0 w-full"
-              >
-                <div
-                  className={`relative w-full bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl shadow-lg transition-all duration-300 group-hover:shadow-xl z-10 p-4`}
-                >
-                  <div className="flex items-center min-w-0">
-                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl mr-3 p-2">
-                      <FunnelIcon className="text-white w-5 h-5" />
-                    </div>
-                    <span className="flex-grow text-left font-medium text-gray-700 dark:text-bye-dark-text-primary truncate whitespace-nowrap">
-                      {/* Mobile label */}
-                      <span className="sm:hidden">Filter</span>
-                      {/* Desktop / tablet label */}
-                      <span className="hidden sm:inline">
-                        {selectedCategory
-                          ? `Category: ${selectedCategory}`
-                          : 'Filter All Categories'}
-                      </span>
-                    </span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      className="w-5 h-5 text-gray-400 dark:text-bye-dark-text-secondary group-hover:text-indigo-500 transition-colors"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                </div>
-              </button>
-
-              {/* Sort Button */}
-              <button
-                onClick={() => setIsSortModalOpen(true)}
-                className="group z-40 min-w-0 w-full"
-              >
-                <div
-                  className={`relative w-full bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-2xl shadow-lg transition-all duration-300 group-hover:shadow-xl z-10 p-4`}
-                >
-                  <div className="flex items-center min-w-0">
-                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl mr-3 p-2">
-                      <AdjustmentsHorizontalIcon className="text-white w-5 h-5" />
-                    </div>
-                    <span className="flex-grow text-left font-medium text-gray-700 dark:text-bye-dark-text-primary truncate whitespace-nowrap">
-                      {/* Mobile label */}
-                      <span className="sm:hidden">Sort</span>
-                      {/* Desktop / tablet label */}
-                      <span className="hidden sm:inline">
-                        Sort: {sortOptions.find(o => o.value === sortOption)?.label || 'Default'}
-                      </span>
-                    </span>
-                    <ChevronDownIcon className="w-5 h-5 text-gray-400 dark:text-bye-dark-text-secondary group-hover:text-indigo-500 transition-colors" />
-                  </div>
-                </div>
-              </button>
-            </div>
-
-            {/* Active Filter Indicator */}
-            {selectedCategory && (
-              <div className="inline-flex items-center gap-2 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm rounded-full px-4 py-1 shadow-lg border border-indigo-100 dark:border-indigo-900/30">
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
-                <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary text-sm">
-                  Results for {selectedCategory}
-                </span>
+              </form>
+              {/* Mobile Filter/Sort Buttons */}
+              <div className={`grid grid-cols-2 ${currentSearchTerm || selectedCategory ? 'gap-2' : 'gap-3'}`}>
                 <button
-                  onClick={() => setSelectedCategory(null)}
-                  className="ml-1 p-1 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover rounded-full transition-colors"
+                  onClick={() => setIsCategoryModalOpen(true)}
+                  className={`flex items-center justify-center gap-1.5 w-full px-3 ${currentSearchTerm || selectedCategory ? 'py-2.5' : 'py-3'} bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-xl text-gray-700 dark:text-bye-dark-text-primary font-medium text-sm`}
                 >
-                  <svg 
-                    className="w-4 h-4 text-gray-500 hover:text-gray-700 dark:text-bye-dark-text-secondary dark:hover:text-bye-dark-text-primary" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={2} 
-                      d="M6 18L18 6M6 6l12 12" 
-                    />
-                  </svg>
+                  <FunnelIcon className="w-4 h-4" />
+                  <span>{selectedCategory ? `${selectedCategory.substring(0,8)}...` : 'Filter'}</span>
+                </button>
+                <button
+                  onClick={() => setIsSortModalOpen(true)}
+                  className={`flex items-center justify-center gap-1.5 w-full px-3 ${currentSearchTerm || selectedCategory ? 'py-2.5' : 'py-3'} bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-xl text-gray-700 dark:text-bye-dark-text-primary font-medium text-sm`}
+                >
+                  <AdjustmentsHorizontalIcon className="w-4 h-4" />
+                  <span>Sort</span>
                 </button>
               </div>
-            )}
+            </div>
 
-            {/* Search Results Indicator - Moved inside container */}
-            {currentSearchTerm && (
-              <div className="inline-flex items-center gap-2 bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm rounded-full px-4 py-1 shadow-lg border border-indigo-100 dark:border-indigo-900/30">
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                <span className="font-medium text-gray-700 dark:text-bye-dark-text-primary text-sm">
-                  Results for &quot;{currentSearchTerm}&quot;
-                </span>
-                <Link
-                  href="/listings"
-                  className="ml-1 p-1 hover:bg-gray-100 dark:hover:bg-bye-dark-bg-hover rounded-full transition-colors"
-                >
-                  <svg className="w-4 h-4 text-gray-500 hover:text-gray-700 dark:text-bye-dark-text-secondary dark:hover:text-bye-dark-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </Link>
-              </div>
-            )}
+            {/* Active Filter Indicators */}
+            <div className={`${currentSearchTerm || selectedCategory ? 'mt-2' : 'mt-3'} flex flex-wrap justify-center gap-2 text-sm`}>
+              {selectedCategory && (
+                <div className="inline-flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full px-3 py-1">
+                  Category: {selectedCategory}
+                  <button onClick={() => handleCategoryFilterChange(null)} className="ml-1">
+                    <XMarkIcon className="w-4 h-4 hover:text-indigo-900 dark:hover:text-indigo-100" />
+                  </button>
+                </div>
+              )}
+              {currentSearchTerm && (
+                <div className="inline-flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full px-3 py-1">
+                  Search: &quot;{currentSearchTerm}&quot;
+                  <Link href="/listings" className="ml-1" onClick={() => setSearchInput('')}>
+                    <XMarkIcon className="w-4 h-4 hover:text-blue-900 dark:hover:text-blue-100" />
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
