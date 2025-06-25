@@ -379,7 +379,7 @@ export default function ListingsPage() {
     // Global Page Background
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-bye-dark-bg-primary dark:via-bye-dark-bg-primary dark:to-bye-dark-bg-primary">
       {/* Hero Section with Animated Background */}
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-hidden mx-4 mt-4 rounded-2xl">
         {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           {/* Animated Background Gradient 1 */}
