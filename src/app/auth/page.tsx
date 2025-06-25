@@ -5,82 +5,62 @@ import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation'; // Import useSearchParams
+import { useRouter, useSearchParams } from 'next/navigation';
 import { SparklesIcon, ShieldCheckIcon, UserGroupIcon, BoltIcon } from '@heroicons/react/24/outline';
 import { supabase } from '@/lib/supabaseClient';
-// Assuming you might use the notification system for auth errors if needed
-// import { useNotifications } from '@/hooks/useNotifications';
 
 export default function AuthPage() {
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
-  const searchParams = useSearchParams(); // For reading redirect query param
-  // const { showNotification } = useNotifications(); // If you want custom notifications for auth errors
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     setMounted(true);
 
-    // Function to handle redirection
     const handleRedirect = () => {
-      // Check for redirect URL from query params, e.g., ?redirect=/my-profile
       const redirectPath = searchParams.get('redirect');
-      const nextPath = redirectPath || '/listings'; // Default to /listings
-      router.replace(nextPath); // Use replace to avoid adding auth page to history
+      const nextPath = redirectPath || '/listings';
+      router.replace(nextPath);
     };
 
-    // Check initial session
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        // Only redirect if not on a specific auth callback path (magic link, oauth, recovery)
         const currentPath = window.location.pathname + window.location.search + window.location.hash;
-        if (!currentPath.includes('/auth/callback') && 
-            !window.location.hash.includes('type=recovery') && 
-            !window.location.search.includes('code=')) { // Supabase adds 'code' for OAuth sometimes
-          handleRedirect();
-        }
-      }
-    });
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      // console.log('[AuthPage] Auth Event:', event, 'Session:', session);
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') { // USER_UPDATED can happen after password reset
-        // Check again for callback paths before redirecting
-        const currentPath = window.location.pathname + window.location.search + window.location.hash;
-        if (!currentPath.includes('/auth/callback') && 
+        if (!currentPath.includes('/auth/callback') &&
             !window.location.hash.includes('type=recovery') &&
             !window.location.search.includes('code=')) {
           handleRedirect();
         }
       }
-      // Note: SIGNED_OUT event is typically handled by a global listener (e.g., in Navbar or a layout component)
-      // to redirect to /auth if the user logs out from another page.
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        const currentPath = window.location.pathname + window.location.search + window.location.hash;
+        if (!currentPath.includes('/auth/callback') &&
+            !window.location.hash.includes('type=recovery') &&
+            !window.location.search.includes('code=')) {
+          handleRedirect();
+        }
+      }
     });
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [router, searchParams]); // Removed supabase from dependencies as it's stable
+  }, [router, searchParams]);
 
-  // Function to determine the redirectTo URL for Supabase Auth UI (for magic links, password recovery etc.)
   const getSupabaseRedirectUrl = (): string => {
     if (typeof window === 'undefined') {
-      // This function should ideally only be called client-side when Auth UI is rendered
-      return ''; // Or a default server-side known origin for absolute URLs if needed
+      return '';
     }
-    // For Supabase internal redirects, usually point back to the auth page or a specific callback handler
-    // OAuth redirects are configured in Supabase project settings.
-    // If you have a 'next' query param meant for Supabase to use after its flow:
-    const nextParam = searchParams.get('next'); // Example: /update-password
+    const nextParam = searchParams.get('next');
     if (nextParam && nextParam.startsWith('/')) {
       return `${window.location.origin}${nextParam}`;
     }
-    // Default for things like magic link confirmations that might land back here
-    return window.location.origin + '/auth'; 
+    return window.location.origin + '/auth';
   };
 
-
-  // Enhanced loading state matching listings page hero spinner
   if (!mounted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-bye-dark-bg-primary dark:via-bye-dark-bg-primary dark:to-bye-dark-bg-primary flex items-center justify-center p-4">
@@ -100,14 +80,12 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-bye-dark-bg-primary dark:via-bye-dark-bg-primary dark:to-bye-dark-bg-primary relative overflow-hidden">
-      {/* Animated background elements - consistent with listings page */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-4 -right-4 w-96 h-96 bg-gradient-to-br from-purple-300/15 to-indigo-400/15 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute -bottom-8 -left-8 w-96 h-96 bg-gradient-to-tr from-blue-300/15 to-purple-400/15 rounded-full blur-3xl animate-pulse delay-1000"></div>
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gradient-to-r from-purple-300/10 to-indigo-400/10 rounded-full blur-2xl animate-pulse delay-500"></div>
       </div>
 
-      {/* Main content */}
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-md space-y-8">
           
@@ -150,14 +128,25 @@ export default function AuthPage() {
                     variables: {
                       default: { 
                         colors: {
-                          brand: '#7c3aed', brandAccent: '#6d28d9', brandButtonText: 'white',
-                          defaultButtonBackground: '#f1f5f9', defaultButtonBackgroundHover: '#e2e8f0',
-                          defaultButtonBorder: '#e2e8f0', defaultButtonText: '#334155',
-                          dividerBackground: '#e2e8f0', inputBackground: '#ffffff',
-                          inputBorder: '#e2e8f0', inputBorderHover: '#c7d2fe', inputBorderFocus: '#7c3aed',
-                          inputText: '#1e293b', inputLabelText: '#475569', inputPlaceholder: '#94a3b8',
-                          messageText: '#ef4444', messageTextDanger: '#dc2626',
-                          anchorTextColor: '#7c3aed', anchorTextHoverColor: '#6d28d9',
+                          brand: 'rgb(109, 40, 217)', // Changed to a purple shade from your gradient theme
+                          brandAccent: 'rgb(124, 58, 237)', // A slightly lighter purple
+                          brandButtonText: 'white',
+                          defaultButtonBackground: '#f1f5f9', 
+                          defaultButtonBackgroundHover: '#e2e8f0',
+                          defaultButtonBorder: '#e2e8f0', 
+                          defaultButtonText: '#334155',
+                          dividerBackground: '#e2e8f0', 
+                          inputBackground: '#ffffff',
+                          inputBorder: '#e2e8f0', 
+                          inputBorderHover: '#c7d2fe', 
+                          inputBorderFocus: 'rgb(109, 40, 217)', // purple
+                          inputText: '#1e293b', 
+                          inputLabelText: '#475569', 
+                          inputPlaceholder: '#94a3b8',
+                          messageText: '#ef4444', 
+                          messageTextDanger: '#dc2626',
+                          anchorTextColor: 'rgb(109, 40, 217)', // purple
+                          anchorTextHoverColor: 'rgb(124, 58, 237)', // lighter purple
                         },
                         space: { spaceSmall: '4px', spaceMedium: '8px', spaceLarge: '16px', labelBottomMargin: '8px', anchorBottomMargin: '4px', buttonPadding: '10px 15px', inputPadding: '10px 15px' },
                         fontSizes: { baseBodySize: '14px', baseInputSize: '14px', baseLabelSize: '14px', baseButtonSize: '14px' },
@@ -165,47 +154,70 @@ export default function AuthPage() {
                         borderWidths: { buttonBorderWidth: '1px', inputBorderWidth: '1px' },
                         radii: { borderRadiusButton: '12px', buttonBorderRadius: '12px', inputBorderRadius: '12px' },
                       },
-                      // You can add a 'dark' block here to specifically override ThemeSupa's dark variables
-                      // if they don't perfectly align with your bye-dark-* theme for the Auth UI's internals.
-                      // For example:
-                      // dark: {
-                      //   colors: {
-                      //     inputBackground: '#2A2A2B', // bye-dark-bg-hover
-                      //     inputBorder: '#343536',    // bye-dark-border-primary
-                      //     inputText: '#D7DADC',      // bye-dark-text-primary
-                      //     // ... and so on for other internal Auth UI colors
-                      //   }
-                      // }
+                      dark: { // Overriding ThemeSupa dark variables for specific consistency
+                        colors: {
+                          brand: 'rgb(139, 92, 246)', // Lighter purple for dark mode brand
+                          brandAccent: 'rgb(167, 139, 250)', // Even lighter purple for dark mode accent
+                          brandButtonText: 'white',
+                          defaultButtonBackground: '#374151', // gray-700 for dark mode default buttons
+                          defaultButtonBackgroundHover: '#4b5563', // gray-600
+                          // ... other dark specific overrides if needed
+                          inputBackground: '#2A2A2B', // bye-dark-bg-hover
+                          inputBorder: '#343536',    // bye-dark-border-primary
+                          inputText: '#D7DADC',      // bye-dark-text-primary
+                          inputLabelText: '#D7DADC', // bye-dark-text-primary
+                          inputPlaceholder: '#818384',// bye-dark-text-secondary
+                          anchorTextColor: 'rgb(167, 139, 250)', // lighter purple for links
+                          anchorTextHoverColor: 'rgb(196, 181, 253)', // very light purple
+                        }
+                      }
                     },
                     className: { 
-                      anchor: 'font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300 transition-colors hover:underline',
-                      button: 'font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 bg-violet-600 hover:bg-violet-700 dark:bg-green-500 dark:hover:bg-green-600 data-[provider=google]:bg-[#f1f5f9] data-[provider=google]:hover:bg-[#e2e8f0] dark:data-[provider=google]:bg-zinc-800 dark:data-[provider=google]:hover:bg-zinc-700 data-[provider=google]:text-gray-900 dark:data-[provider=google]:text-gray-100',
+                      anchor: 'font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-colors hover:underline',
+                      // MODIFIED: Default buttons to use gradient, Google button distinct styling
+                      button: `
+                        font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 
+                        text-white 
+                        bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 
+                        dark:from-indigo-500 dark:to-purple-500 dark:hover:from-indigo-600 dark:hover:to-purple-600
+                        
+                        data-[provider=google]:bg-white data-[provider=google]:hover:bg-gray-100 
+                        data-[provider=google]:text-gray-700 data-[provider=google]:border data-[provider=google]:border-gray-300
+                        dark:data-[provider=google]:bg-bye-dark-bg-hover dark:data-[provider=google]:hover:bg-opacity-75 dark:data-[provider=google]:hover:bg-bye-dark-bg-hover
+                        dark:data-[provider=google]:text-bye-dark-text-primary dark:data-[provider=google]:border-bye-dark-border-primary
+                      `,
                       container: 'space-y-6', 
-                      input: 'transition-all duration-200 focus:ring-2 focus:ring-violet-500/30 dark:focus:ring-violet-500/30 focus:border-violet-600 dark:focus:border-violet-600 bg-white dark:bg-bye-dark-bg-hover border-gray-300 dark:border-bye-dark-border-primary text-gray-900 dark:text-bye-dark-text-primary placeholder-gray-400 dark:placeholder-bye-dark-text-secondary',
+                      input: 'transition-all duration-200 focus:ring-2 focus:ring-purple-500/30 dark:focus:ring-purple-500/30 focus:border-purple-600 dark:focus:border-purple-600 bg-white dark:bg-bye-dark-bg-hover border-gray-300 dark:border-bye-dark-border-primary text-gray-900 dark:text-bye-dark-text-primary placeholder-gray-400 dark:placeholder-bye-dark-text-secondary',
                       label: 'font-medium text-gray-700 dark:text-bye-dark-text-primary',
                       message: 'text-sm p-3 rounded-md bg-red-50 dark:bg-red-900/25 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700/50',
                     },
                   }}
                   providers={['google']}
                   socialLayout="horizontal"
-                  // Dynamically set theme for Supabase Auth UI based on document class
                   theme={mounted && document.documentElement.classList.contains('dark') ? 'dark' : 'light'}
-                  redirectTo={getSupabaseRedirectUrl()} // Used for magic links, password recovery, etc.
+                  redirectTo={getSupabaseRedirectUrl()}
                   localization={{
                     variables: {
                       sign_in: {
                         email_label: 'Institutional Email (@iimidr.ac.in)',
                         password_label: 'Password',
-                        button_label: 'Sign in to ByeBuy',
+                        button_label: 'Sign in to ByeBuy', // This is the default action button
                         social_provider_text: 'Continue with {{provider}}',
                       },
                       sign_up: {
                         email_label: 'Institutional Email (@iimidr.ac.in)',
                         password_label: 'Create password',
-                        button_label: 'Join ByeBuy',
+                        button_label: 'Join ByeBuy', // This is the default action button
                         social_provider_text: 'Continue with {{provider}}',
                       },
-                      // You can add more localizations if needed, e.g., for forgot_password
+                      forgotten_password: {
+                        button_label: "Send Reset Instructions", // Example for another default button
+                        // ... other labels
+                      },
+                      update_password: {
+                        button_label: "Update Password", // Example for another default button
+                        // ... other labels
+                      }
                     },
                   }}
                 />
@@ -242,7 +254,7 @@ export default function AuthPage() {
           <div className="text-center">
             <p className="text-xs text-gray-500 dark:text-bye-dark-text-secondary">
               By continuing, you agree to our{' '}
-              <Link href="/terms" className="text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300 font-medium transition-colors">
+              <Link href="/terms" className="text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium transition-colors">
                 Terms of Service
               </Link>
             </p>

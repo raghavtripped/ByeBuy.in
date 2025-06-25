@@ -667,7 +667,7 @@ export default function MyBidsPage() {
       {viewFilter === 'active' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 lg:gap-x-8 gap-y-8">
           <section>
-            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-bye-dark-text-primary pb-2 border-b border-gray-200 dark:border-bye-dark-border-primary">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-bye-dark-text-primary pb-2 border-b border-gray-200 dark:border-bye-dark-border-primary">
               Currently Winning
             </h2>
             {activeWinningItems.length ? (
@@ -685,7 +685,7 @@ export default function MyBidsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-bye-dark-text-primary pb-2 border-b border-gray-200 dark:border-bye-dark-border-primary">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-bye-dark-text-primary pb-2 border-b border-gray-200 dark:border-bye-dark-border-primary">
               Currently Losing
             </h2>
             {activeLosingItems.length ? (
@@ -707,7 +707,7 @@ export default function MyBidsPage() {
       {viewFilter === 'past' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 lg:gap-x-8 gap-y-8">
           <section>
-            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-bye-dark-text-primary pb-2 border-b border-gray-200 dark:border-bye-dark-border-primary">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-bye-dark-text-primary pb-2 border-b border-gray-200 dark:border-bye-dark-border-primary">
               Auctions Won
             </h2>
             {pastWonItems.length ? (
@@ -723,7 +723,7 @@ export default function MyBidsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-bye-dark-text-primary pb-2 border-b border-gray-200 dark:border-bye-dark-border-primary">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-bye-dark-text-primary pb-2 border-b border-gray-200 dark:border-bye-dark-border-primary">
               Auctions Lost or Cancelled
             </h2>
             {pastLostItems.length ? (

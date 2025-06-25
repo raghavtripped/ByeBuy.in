@@ -39,7 +39,7 @@ const ProfileLinkItem: React.FC<ProfileLinkItemProps> = ({
     href={href}
     target={isExternal ? '_blank' : undefined}
     rel={isExternal ? 'noopener noreferrer' : undefined}
-    className="flex items-center p-4 bg-white dark:bg-bye-dark-bg-secondary hover:bg-slate-50 dark:hover:bg-bye-dark-bg-hover rounded-lg shadow-sm transition-colors duration-150 group"
+    className="flex items-center p-4 bg-white dark:bg-bye-dark-bg-secondary hover:bg-gray-50 dark:hover:bg-bye-dark-bg-hover rounded-lg shadow-sm transition-colors duration-150 group"
   >
     <Icon className="w-5 h-5 text-indigo-600 dark:text-indigo-400 mr-4 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-colors" />
     <span className="text-sm font-medium text-slate-700 dark:text-bye-dark-text-primary group-hover:text-slate-900 dark:group-hover:text-bye-dark-text-primary">
@@ -218,7 +218,7 @@ export default function ProfilePage() {
   if (pageLoading) {
     console.log('[ProfilePage] Rendering loading state');
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-bye-dark-bg-primary p-4">
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-bye-dark-bg-primary p-4">
         <LoadingSpinner message="Loading profile" />
       </div>
     );
@@ -226,7 +226,7 @@ export default function ProfilePage() {
 
   if (!authUser)
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-bye-dark-bg-primary p-4 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-bye-dark-bg-primary p-4 text-center">
         <FiUser className="w-16 h-16 text-slate-400 dark:text-bye-dark-text-secondary/75 mb-4" />
         <p className="text-slate-700 dark:text-bye-dark-text-primary mb-3">
           Please log in to view your profile.
@@ -242,7 +242,7 @@ export default function ProfilePage() {
 
   /* ------------------------------- page ------------------------------- */
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-bye-dark-bg-primary pb-20 md:pb-8">
+    <div className="min-h-screen bg-white dark:bg-bye-dark-bg-primary pb-20 md:pb-8">
       {/* mobile header */}
       <header className="bg-white dark:bg-bye-dark-bg-secondary shadow-sm sticky top-0 z-30 md:hidden">
         <div className="max-w-md mx-auto px-4 py-3">

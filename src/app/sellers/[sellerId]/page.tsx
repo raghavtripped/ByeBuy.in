@@ -164,9 +164,9 @@ export default function SellerProfile() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-white dark:bg-bye-dark-bg-primary">
       <main className="max-w-3xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="bg-white dark:bg-bye-dark-bg-secondary p-6 sm:p-8 rounded-xl shadow-lg border border-gray-100 dark:border-bye-dark-border-primary">
+        <div className="bg-gray-50 dark:bg-bye-dark-bg-secondary p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 dark:border-bye-dark-border-primary">
           {/* Avatar & Name Section */}
           <div className="flex flex-col items-center text-center mb-8">
             <div className="mb-4">
@@ -177,7 +177,7 @@ export default function SellerProfile() {
                 className="border-2 border-gray-200 dark:border-bye-dark-border-primary"
               />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-bye-dark-text-primary">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
               {sellerProfile.fullName || 'Anonymous Seller'}
             </h1>
           </div>
@@ -230,7 +230,7 @@ export default function SellerProfile() {
             <div className="flex justify-center">
               <a
                 href={`mailto:${sellerEmailForMailto}?subject=Inquiry regarding ByeBuy listings&body=Hi ${encodeURIComponent(sellerProfile.fullName || 'Seller')},%0D%0A%0D%0A[Your message here]%0D%0A%0D%0AThanks!`}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:ring-offset-2 dark:focus:ring-offset-bye-dark-bg-secondary transition-colors"
+                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-xl shadow-sm text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:ring-offset-2 dark:focus:ring-offset-bye-dark-bg-secondary transition-all duration-200"
               >
                 <EnvelopeIcon />
                 Email Seller

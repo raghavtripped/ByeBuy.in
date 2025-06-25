@@ -689,7 +689,7 @@ export default function MyListingsPage() {
                     <button
                       onClick={() => handleFinalizeAuction(l.id)}
                       disabled={beingFinalized || beingDeleted}
-                      className="w-full sm:w-auto inline-flex items-center justify-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white dark:text-gray-100 bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:focus:ring-offset-bye-dark-bg-secondary disabled:opacity-50"
+                      className="w-full sm:w-auto inline-flex items-center justify-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-xl shadow-sm text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 dark:focus:ring-offset-bye-dark-bg-secondary disabled:opacity-50 transition-all duration-200"
                     >
                       {beingFinalized ? (
                         <>

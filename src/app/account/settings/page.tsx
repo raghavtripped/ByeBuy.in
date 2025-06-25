@@ -250,10 +250,11 @@ export default function AccountSettingsPage() {
 
   /* ---------- Main render ----------------------------------------------- */
   return (
-    <div className="max-w-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-      <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 dark:text-bye-dark-text-primary mb-8">
-        Account Settings
-      </h1>
+    <div className="min-h-screen bg-white dark:bg-bye-dark-bg-primary">
+      <div className="max-w-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-center bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-8">
+          Account Settings
+        </h1>
 
       {/* Profile Update Form */}
       <form onSubmit={handleProfileUpdate} className="bg-white dark:bg-bye-dark-bg-secondary shadow-xl rounded-lg p-6 sm:p-8 space-y-6 mb-10">
@@ -360,7 +361,7 @@ export default function AccountSettingsPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full inline-flex justify-center items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-600 dark:focus:ring-indigo-400 dark:focus:ring-offset-bye-dark-bg-secondary disabled:opacity-60"
+            className="w-full inline-flex justify-center items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-xl shadow-sm text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:ring-offset-2 dark:focus:ring-offset-bye-dark-bg-secondary disabled:opacity-60 transition-all duration-200"
           >
             {isSubmitting ? (
               <>
@@ -415,6 +416,7 @@ export default function AccountSettingsPage() {
               ? 'Click to receive an email to change your current password.'
               : 'If you signed up with Google/Social and want to enable email/password login, or if you forgot your password, click here.'}
           </p>
+        </div>
         </div>
       </div>
     </div>
