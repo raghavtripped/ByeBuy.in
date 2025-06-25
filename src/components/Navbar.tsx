@@ -314,7 +314,7 @@ export default function Navbar() {
         .eq('user_id', uid)
         .eq('read', false);
       if (!error) {
-        setHasUnread((data as unknown as { count: number } | null)?.count ?? 0 > 0);
+        setHasUnread((((data as unknown as { count: number } | null)?.count ?? 0) > 0));
       }
     };
 
