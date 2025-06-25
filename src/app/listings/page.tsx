@@ -424,18 +424,16 @@ export default function ListingsPage() {
                   </span>
                 </div>
                 
-                {currentUser && (
-                  <Link
-                    href="/listings/new"
-                    className="group relative px-8 py-3 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-violet-400 to-purple-500 rounded-full blur opacity-0 group-hover:opacity-50 transition-opacity duration-300"></div>
-                    <span className="relative flex items-center gap-2">
-                      <SparklesIcon className="w-5 h-5" />
-                      Create Listing
-                    </span>
-                  </Link>
-                )}
+                <Link
+                  href={currentUser ? "/listings/new" : "/auth?redirect=/listings"}
+                  className="group relative px-8 py-3 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-violet-400 to-purple-500 rounded-full blur opacity-0 group-hover:opacity-50 transition-opacity duration-300"></div>
+                  <span className="relative flex items-center gap-2">
+                    <SparklesIcon className="w-5 h-5" />
+                    Create Listing
+                  </span>
+                </Link>
               </div>
             </header>
           ) : null}
