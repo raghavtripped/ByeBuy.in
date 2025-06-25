@@ -416,13 +416,22 @@ export default function ListingsPage() {
 
               {/* Stats or CTA */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
-                {/* Stats/CTA Container */}
-                <div className="flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-bye-dark-bg-secondary/80 backdrop-blur-sm rounded-full shadow-lg">
+                {/* Stats/CTA Container - Now Clickable */}
+                <button 
+                  onClick={() => {
+                    const listingsSection = document.getElementById('listings-grid');
+                    listingsSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-bye-dark-bg-secondary/80 backdrop-blur-sm rounded-full shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 cursor-pointer group"
+                >
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary">
+                  <span className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                     {rows.length} Active Auctions
                   </span>
-                </div>
+                  <svg className="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                </button>
                 
                 <Link
                   href={currentUser ? "/listings/new" : "/auth?redirect=/listings"}
@@ -549,7 +558,7 @@ export default function ListingsPage() {
 
         {/* ---------------- Listings grid ------------------------------ */}
         {!loading && !error && rows.length > 0 && (
-          <div className={`${
+          <div id="listings-grid" className={`${
             currentSearchTerm || selectedCategory 
               ? 'pt-8 sm:pt-10' // More spacing when in search/filter mode
               : 'space-y-6 pt-6 sm:pt-8'
