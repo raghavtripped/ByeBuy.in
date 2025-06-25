@@ -8,7 +8,6 @@ import {
   ChevronDownIcon,
   FunnelIcon,
   AdjustmentsHorizontalIcon,
-  XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 type SortOptionValue = 'created_at_desc' | 'end_time_asc' | 'price_asc' | 'price_desc' | 'bid_count_desc';
@@ -115,7 +114,6 @@ export default function IntegratedSearchBar({
   const categoryButtonRef = useRef<HTMLButtonElement>(null);
   const sortButtonRef = useRef<HTMLButtonElement>(null);
 
-  const currentCategoryLabel = selectedCategory || 'All Categories';
   const currentSortLabel = sortOptionsData.find((s) => s.value === selectedSort)?.label || 'Sort by';
 
   return (
