@@ -45,7 +45,7 @@ interface IntegratedSearchBarProps {
 function PortalDropdown({ children, show, buttonRef, onClose }: { 
   children: React.ReactNode; 
   show: boolean; 
-  buttonRef: React.RefObject<HTMLButtonElement>;
+  buttonRef: React.RefObject<HTMLButtonElement | null>;
   onClose?: () => void;
 }) {
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
