@@ -459,13 +459,13 @@ export default function ListingsPage() {
             <div className={`md:hidden ${currentSearchTerm || selectedCategory ? 'space-y-2' : 'space-y-3'}`}>
               {/* Mobile Search Input */}
               <form onSubmit={handleSearchSubmit} className="relative">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400 z-10 pointer-events-none" />
                 <input
                   type="text"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="Search listings..."
-                  className={`w-full pl-10 pr-4 ${currentSearchTerm || selectedCategory ? 'py-2.5' : 'py-3'} bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-xl text-gray-900 dark:text-bye-dark-text-primary placeholder-gray-500 dark:placeholder-bye-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                  className={`w-full pl-12 pr-4 ${currentSearchTerm || selectedCategory ? 'py-2.5' : 'py-3'} bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-xl text-gray-900 dark:text-bye-dark-text-primary placeholder-gray-500 dark:placeholder-bye-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 relative z-0`}
                 />
               </form>
               {/* Mobile Filter/Sort Buttons */}
