@@ -475,7 +475,7 @@ export default function ListingsPage() {
                   className={`flex items-center justify-center gap-1.5 w-full px-3 ${currentSearchTerm || selectedCategory ? 'py-2.5' : 'py-3'} bg-white/90 dark:bg-bye-dark-bg-secondary/90 backdrop-blur-sm border border-gray-200 dark:border-bye-dark-border-primary rounded-xl text-gray-700 dark:text-bye-dark-text-primary font-medium text-sm`}
                 >
                   <FunnelIcon className="w-4 h-4" />
-                  <span>{selectedCategory ? `${selectedCategory.substring(0,8)}...` : 'Filter'}</span>
+                  <span>{selectedCategory ? `${selectedCategory.substring(0,8)}...` : 'Category'}</span>
                 </button>
                 <button
                   onClick={() => setIsSortModalOpen(true)}
