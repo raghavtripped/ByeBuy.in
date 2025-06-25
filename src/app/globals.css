@@ -152,4 +152,11 @@ body, .button-primary, .button-secondary, .button-danger, .link, .icon, .card {
 html {
   /* 14px at 320px viewport up to 18px at 1536px viewport */
   font-size: clamp(14px, 0.875rem + 0.25vw, 18px);
+  /* Ultra smooth scrolling */
+  scroll-behavior: smooth;
+}
+
+/* Enhanced smooth scrolling for all scrollable elements */
+* {
+  scroll-behavior: smooth;
 }

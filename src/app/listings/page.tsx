@@ -377,7 +377,7 @@ export default function ListingsPage() {
   /* ------------------------------------------------------------------ */
   return (
     // Global Page Background
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-bye-dark-bg-primary dark:via-bye-dark-bg-primary dark:to-bye-dark-bg-primary">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-bye-dark-bg-primary dark:via-bye-dark-bg-primary dark:to-bye-dark-bg-primary" style={{ scrollBehavior: 'smooth' }}>
       {/* Hero Section with Animated Background */}
       <div className="relative overflow-hidden mx-4 mt-4 rounded-2xl">
         {/* Animated background elements */}
@@ -420,7 +420,17 @@ export default function ListingsPage() {
                 <button 
                   onClick={() => {
                     const listingsSection = document.getElementById('listings-grid');
-                    listingsSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    if (listingsSection) {
+                      const headerOffset = 80; // Account for any fixed headers
+                      const elementPosition = listingsSection.getBoundingClientRect().top;
+                      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+                      // Use smooth scrolling with easing
+                      window.scrollTo({
+                        top: offsetPosition,
+                        behavior: 'smooth'
+                      });
+                    }
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-bye-dark-bg-secondary/80 backdrop-blur-sm rounded-full shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 cursor-pointer group"
                 >
