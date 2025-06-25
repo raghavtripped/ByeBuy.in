@@ -94,6 +94,7 @@ export default function Navbar() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(pageSearchTerm);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
 
   /* ── Refs ───────────────────────────── */
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -302,6 +303,38 @@ export default function Navbar() {
         : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white'
     }`;
 
+  /* ── Fetch unread notifications ─────────── */
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const fetchUnread = async (uid: string) => {
+      const { data, error } = await supabase
+        .from('user_notifications')
+        .select('id', { head: true, count: 'exact' })
+        .eq('user_id', uid)
+        .eq('read', false);
+      if (!error) {
+        setHasUnread((data as unknown as { count: number } | null)?.count ?? 0 > 0);
+      }
+    };
+
+    if (user?.id) {
+      fetchUnread(user.id);
+      // Realtime subscription to updates on this user's notifications
+      channel = supabase.channel(`noti-${user.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_notifications', filter: `user_id=eq.${user.id}` }, () => {
+          fetchUnread(user.id);
+        })
+        .subscribe();
+    } else {
+      setHasUnread(false);
+    }
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   /* ── Loading State ─────────────────── */
   if (loading) {
     return (
@@ -433,8 +466,9 @@ export default function Navbar() {
                     aria-label="Notifications"
                   >
                     <BellIcon className="w-6 h-6" />
-                    {/* Consider making notification dot conditional */}
-                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 dark:bg-red-400 rounded-full animate-pulse" />
+                    {hasUnread && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 dark:bg-red-400 rounded-full animate-pulse" />
+                    )}
                   </Link>
 
                   {/* User Menu - Desktop Only */}
