@@ -42,42 +42,33 @@ export default function RootLayout({
   const [authInitialized, setAuthInitialized] = useState(false);
 
   useEffect(() => {
-    // Check if this is a visibility change refresh
-    const isVisibilityRefresh = new URLSearchParams(window.location.search).get('visibility_refresh') === 'true';
-    if (isVisibilityRefresh) {
-      // Skip splash screen for visibility refresh
-      setShowSplash(false);
-      setMainAppVisible(true);
-      // Clean up the URL parameter without refreshing
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-
-    // Initialize auth first
-    supabase.auth.getSession().then(() => {
+    // Timeout fallback: force initialization after 8s to prevent infinite loading
+    const timeout = setTimeout(() => {
       setAuthInitialized(true);
       setIsClient(true);
-    }).catch(console.error);
+    }, 8000);
 
-    // Set up auth listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+    // Initialize auth
+    supabase.auth.getSession().then(() => {
+      clearTimeout(timeout);
       setAuthInitialized(true);
+      setIsClient(true);
+    }).catch(() => {
+      // On failure, still unblock the UI — user just won't be authenticated
+      clearTimeout(timeout);
+      setAuthInitialized(true);
+      setIsClient(true);
     });
 
-    // Add visibility change handler
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Add visibility_refresh parameter before reloading
-        const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.set('visibility_refresh', 'true');
-        window.location.href = currentUrl.toString();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // Set up auth listener — also unblocks isClient on INITIAL_SESSION event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      setAuthInitialized(true);
+      setIsClient(true);
+    });
 
     return () => {
+      clearTimeout(timeout);
       subscription?.unsubscribe();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
