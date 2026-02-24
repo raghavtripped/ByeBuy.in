@@ -8,8 +8,7 @@ if (typeof window !== 'undefined') {
     if (stored === 'light' || stored === 'dark') {
       document.documentElement.classList.toggle('dark', stored === 'dark');
     } else {
-      var prefers = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.classList.toggle('dark', prefers);
+      document.documentElement.classList.remove('dark');
     }
   } catch (_) {}
 }

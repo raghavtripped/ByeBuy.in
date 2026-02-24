@@ -10,7 +10,8 @@ import CategoryFilterModal from '@/components/CategoryFilterModal';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 import { CATEGORIES_DATA } from '@/lib/categories';
-import { FunnelIcon, SparklesIcon, FireIcon, AdjustmentsHorizontalIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { formatCurrency } from '@/lib/formatUtils';
+import { FunnelIcon, SparklesIcon, FireIcon, AdjustmentsHorizontalIcon, MagnifyingGlassIcon, XMarkIcon, ArrowUpTrayIcon, CheckIcon } from '@heroicons/react/24/outline';
 import SortOptionModal from '@/components/SortOptionModal';
 import IntegratedSearchBar from '@/components/IntegratedSearchBar';
 
@@ -117,7 +118,7 @@ export default function ListingsPage() {
         let query = supabase
           .from('listings_with_highest_bid')
           .select(
-            `id, title, min_price, photos, current_highest_bid, end_time, status, created_at, tags, description, bid_count`,
+            `id, title, min_price, photos, current_highest_bid, end_time, status, created_at, tags, description, bid_count, seller_id`,
           )
           .eq('status', 'active');
 
@@ -173,6 +174,7 @@ export default function ListingsPage() {
             end_time: item.end_time ?? null,
             description: item.description || '',
             bid_count: item.bid_count ?? 0,
+            seller_id: item.seller_id ?? null,
           }))
           .filter((i) => i.id) as ListingCardItem[];
 
@@ -308,6 +310,90 @@ export default function ListingsPage() {
       currentParams.delete('search');
     }
     router.replace(`/listings?${currentParams.toString()}`, { scroll: false });
+  };
+
+  /* --------------------------- Export -------------------------------- */
+  const [exportCopied, setExportCopied] = useState(false);
+
+  const handleExport = async () => {
+    if (rows.length === 0) return;
+
+    // Batch-fetch seller usernames from profiles
+    const sellerIds = [...new Set(rows.map((r) => r.seller_id).filter(Boolean))] as string[];
+    const sellerMap: Record<string, string> = {};
+
+    if (sellerIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .in('id', sellerIds);
+      if (profilesData) {
+        profilesData.forEach((p) => {
+          if (p.id && p.email) sellerMap[p.id] = p.email.split('@')[0];
+        });
+      }
+    }
+
+    const baseUrl = 'https://byebuy.in';
+    const today = new Date().toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    // Build per-listing HTML blocks
+    const listingsHtml = rows
+      .map((listing) => {
+        const seller = listing.seller_id
+          ? sellerMap[listing.seller_id] ?? 'Unknown'
+          : 'Unknown';
+        const price = formatCurrency(listing.min_price);
+        const url = `${baseUrl}/listings/${listing.id}`;
+        return `<div style="margin-bottom:16px;padding:16px 20px;background:#f9fafb;border-radius:10px;border-left:4px solid #6366f1;">
+  <p style="margin:0 0 6px 0;font-size:16px;font-weight:700;"><a href="${url}" style="color:#6366f1;text-decoration:none;">${listing.title}</a></p>
+  <p style="margin:0 0 4px 0;font-size:13px;color:#6b7280;">Sold by: <strong style="color:#374151;">${seller}</strong></p>
+  <p style="margin:0;font-size:15px;font-weight:700;color:#059669;">Min Bid: ${price}</p>
+</div>`;
+      })
+      .join('\n');
+
+    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#1f2937;font-size:15px;line-height:1.6;max-width:600px;">
+  <p style="margin:0 0 2px 0;font-size:22px;font-weight:800;color:#6366f1;">ByeBuy</p>
+  <p style="margin:0 0 14px 0;font-size:13px;color:#6b7280;letter-spacing:0.02em;">Active Campus Listings &nbsp;·&nbsp; ${rows.length} auction${rows.length !== 1 ? 's' : ''}</p>
+  <hr style="border:none;border-top:2px solid #e5e7eb;margin:0 0 18px 0;">
+  ${listingsHtml}
+  <hr style="border:none;border-top:1px solid #e5e7eb;margin:18px 0 14px 0;">
+  <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">Exported from <a href="${baseUrl}" style="color:#6366f1;text-decoration:none;">byebuy.in</a> &nbsp;·&nbsp; ${today}</p>
+</div>`;
+
+    // Plain text fallback
+    const listingsText = rows
+      .map((listing, i) => {
+        const seller = listing.seller_id
+          ? sellerMap[listing.seller_id] ?? 'Unknown'
+          : 'Unknown';
+        const price = formatCurrency(listing.min_price);
+        const url = `${baseUrl}/listings/${listing.id}`;
+        return `${i + 1}. ${listing.title}\n   Sold by: ${seller}\n   Min Bid: ${price}\n   ${url}`;
+      })
+      .join('\n\n');
+
+    const plainText = `ByeBuy — Active Campus Listings (${rows.length} auction${rows.length !== 1 ? 's' : ''})\n${'─'.repeat(52)}\n\n${listingsText}\n\n${'─'.repeat(52)}\nExported from byebuy.in · ${today}`;
+
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([plainText], { type: 'text/plain' }),
+        }),
+      ]);
+    } catch {
+      // Fallback for browsers that don't support ClipboardItem
+      await navigator.clipboard.writeText(plainText);
+    }
+
+    setExportCopied(true);
+    setTimeout(() => setExportCopied(false), 2500);
   };
 
 
@@ -453,6 +539,28 @@ export default function ListingsPage() {
                     Create Listing
                   </span>
                 </Link>
+
+                {rows.length > 0 && (
+                  <button
+                    onClick={handleExport}
+                    title="Copy all listings to clipboard"
+                    className="flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-bye-dark-bg-secondary/80 backdrop-blur-sm rounded-full shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 group"
+                  >
+                    {exportCopied ? (
+                      <>
+                        <CheckIcon className="w-4 h-4 text-green-500" />
+                        <span className="text-sm font-medium text-green-600 dark:text-green-400">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <ArrowUpTrayIcon className="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors" />
+                        <span className="text-sm font-medium text-gray-700 dark:text-bye-dark-text-primary group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                          Export Listings
+                        </span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </header>
           ) : null}
@@ -575,13 +683,35 @@ export default function ListingsPage() {
           }`}>
             {/* Title Section - Only show when not searching AND not filtering */}
             {(!currentSearchTerm && !selectedCategory) && (
-              <div className="text-center mb-4">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-bye-dark-text-primary mb-1">
-                  {selectedCategory ? `${selectedCategory} Auctions` : 'All Active Listings'}
-                </h2>
-                <p className="text-gray-600 dark:text-bye-dark-text-secondary text-sm">
-                  {rows.length} auction{rows.length !== 1 ? 's' : ''} ending soon
-                </p>
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-28 shrink-0" />
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-bye-dark-text-primary mb-1">
+                    All Active Listings
+                  </h2>
+                  <p className="text-gray-600 dark:text-bye-dark-text-secondary text-sm">
+                    {rows.length} auction{rows.length !== 1 ? 's' : ''} ending soon
+                  </p>
+                </div>
+                <div className="w-28 shrink-0 flex justify-end">
+                  <button
+                    onClick={handleExport}
+                    title="Copy all listings to clipboard"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all duration-200"
+                  >
+                    {exportCopied ? (
+                      <>
+                        <CheckIcon className="w-4 h-4 text-green-500" />
+                        <span className="text-green-600 dark:text-green-400">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <ArrowUpTrayIcon className="w-4 h-4" />
+                        Export
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 

@@ -24,6 +24,7 @@ export type ListingCardItem = {
   end_time?: string | null;
   status: 'active' | 'closed' | 'cancelled' | string;
   bid_count: number;
+  seller_id?: string | null;
 };
 
 interface ListingCardProps {

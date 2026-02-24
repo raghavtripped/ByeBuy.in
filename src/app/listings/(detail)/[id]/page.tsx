@@ -180,7 +180,7 @@ export default function ListingDetails() {
   const auctionEnded = !!(listing && (listing.status === 'closed' || listing.status === 'cancelled'));
   const photos = listing?.photos ?? [];
   const currentHighestBidVal = useMemo(() => bids[0]?.bid_price ?? 0, [bids]);
-  const { sliderMin, sliderMax, sliderStep, displaySlider } = useMemo(() => { if (!listing || auctionEnded) return { sliderMin: 1, sliderMax: 100, sliderStep: 1, displaySlider: false }; const nextValidBid = Math.max(listing.min_price, currentHighestBidVal + 1); if (listing.upper_cap && nextValidBid >= listing.upper_cap) return { sliderMin: nextValidBid, sliderMax: nextValidBid, sliderStep: 1, displaySlider: false }; const sMin = nextValidBid; let sMax; if (listing.upper_cap && listing.upper_cap > sMin) { sMax = listing.upper_cap - 1; } else { const base = currentHighestBidVal || listing.min_price; const jump3 = base + Math.max(500, Math.ceil(base * 0.30 / 50) * 50); sMax = Math.max(sMin + 500, jump3); sMax = Math.min(sMax, 200000); } if (sMax <= sMin) sMax = sMin + Math.max(100, Math.ceil(sMin * 0.1)); if (listing.upper_cap && sMax >= listing.upper_cap) sMax = listing.upper_cap - 1; if (sMax <= sMin) return { sliderMin: sMin, sliderMax: sMin + (sMin === 0 ? 100 : Math.max(100, Math.ceil(sMin * 0.1))), sliderStep: 1, displaySlider: sMin === 0 ? true : false }; let sStep = 1; const range = sMax - sMin; if (range <= 100) sStep = 1; else if (range <= 500) sStep = 5; else if (range <= 2000) sStep = 10; else if (range <= 10000) sStep = 50; else if (range <= 50000) sStep = 100; else sStep = 250; return { sliderMin: Math.max(1, sMin), sliderMax: Math.max(sMin + sStep, sMax), sliderStep: sStep, displaySlider: true }; }, [listing, auctionEnded, currentHighestBidVal]);
+  const { sliderMin, sliderMax, sliderStep, displaySlider } = useMemo(() => { if (!listing || auctionEnded) return { sliderMin: 1, sliderMax: 100, sliderStep: 1, displaySlider: false }; const nextValidBid = Math.max(1, currentHighestBidVal + 1); if (listing.upper_cap && nextValidBid >= listing.upper_cap) return { sliderMin: nextValidBid, sliderMax: nextValidBid, sliderStep: 1, displaySlider: false }; const sMin = nextValidBid; let sMax; if (listing.upper_cap && listing.upper_cap > sMin) { sMax = listing.upper_cap - 1; } else { const base = currentHighestBidVal || listing.min_price; const jump3 = base + Math.max(500, Math.ceil(base * 0.30 / 50) * 50); sMax = Math.max(sMin + 500, jump3); sMax = Math.min(sMax, 200000); } if (sMax <= sMin) sMax = sMin + Math.max(100, Math.ceil(sMin * 0.1)); if (listing.upper_cap && sMax >= listing.upper_cap) sMax = listing.upper_cap - 1; if (sMax <= sMin) return { sliderMin: sMin, sliderMax: sMin + (sMin === 0 ? 100 : Math.max(100, Math.ceil(sMin * 0.1))), sliderStep: 1, displaySlider: sMin === 0 ? true : false }; let sStep = 1; const range = sMax - sMin; if (range <= 100) sStep = 1; else if (range <= 500) sStep = 5; else if (range <= 2000) sStep = 10; else if (range <= 10000) sStep = 50; else if (range <= 50000) sStep = 100; else sStep = 250; return { sliderMin: Math.max(1, sMin), sliderMax: Math.max(sMin + sStep, sMax), sliderStep: sStep, displaySlider: true }; }, [listing, auctionEnded, currentHighestBidVal]);
   useEffect(() => { if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) { setCountdown(null); return; } const updateTimer = (): boolean => { if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) { setCountdown(null); return true; } const remaining = formatCountdown(listing.end_time); setCountdown(remaining); if (remaining === "Auction Ended") { if (!auctionEnded) { loadData(); } return true; } return false; }; if (updateTimer()) return; const intervalId = window.setInterval(() => { if (updateTimer()) clearInterval(intervalId); }, 1000); return () => clearInterval(intervalId);}, [listing?.end_time, listing?.status, auctionEnded, loadData, id]);
   const handlePlaceBidClick = () => {
     setBidStatusMessage(null);
@@ -197,9 +197,8 @@ export default function ListingDetails() {
     
     const amt = parseInt(price, 10);
     if (isNaN(amt) || amt <= 0) { setBidStatusMessage('⚠️ Invalid bid.'); return; }
+    if (amt > 100000) { setBidStatusMessage('⚠️ Max bid is ₹1,00,000.'); return; }
     if (listing.upper_cap && amt > listing.upper_cap) { setBidStatusMessage(`⚠️ Max bid is ${formatCurrency(listing.upper_cap)}.`); return; }
-    const minRequired = Math.max(listing.min_price, currentHighestBidVal + 1);
-    if (amt < minRequired) { setBidStatusMessage(`⚠️ Min bid: ${formatCurrency(minRequired)}.`); return; }
     setIsConfirmModalOpen(true);
   };
 
@@ -451,9 +450,9 @@ export default function ListingDetails() {
                                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-bye-dark-text-secondary pointer-events-none">₹</span>
                                     <input id="bidAmount" type="number" value={price}
                                         onChange={(e) => { setPrice(e.target.value); setBidStatusMessage(null); }}
-                                        placeholder={`Min. ${formatCurrency(sliderMin)}`}
+                                        placeholder="Enter amount"
                                         className="pl-7 pr-3 py-2.5 border border-gray-300 dark:border-bye-dark-border-primary rounded-md w-full focus:ring-indigo-500 focus:border-indigo-500 text-base bg-white dark:bg-bye-dark-bg-hover text-gray-900 dark:text-bye-dark-text-primary dark:placeholder-bye-dark-text-secondary"
-                                        step="1" min={sliderMin > 0 ? sliderMin : 1} />
+                                        step="1" min="1" max="100000" />
                                 </div>
                                 <button 
                                   onClick={handlePlaceBidClick} 
