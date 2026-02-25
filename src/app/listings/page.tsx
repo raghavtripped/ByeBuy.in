@@ -329,7 +329,7 @@ export default function ListingsPage() {
         .in('id', sellerIds);
       if (profilesData) {
         profilesData.forEach((p) => {
-          if (p.id && p.email) sellerMap[p.id] = p.email.split('@')[0];
+          if (p.id && p.email) sellerMap[p.id] = p.email;
         });
       }
     }
@@ -349,10 +349,16 @@ export default function ListingsPage() {
           : 'Unknown';
         const price = formatCurrency(listing.min_price);
         const url = `${baseUrl}/listings/${listing.id}`;
+        const imageUrl = listing.photos?.[0] ?? null;
         return `<div style="margin-bottom:16px;padding:16px 20px;background:#f9fafb;border-radius:10px;border-left:4px solid #6366f1;">
-  <p style="margin:0 0 6px 0;font-size:16px;font-weight:700;"><a href="${url}" style="color:#6366f1;text-decoration:none;">${listing.title}</a></p>
-  <p style="margin:0 0 4px 0;font-size:13px;color:#6b7280;">Sold by: <strong style="color:#374151;">${seller}</strong></p>
-  <p style="margin:0;font-size:15px;font-weight:700;color:#059669;">Min Bid: ${price}</p>
+  <table style="width:100%;border-collapse:collapse;"><tr>
+    <td style="vertical-align:middle;">
+      <p style="margin:0 0 6px 0;font-size:16px;font-weight:700;"><a href="${url}" style="color:#6366f1;text-decoration:none;">${listing.title}</a></p>
+      <p style="margin:0 0 4px 0;font-size:13px;color:#6b7280;">Sold by: <a href="mailto:${seller}" style="color:#374151;font-weight:700;text-decoration:none;">${seller}</a></p>
+      <p style="margin:0;font-size:15px;font-weight:700;color:#059669;">Min Bid: ${price}</p>
+    </td>
+    ${imageUrl ? `<td style="width:80px;padding-left:12px;vertical-align:middle;text-align:right;"><a href="${url}" style="text-decoration:none;display:block;"><img src="${imageUrl}" alt="${listing.title}" width="72" height="72" style="border-radius:8px;object-fit:cover;display:block;" /></a></td>` : ''}
+  </tr></table>
 </div>`;
       })
       .join('\n');
