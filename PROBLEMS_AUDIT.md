@@ -1299,3 +1299,446 @@ Covered in B-1 resolution plan.
 | Schema drift | New migration | CREATE TABLE IF NOT EXISTS | Medium |
 
 ---
+
+## Independent Review Comments
+**Added:** 2026-02-26 — Full re-verification against live codebase (all key files read) + live Supabase backend (MCP queries: tables, views, functions, triggers, RLS policies, cron jobs, storage buckets).
+
+This section comments on each resolution plan: whether it is correct, whether it will actually fix the stated problem, and any second- or third-order risks that could emerge from applying it.
+
+---
+
+### Review: C-1 · `useAuth.ts` — Missing `.catch()`
+
+**Plan is correct and complete.**
+
+Verified against live code (lines 11–14): no `.catch()` on `getSession()`. The `onAuthStateChange` listener at line 17 does call `setLoading(false)`, so there IS a partial fallback — but only if Supabase fires an auth state event, which doesn't happen on a pure network failure. The `.catch()` fix is the right call.
+
+**Safe to apply. Zero second-order risk.**
+
+One thing to verify first: there are two separate `getSession()` patterns in the codebase — one in `useAuth.ts` and one in `Navbar.tsx` (C-2). Apply both together so neither can re-introduce a stuck state after the other is fixed.
+
+---
+
+### Review: C-2 · `Navbar.tsx` — Missing `.catch()` on `getSession()`
+
+**Plan is correct and complete.**
+
+Verified against live code (lines 128–135): `getSession().then(async ({ data: { session } }) => { ... setLoading(false); })` — no `.catch()`. Critically, the `onAuthStateChange` at line 137 does NOT call `setLoading(false)` — it only updates `user` and `userProfile`. So if `getSession()` fails, `loading` stays `true` forever and the navbar renders the skeleton-loader state permanently, blocking all navigation.
+
+**Safe to apply. Zero second-order risk.**
+
+The `.catch()` block should call `setLoading(false)` and `setUser(null)` — the plan states this correctly. Do not also set `userProfile(null)` in the catch; it starts as `null` already, so this would be redundant but harmless.
+
+---
+
+### Review: C-3 · `watchlistStore.ts` — Orphaned realtime channel in catch block
+
+**Plan is directionally correct but overstates the current bug.**
+
+Verified against live code: `setupRealtimeChannel` already performs its own cleanup internally (lines 52–62: `cleanup()` is called on timeout and CHANNEL_ERROR, which calls `channel.unsubscribe()` + `supabase.removeChannel()`). So when the outer catch at line 209 fires, the channel has already been cleaned up by the internal retry/error path. The channel is NOT actually orphaned in the common failure cases.
+
+**The remaining edge case** (plan is correct about this): if `setupRealtimeChannel` resolves successfully (returns a channel) but then something in lines 197–207 throws unexpectedly (e.g., Zustand's `set()` throws, which is extremely unlikely), the channel would be orphaned. The plan's fix — declaring `let channel = null` before the try block and calling `cleanupRealtimeChannel(channel)` in the catch — correctly handles this edge case.
+
+**Second-order risk:** When the outer catch calls `cleanupRealtimeChannel(channel)`, it may double-call cleanup on a channel that `setupRealtimeChannel` already cleaned up internally. This is safe because `cleanupRealtimeChannel` wraps everything in try/catch and the Supabase client handles removing a non-existent channel gracefully. The result would be at most a benign `console.error` log from the cleanup.
+
+**Before applying:** The structural change (moving `let channel` declaration before the try block) is a small refactor. Make sure the variable is typed as `RealtimeChannel | null` and initialized to `null` so the catch guard `if (channel)` works correctly even if `setupRealtimeChannel` was never called.
+
+---
+
+### Review: C-4 · `WatchlistButton.tsx` — `isLoading` not reset on 23505
+
+**Plan is correct: this is a confirmed false positive. No code change needed.**
+
+Verified against live code: the `return` at line 57 is inside a `try` block that has a `finally { setIsLoading(false); }` at line 77. JavaScript's `finally` runs on all exit paths from a `try` block, including early `return`. The button is NOT permanently locked.
+
+**Safe to close as false positive.** A comment clarifying this (as the plan suggests) is good hygiene to prevent a future developer from "fixing" it incorrectly.
+
+---
+
+### Review: H-1 · `listings/page.tsx` — Channel not removed on `removeChannel` failure
+
+**Plan is correct. The unique-suffix approach is the right fix.**
+
+Verified against live code (lines 218, 265–267): channel named `'public-listings-active-page'` (hardcoded) with `.catch()` on cleanup but no fallback. If cleanup fails, the next mount creates a second identically-named channel.
+
+**The minimal fix** (use `Date.now()` suffix or `useRef(crypto.randomUUID())`) is the cleanest approach. It eliminates the name collision problem entirely without needing to guarantee cleanup always succeeds.
+
+**Second-order risk to watch:** The `fetchListings` callback (line 227) is captured inside the realtime event handler at mount time. If `fetchListings`'s own closure becomes stale (its dependencies include `selectedCategory`, `currentSearchTerm`, `sortOption` from the `useCallback`), old channels calling stale closures could fetch with wrong filter parameters. This is a pre-existing issue separate from H-1, but adding a unique channel name makes it slightly more likely that an old stale channel lingers longer. The effect dependency array at line 270 (`[selectedCategory, fetchListings, currentSearchTerm, sortOption]`) should re-mount the effect when these change, so old channels do get cleaned up — just asynchronously. Low practical risk.
+
+---
+
+### Review: H-2 · `listings/(detail)/[id]/page.tsx` — Channels orphaned on error
+
+**Plan is correct but React Strict Mode concern is overstated in production.**
+
+Verified against live code (lines 164–173): channels `listing-bids-${id}` and `listing-details-status-${id}` are created in a `useEffect([id, loadData])`. Cleanup at line 172 calls `removeChannel` unconditionally. The `CHANNEL_ERROR` callback only logs, no self-cleanup.
+
+**React Strict Mode** (which double-invokes effects in dev) is the main risk here. In production builds, Strict Mode double-invoke does not happen, so this is primarily a development-environment concern.
+
+**Second-order risk:** The plan recommends calling `supabase.removeChannel(bidsChannel)` inside the `CHANNEL_ERROR` subscribe callback (step 1), then having the cleanup function not try again if the channel was already removed. If you add a "channel removed" flag, make sure the cleanup function checks this flag BEFORE calling removeChannel. If you don't, the cleanup will attempt to remove an already-removed channel — which is safe in practice (Supabase client handles it) but may log errors.
+
+**The `useRef` for channels (plan step 2) is technically unnecessary** because the cleanup `return () =>` closure already captures the correct channel variables from the outer `useEffect` scope. Using refs adds no functional benefit here unless you need to access the channels from outside the effect (you don't). Skip this step to keep the change minimal.
+
+---
+
+### Review: H-3 · `Navbar.tsx` — Notification channel duplicated on fast auth changes
+
+**Plan is correct. Risk is low in normal use.**
+
+Verified against live code (lines 307–336): `useEffect([user])` pattern with `noti-${user.id}` channel name. If `user` changes faster than `removeChannel()` completes (async), two channels with the same name could exist briefly.
+
+**The timestamp suffix fix** (`noti-${user.id}-${Date.now()}`) is correct. No channel name collision possible.
+
+**Second-order risk:** With the timestamp suffix, if the cleanup fails (removeChannel rejects), the orphaned channel name is unique and will never be re-created by subsequent mounts. This is actually better than the current behavior — stale channels don't interfere with new ones. The only cost is a slightly higher number of channels on Supabase's side until they time out. For 141 users, this is negligible.
+
+---
+
+### Review: H-4 + B-6 · `user_notifications` table missing + notification pipeline incomplete
+
+**Plan is directionally correct but has a critical omission that would cause silent failure.**
+
+**Confirmed missing:** `user_notifications` table is not in the live DB (verified via `list_tables` — only `bids`, `listings`, `profiles`, `listing_chats`, `watched_listings`, `push_subscriptions` exist).
+
+**Critical gap in the plan — trigger function security:**
+
+The plan says to create DB trigger functions for `AFTER INSERT ON bids` (notify seller) and on `status` change to `'closed'` (notify winner). The plan also says the INSERT RLS policy should be "service role only."
+
+**This creates a conflict.** In PostgreSQL, trigger functions run in the security context of the triggering user (the bidder, in the case of `AFTER INSERT ON bids`), NOT the service role. If the INSERT RLS on `user_notifications` is "service role only," the trigger function will be blocked by RLS when trying to insert the notification record. The fix: the trigger functions must be marked `SECURITY DEFINER` so they run as the function owner (postgres/superuser), bypassing RLS for the INSERT. **If this is omitted, the notification pipeline will silently fail every time a bid is placed — bids will succeed, but no notification will be created.** The plan does not mention `SECURITY DEFINER` on the trigger functions.
+
+**Second-order risk — transaction atomicity:** If the trigger function throws an error (e.g., because the notifications insert fails for any reason), the entire bid INSERT transaction rolls back. The bidder's bid would be lost. The trigger function must either be marked as `EXCEPTION WHEN OTHERS THEN NULL` (swallow errors) or use `pg_background` / deferred notifications to avoid this. This is a well-known PostgreSQL pattern issue with "side effect" triggers.
+
+**Things to verify before applying:**
+1. The trigger functions MUST be `SECURITY DEFINER` or the INSERT RLS must explicitly allow the triggering user to insert.
+2. Wrap the notification insert in `BEGIN ... EXCEPTION WHEN OTHERS THEN NULL END` so a notification failure never rolls back a bid.
+3. The `send-test-notification` edge function (needed for push delivery) has `verify_jwt: false` on live. Before wiring it into the pipeline, either add authentication to it (a secret header check) or change `verify_jwt` to `true` with service role calling it. Currently unauthenticated callers can trigger it.
+4. Pull the source of `send-test-notification` from the Supabase dashboard FIRST (before creating the table and triggers) so you understand what input format it expects.
+
+---
+
+### Review: H-5 · Querying non-existent `public.users` table
+
+**Plan (Option 4 — add winner_email to view) is correct. Handled by B-5 plan.**
+
+Verified against live code (line 147): `supabase.from('users').select('email')...` — confirmed `public.users` doesn't exist, confirmed this is a dead query that always returns null.
+
+**One thing the plan misses:** Even after the view is updated with `winner_email`, the `select()` call at line 138 explicitly names its columns: `'id, title, description, min_price, photos, end_time, upper_cap, rules, seller_email, seller_id, status, winning_bidder_id, winning_bid_id'`. It does NOT include `tags` or `winner_email`. **The frontend select string must also be updated** to include `tags, winner_email`, otherwise the new view columns will be fetched but not returned by PostgREST (explicit column selection). Do this at the same time as the migration. The plan mentions updating TypeScript types but not updating the `.select()` string itself — this is a required step to actually fix the bug.
+
+---
+
+### Review: H-6 · Countdown timer re-creates interval on every `loadData` change
+
+**Plan is correct but the scope of the bug may be narrower than described.**
+
+Verified against live code (line 184): `useEffect(... [listing?.end_time, listing?.status, auctionEnded, loadData, id])`. `loadData` is a `useCallback` with `[id]` as its dep, so `loadData` is stable as long as `id` is stable. On a given listing page, `id` never changes. So `loadData` itself does not change on every bid arrival.
+
+**The real (smaller) remaining bug:** When the countdown hits "Auction Ended", the timer calls `loadData()` (line 184), which re-fetches and calls `setListing(...)`, which updates `listing?.status` (in deps), which re-runs the countdown effect, which clears and re-creates the interval. This happens exactly ONCE at auction end — not on every bid. So the impact is a brief flicker at auction end, not continuous CPU churn.
+
+**The ref pattern in the plan is still the correct fix** because it removes `loadData` from deps entirely, breaking the end-of-auction flicker cycle. Low risk to apply.
+
+**Before applying:** Verify that the `loadDataRef.current` update effect (`useEffect(() => { loadDataRef.current = loadData; }, [loadData])`) is added BEFORE the countdown effect in the component body, or React may execute them in an order that leads to a stale ref on first render. Ordering useEffect declarations doesn't strictly guarantee execution order, but placing the ref-sync effect earlier is good practice.
+
+---
+
+### Review: H-7 · Race condition — double `initializeWatchlist` call
+
+**Plan is correct. The store-level guard (Option 3) is the better approach.**
+
+Verified against live code: `AuthWatchlistManager.tsx` lines 16–64. The `onAuthStateChange` listener at line 35 listens for `SIGNED_IN` and `SIGNED_OUT`. On initial page load with an existing session, Supabase v2 fires `INITIAL_SESSION` from `onAuthStateChange` — NOT `SIGNED_IN`. So the most common case (page refresh while logged in) does NOT trigger the race condition, because `onAuthStateChange(SIGNED_IN)` will not fire.
+
+**When the race does occur:** It fires on actual sign-in events (user logs in during a session). In this case, both `initializeAuth` (which calls `getSession()`) and `onAuthStateChange(SIGNED_IN)` call `initializeWatchlist`. Since `initializationAttempted.current` prevents double-call of `initializeAuth`, the race is between the `SIGNED_IN` event handler and the `getSession()` call inside `initializeAuth`. If `getSession()` resolves before `SIGNED_IN` fires, the watchlist is already initialized and the guard `hasFetchedInitialWatchlist` catches the second call. The race window is narrow.
+
+**Adding `initializingForUserId` to the store (Option 3) is the correct, robust fix.** However, note that you must add it to the `WatchlistState` interface AND the initial state in the `create()` call. Also ensure `initializingForUserId` is cleared in the `catch` block, not just on success — otherwise a failed init would permanently block subsequent re-tries for the same userId.
+
+---
+
+### Review: M-1 · Stale closure in click-outside handler
+
+**Confirmed false positive. No change needed.**
+
+Verified against live code (lines 168–195): `handleClickOutside` reads `isMobileMenuOpen` (line 181) directly from the closure. It calls `setIsUserMenuOpen(false)` (state setter, always fresh). The deps array `[isMobileMenuOpen]` is correct. This matches what the plan says.
+
+---
+
+### Review: M-2 · `isMounted` not checked in subscribe callback
+
+**Correct assessment. Plan is valid defensive hygiene.**
+
+Verified against live code (lines 231–237): the subscribe callback only logs (`console.log` / `console.error`). No state updates. Impact is effectively zero in production. The one-line `if (!isMounted) return` addition is safe and free.
+
+---
+
+### Review: M-3 · `fetchUserDataAndListings` empty dep array
+
+**Confirmed correct as-is.**
+
+Verified against live code (lines 100–138): the callback only uses `supabase` (module-level singleton) and its parameter `u: User`. No state or props are closed over. Empty dep array is intentional and correct. A comment is sufficient — no code change needed.
+
+---
+
+### Review: M-4 · `localStorage.setItem` without try/catch
+
+**Plan is correct and safe.**
+
+Verified against live code (lines 38–64): `localStorage.getItem('theme')` (read on mount, no try/catch) and `localStorage.setItem('theme', newTheme)` inside `toggleTheme` (no try/catch). Both need wrapping.
+
+**Second-order risk:** The `setTheme` state updater function is called inside a React setState callback. If `localStorage.setItem` throws there, it would propagate out of the state updater, potentially crashing the component in browsers where localStorage throws (Safari private mode, some Firefox configurations). The `try/catch` wrapper prevents this. Very safe fix.
+
+**One clarification:** The plan says "For the initial read in the `useEffect` (line 38), wrap `localStorage.getItem('theme')` in try/catch and validate the result." The initial read is a `getItem` (not `setItem`) — this is less likely to throw (reads rarely throw, writes do). But wrapping the read is still good practice since `localStorage.getItem` CAN throw in some environments (e.g., security-restricted contexts). Apply the runtime validator `isValidTheme` as planned.
+
+---
+
+### Review: M-5 · `markAsRead` no error handling
+
+**Plan is correct but the UX flow needs careful thought.**
+
+Verified against live code (lines 51–56, 110–117): `markAsRead` is called in an onClick handler and is NOT awaited. The click handler immediately proceeds to `router.push(notification.link)` after calling `markAsRead`. So the UI already navigates away before the async update completes.
+
+**Second-order risk of the optimistic update approach:** Adding an optimistic update + revert requires the click handler to `await markAsRead(...)` before navigating (otherwise, the revert on failure would happen after the user has navigated away, affecting a component that may be unmounted). This changes the UX: navigation is now blocked until the DB update resolves (or fails). Given Supabase latency this is typically <200ms, but it's a behavioral change. Make sure the click handler is marked `async` and the `onClick` prop is aware of this.
+
+**This plan also depends on H-4+B-6 being resolved first** (table must exist before markAsRead can succeed at all).
+
+---
+
+### Review: M-6 · Silent Supabase errors across multiple files
+
+**Plan is correct and important for debuggability.**
+
+The pattern `if (!error && data) { setState(data); }` means failures produce empty UI with no log and no user feedback. Adding `else { console.error(...) }` branches is safe with zero side effects. The per-file additions are straightforward.
+
+**Priority note:** `my-listings/page.tsx` already has good error handling at line 128–133 (`if (listErr) throw listErr` which is then caught). The M-6 issue there applies to sub-queries within that file. The `listings/(detail)/[id]/page.tsx` has decent error handling for the main `loadData` function but not for sub-queries (e.g., the bid fetch at line 144 and the winner-user query at line 147). Fixing H-5 eliminates the winner-user query entirely, which removes one silent failure point.
+
+---
+
+### Review: L-2 · CORS `*` on `close-expired-auctions`
+
+**Plan is correct in principle but lower priority than stated.**
+
+This edge function is called server-to-server (pg_cron → edge function). CORS headers are irrelevant for server-to-server calls — they are a browser-enforced mechanism. The only practical security concern is that someone could discover the function URL and call it with a curl command. However, the function already validates the `CLOSE_EXPIRED_AUCTIONS_SECRET` header, so without the secret, any call returns 401. CORS restriction adds no meaningful protection on top of this.
+
+**Apply as hygiene, but only after B-1 is fixed.** Fix B-1 first (wrong auth token) since that's the actual blocker.
+
+---
+
+### Review: L-3 / B-4 · `validate_new_user_email` dead function + wrong trigger target
+
+**Plan is correct. Option A (switch to whitelist function) is the recommended path.**
+
+Verified against live DB: trigger `before_user_insert_validate_email` calls `validate_user_email_domain` (confirmed). `validate_new_user_email` (with Gmail whitelist) is deployed but never called (confirmed).
+
+**Critical second-order risk with the migration:**
+
+The plan's migration drops the old trigger, creates the new one, then drops the old function. **If the migration partially fails** (e.g., trigger created but function drop fails), the system could end up with BOTH triggers attached or with the wrong function. Write the migration as a single transaction to make it atomic:
+
+```sql
+BEGIN;
+DROP TRIGGER IF EXISTS before_user_insert_validate_email ON auth.users;
+CREATE TRIGGER before_user_insert_validate_email
+  BEFORE INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.validate_new_user_email();
+DROP FUNCTION IF EXISTS public.validate_user_email_domain();
+COMMIT;
+```
+
+**Also:** After applying this, test that `raghavtripathi2408@gmail.com` can sign up (whitelist check), that `user@iimidr.ac.in` can sign up (domain check), and that `user@gmail.com` (non-whitelisted) is blocked. Do this in a test before running on the live DB.
+
+**Third-order risk:** The whitelist in `validate_new_user_email` only has two Gmail addresses hardcoded. If additional developer/admin accounts need to be onboarded via Gmail, the function must be updated. The plan should note this as a maintenance dependency.
+
+---
+
+### Review: L-5 · Multi-tab session sync
+
+**Plan is correct. The primary fix (C-1/C-2) already addresses most of the impact.**
+
+Supabase JS v2 automatically broadcasts session changes via the `storage` event to other open tabs through its `onAuthStateChange` listener. As long as each tab has a working `onAuthStateChange` listener (ensured by C-1/C-2 fixes), sign-out in one tab should propagate correctly to all others.
+
+**The optional `storage` event listener** in the plan is belt-and-suspenders. It's safe to add but not essential if C-1/C-2 are fixed properly. Skip it in the first pass; revisit only if multi-tab sync issues persist after C-1/C-2 are deployed.
+
+---
+
+### Review: L-6 · Theme localStorage read without runtime validation
+
+**Plan is correct and safe.**
+
+Verified against live code (line 38): `localStorage.getItem('theme') as 'light' | 'dark' | null` — TypeScript cast without runtime validation. The `isValidTheme` helper pattern in the plan correctly handles this.
+
+**Safe to apply simultaneously with M-4** (both affect the same `useTheme` hook in Navbar.tsx).
+
+---
+
+### Review: B-1 · Cron job sending wrong auth token
+
+**Plan is correct. This is the single highest-impact fix to make.**
+
+Verified against live DB: `command` contains `'Bearer Ragwl/@123@new'` with `timeout_milliseconds:=1000`. Confirmed.
+
+**Important clarification on `timeout_milliseconds`:** In `pg_net.http_post`, this is the HTTP response timeout — it tells pg_net how long to wait for a response from the edge function. If the edge function takes longer than 1000ms to respond, pg_net drops the connection, but the edge function continues executing on the Supabase edge runtime. So increasing to 15000ms means pg_net will wait up to 15 seconds for the response (useful for logging/monitoring). The function's actual execution is not killed by this timeout. Increasing to 15000 is still recommended to get response confirmation in logs.
+
+**Secret management:** The plan correctly says "do not store the secret in migration files." Apply this via the Supabase dashboard SQL editor directly. Make sure the actual `CLOSE_EXPIRED_AUCTIONS_SECRET` value is copied from Edge Functions → Environment Variables (not guessed or re-generated unless you also update the function's env var).
+
+**After fixing, verify:** Check edge function logs in the Supabase dashboard for the next cron run (within 30 minutes). You should see `"Authorization successful."` and the function should process the 27 listings, closing any that are past `end_time`. Currently there are 27 listings and 0 have been auto-closed by the cron (all closures have been manual). Confirm the function doesn't accidentally close active-but-not-yet-expired listings.
+
+---
+
+### Review: B-2 · `listing-images` bucket — No user ownership check on upload
+
+**Plan is correct AND the upload path structure is compatible with the proposed policy.**
+
+Verified against live code:
+- `src/app/listings/new/page.tsx` line 416: `filePath = \`${currentUser.id}/${safeTitlePrefix}_...\`` — first segment is `user_id`. ✓
+- `src/app/listings/(detail)/[id]/edit/page.tsx` line 369: `fileName = \`${currentUser!.id}/${listingId}/...\`` — first segment is `user_id`. ✓
+
+The policy `(storage.foldername(name))[1] = auth.uid()::text` checks that the first path segment equals the user's UUID. Both upload paths use `currentUser.id` as the first segment. **The policy will not break existing or new uploads.**
+
+**Second-order risk — existing images in the bucket:** There are 27 existing listings. If any existing images were uploaded to paths that don't start with the owner's user ID (e.g., if someone manually uploaded to an arbitrary path), those images would not be affected by the new INSERT policy (it only applies to future uploads). But if a DELETE policy is added (as planned), sellers might not be able to delete images if the path format doesn't match. Verify that all existing listing images follow the `{user_id}/...` path format before enabling the DELETE policy — or make the DELETE policy more permissive for existing images.
+
+**One gap in the plan:** There is currently NO SELECT (read) policy on `listing-images`. The bucket has `public: true`, so reads are open to everyone without a policy. The plan doesn't mention adding a SELECT policy, which is correct — public listing images should be publicly readable. Just confirm this is intentional.
+
+**File size limit:** The `avatars` bucket has `file_size_limit: 4194304` (4 MB). The plan sets `listing-images` to 5 MB. Consider using the same 4 MB limit for consistency, or adjust based on expected listing photo sizes.
+
+---
+
+### Review: B-3 · Duplicate and conflicting RLS policies on `profiles`
+
+**Plan is correct. Safe to apply.**
+
+Verified against live DB: 7 policies exist — two SELECT (one broad, one narrow), three UPDATE (one authenticated-role + two identical public-role), one INSERT (disallow), one DELETE (disallow). Confirmed.
+
+**Second-order risk — `email` column exposure:** After dropping "Users can read their own profile only" (the narrow SELECT policy), the remaining SELECT policy ("Authenticated users can view other user profiles for contact", USING: `true`) means any authenticated user can read ALL columns of ALL profiles, including the `email` column. The `profiles` table has `email` stored as a text column (separate from `auth.users.email`). Consider whether exposing every user's email to every other authenticated user is intentional. If you want to restrict email visibility, you would need a column-level security approach (or a view that excludes the `email` column for non-self lookups). The plan does not address this — make a deliberate decision about email exposure before applying.
+
+**The two duplicate public-role UPDATE policies** (`polroles: {0}`) are safe to drop. The authenticated-role UPDATE policy remains and is strictly more appropriate (it explicitly requires authentication, whereas public-role + `auth.uid() = id` effectively requires it implicitly). No functional change results from dropping the public-role duplicates.
+
+---
+
+### Review: B-5 + H-5 · `listings_with_seller_email` view missing `tags` and winner email
+
+**Plan is correct but the frontend fix is incomplete as written.**
+
+Verified against live DB: `listings_with_seller_email` has no `l.tags` and no `winner_email`. Confirmed. `archived_listings_details` already has `winner_email` via the same auth.users join pattern — confirming the join approach works.
+
+**Critical frontend step that the plan mentions but needs emphasis:**
+
+The `select()` call in `listings/(detail)/[id]/page.tsx` line 138 explicitly lists columns:
+```
+'id, title, description, min_price, photos, end_time, upper_cap, rules, seller_email, seller_id, status, winning_bidder_id, winning_bid_id'
+```
+This explicit selection means PostgREST will return ONLY these columns, even if the underlying view has more. **You must add `tags, winner_email` to this select string** at the same time as applying the migration. If you run the migration but don't update the frontend, the bug is still present.
+
+**Also remove** the dead `supabase.from('users')` query at line 147 after `winner_email` is available from the view. Do not leave it in place — even though it always returns null, it generates an unnecessary PostgREST error for every closed listing viewed.
+
+**View security:** The view joins `auth.users` to get `seller_email` (already working) and `winner_email` (new). This is the same pattern used in `archived_listings_details` and `listing_chats_with_sender_email`. Supabase's view ownership means these joins work correctly for authenticated users. No additional security configuration is needed.
+
+---
+
+### Review: B-7 · `get_public_seller_profile` not in migrations
+
+**Plan is correct. Safe to apply.**
+
+Verified against live DB: function exists and its body was confirmed. The `CREATE OR REPLACE FUNCTION` in the plan matches the live definition exactly. Applying this migration will not change the live behavior — it just brings local migrations in sync.
+
+**No second-order risk.** Apply as-is.
+
+---
+
+### Review: B-8 · Duplicate `avatars` UPDATE policies
+
+**Plan is correct. Safe to apply.**
+
+Verified against live DB: two identical UPDATE (polcmd: `w`) policies for avatars confirmed. Dropping either one is safe.
+
+**Additional observation:** There is also a distinct DELETE policy ("Authenticated users can delete their own avatar") which the audit did not flag. This DELETE policy is fine — it's not a duplicate. The storage policy query also confirms there's an INSERT policy ("Authenticated users can upload their own avatar") with a path check — correctly mirroring what B-2 wants to add for `listing-images`.
+
+---
+
+### Review: B-9 · `push_subscriptions` UNIQUE constraint — one device per user
+
+**Plan (Option B — UPSERT) is correct for current scale.**
+
+Verified: `push_subscriptions` has `user_id UNIQUE` constraint. CONFIRMED.
+
+**Before applying:** Find the frontend push registration code (likely in a service worker or settings page — not found in the main scan). The code performing `INSERT INTO push_subscriptions` needs to be changed to an UPSERT. If you can't find this code, the fix cannot be applied. Look in `public/` directory for service worker files, or in any settings/profile page that subscribes to push notifications.
+
+---
+
+### Review: B-10 · Two edge functions exist in production but not locally
+
+**Plan is correct. Low urgency but important for maintainability.**
+
+`email-domain-validation` (verify_jwt: true) and `send-test-notification` (verify_jwt: false) both exist on live.
+
+**Important concern about `email-domain-validation`:** This edge function likely duplicates logic from the DB trigger `before_user_insert_validate_email`. Having both a DB-level trigger and an edge function enforcing email domain restriction creates redundancy. If they get out of sync (one updated, the other not), the behavior becomes unpredictable. After pulling the source and adding it to local code, decide whether both are needed or if one should be removed.
+
+**Important concern about `send-test-notification` (verify_jwt: false):** The `verify_jwt: false` setting means no JWT verification on requests. The function name says "test" — this suggests it was created for development testing, not production use. Before wiring it into the notifications pipeline as H-4/B-6 plans, either:
+1. Rename it to `send-notification` and add `verify_jwt: true` or internal auth
+2. Or create a new, properly secured edge function for production notification delivery
+
+Do not wire an unprotected "test" function into the production notification flow.
+
+---
+
+### Review: Schema Drift — `push_subscriptions` not in migrations
+
+**Plan is correct. Use `IF NOT EXISTS` for idempotency.**
+
+Verified: `push_subscriptions` table has `id, user_id (UNIQUE), subscription_details (JSONB), created_at` columns. The plan's migration SQL matches the live schema.
+
+**Important:** The plan also mentions adding migrations for storage buckets (`listing-images`, `avatars`). Storage bucket creation in Supabase migrations via `INSERT INTO storage.buckets` can work, but it requires the `storage` schema to be available in the migration context (it is in Supabase). Use `INSERT INTO storage.buckets ... ON CONFLICT DO NOTHING` for idempotency. Test this in a dev branch (`supabase db reset`) before applying to production.
+
+---
+
+## Pre-Resolution Checklist (Do These Before Applying Any Fix)
+
+**Before touching the database or cron job:**
+
+1. **B-1 first, everything else second.** The cron job has been silently failing for an unknown amount of time. Fix it first. After fixing, monitor the next cron run (within 30 minutes) to verify auctions close correctly. If there are listings with `end_time` in the past and `status = 'active'`, the first successful cron run will close them all at once — verify this behavior is acceptable.
+
+2. **Locate the `CLOSE_EXPIRED_AUCTIONS_SECRET` value** in Supabase → Edge Functions → close-expired-auctions → Environment Variables BEFORE updating the cron job. Do not regenerate it — update the cron job command to use the existing secret.
+
+3. **Verify upload path structure** for `listing-images` before applying B-2 storage policy. Confirmed from code: both `new/page.tsx` (line 416) and `edit/page.tsx` (line 369) use `${user.id}/...` as the first path segment. The B-2 policy is safe to apply.
+
+4. **Decide on email exposure in `profiles`** before applying B-3. The remaining SELECT policy after cleanup will allow all authenticated users to read all profile rows including `email`. If this is not intentional, add a column-level restriction before applying.
+
+5. **Choose L-3/B-4 Option A or B** (switch trigger vs. keep as-is) before writing the migration. This affects all new user registrations immediately upon applying. Test the chosen function manually on a test account before modifying the trigger.
+
+6. **Pull `send-test-notification` and `email-domain-validation` source from Supabase dashboard FIRST** (B-10) before designing the notification pipeline (H-4/B-6). The edge function source tells you what input format it expects and whether it has auth. This knowledge gates the pipeline design.
+
+7. **Create a dev branch** in Supabase before applying any DB migrations. Test all DDL changes (view updates, new tables, RLS policies, trigger functions) in the branch and verify the app works end-to-end before merging to production.
+
+**Migration ordering (apply in this sequence):**
+
+```
+1. B-1  — Fix cron job (dashboard SQL editor, not a migration file)
+2. B-3  — Drop duplicate profiles RLS policies
+3. B-8  — Drop duplicate avatars storage policy
+4. B-2  — Fix listing-images storage policy + file size limit
+5. B-5/H-5 — Update listings_with_seller_email view (tags + winner_email)
+             — Simultaneously update frontend select() string and remove dead users query
+6. L-3/B-4 — Switch email validation trigger (atomic BEGIN/COMMIT)
+7. B-7  — Add get_public_seller_profile to migrations (CREATE OR REPLACE)
+8. Schema — Add push_subscriptions migration (CREATE TABLE IF NOT EXISTS)
+9. H-4/B-6 — Create user_notifications table + trigger functions (SECURITY DEFINER)
+             — Only after pull and review of send-test-notification source
+```
+
+**Frontend code changes can be applied in any order** (they reference DB features that should exist before deployment):
+
+```
+- C-1, C-2  — Add .catch() (apply together, 2 files)
+- C-3       — Defensive channel cleanup in watchlistStore catch
+- C-4       — Add clarifying comment only (no functional change)
+- H-1       — Unique channel name in listings/page.tsx
+- H-2       — CHANNEL_ERROR self-cleanup in listing detail page
+- H-3       — Timestamp suffix on notification channel name
+- H-6       — loadData ref pattern for countdown effect
+- H-7       — initializingForUserId guard in watchlistStore
+- M-1       — Comment only
+- M-2       — Defensive isMounted in subscribe callback
+- M-3       — Comment only
+- M-4, L-6  — Wrap localStorage calls in try/catch + runtime validation (same file, apply together)
+- M-5       — Async markAsRead with revert (depends on H-4 table existing)
+- M-6       — Add error logging across 4 files
+- L-2       — Restrict CORS (apply after pulling function source for B-10)
+```
+
+---
+
+*Review completed: 2026-02-26. All findings cross-verified against live code and live Supabase backend via MCP. No resolution actions taken — comments only.*
