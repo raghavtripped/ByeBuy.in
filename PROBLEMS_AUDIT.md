@@ -396,31 +396,199 @@ This is inside a `useEffect` so it's client-only, which is correct. However, the
 
 ## Data Model Gaps (Code vs. Supabase Schema)
 
-| Reference in Code | Status | Impact |
+| Reference in Code | Live DB Status | Impact |
 |---|---|---|
-| `user_notifications` table | **Not in any migration** | Notification system entirely broken |
-| `public.users` table | **Doesn't exist** (should be `auth.users`) | Winner email never shown on closed auctions |
+| `user_notifications` table | **CONFIRMED MISSING** (live DB verified) | Notification system entirely broken |
+| `public.users` table | **CONFIRMED MISSING** (only `auth.users` exists) | Winner email never shown on closed auctions |
+| `push_subscriptions` table | **EXISTS in live DB, NOT in migrations** | Schema drift; breaks on fresh deploy |
+| `get_public_seller_profile()` function | **EXISTS in live DB, NOT in migrations** | Schema drift |
 | `listing_chats_with_sender_email` view | Defined in migration ✓ | OK |
-| `listings_with_highest_bid` view | Defined in migration ✓ | OK |
+| `listings_with_highest_bid` view | EXISTS with `bid_count` ✓ | OK — earlier note that `bid_count` was missing was **incorrect** |
 | `finalize_auction_outcome()` RPC | Defined in migration ✓ | OK |
 | `close_auction()` RPC (two overloads) | Defined in migration ✓ | OK |
 | Storage buckets `listing-images`, `avatars` | **Created manually, not in migrations** | Will break in fresh deploy |
+| `email-domain-validation` edge function | **EXISTS in live, NOT in local code** | Schema drift; can't redeploy |
+| `send-test-notification` edge function | **EXISTS in live, NOT in local code** | Schema drift; can't redeploy |
 
 ---
 
-## Priority Fix Order
+## LIVE BACKEND AUDIT (Supabase — verified 2026-02-26)
 
-1. **C-1, C-2** — Add `.catch()` to all `getSession()` calls; always call `setLoading(false)` in catch.
-2. **C-3** — In watchlist store catch block, call `supabase.removeChannel(channel)` before clearing the reference.
-3. **C-4** — In `WatchlistButton`, call `setIsLoading(false)` on all early returns.
-4. **H-4** — Create the `user_notifications` migration or remove all references if the feature isn't ready.
-5. **H-5** — Replace `supabase.from('users')` with a join through `profiles` or a service-role RPC.
-6. **H-1, H-2, H-3** — Audit every realtime channel setup; ensure cleanup is unconditional and synchronous where possible.
-7. **H-6** — Move `loadData` out of `useEffect` dependencies for the countdown, or use a ref.
-8. **H-7** — Add a flag to the watchlist store preventing concurrent init calls.
-9. **M-1 through M-6** — Fix missing deps, add error surfaces, wrap localStorage in try/catch.
-10. **L-3, L-4** — Attach `validate_new_user_email` trigger and set up auction auto-close schedule.
+> All findings below are confirmed against the live project `efkggsqrpmilxfmszdlz` via the Supabase Management API.
+
+### B-1 · CRITICAL — Cron Job Sending Wrong Auth Token
+
+**pg_cron job "Close Expired Auctions"** (runs every 30 min):
+```sql
+SELECT net.http_post(
+    url:='https://efkggsqrpmilxfmszdlz.supabase.co/functions/v1/close-expired-auctions',
+    headers:=jsonb_build_object('Authorization', 'Bearer Ragwl/@123@new'),
+    timeout_milliseconds:=1000
+);
+```
+
+The edge function validates `authHeader !== 'Bearer ' + CLOSE_EXPIRED_AUCTIONS_SECRET` and returns **401** on mismatch. The cron job sends `Ragwl/@123@new` — this looks like an old hardcoded password, not the actual secret stored in the function's environment variables. **Every cron invocation is almost certainly returning 401, meaning expired auctions are never auto-closed.**
+
+Additionally, `timeout_milliseconds:=1000` (1 second) is insufficient — if Supabase has any latency, the HTTP call times out before the function completes any work.
 
 ---
 
-*Next step: Connect to Supabase via MCP to verify live DB state against items H-4, H-5, and the data model gaps above.*
+### B-2 · CRITICAL — `listing-images` Bucket: No User Ownership Check on Upload
+
+Storage policy `allow_uploads`:
+```sql
+-- with_check:
+(bucket_id = 'listing-images') AND (auth.role() = 'authenticated')
+```
+
+Any authenticated user can upload to **any path** in the `listing-images` bucket, including `{another_user_id}/...`. There is no `storage.foldername(name)[1] = auth.uid()::text` check (unlike the `avatars` bucket which has this correctly). An authenticated user can overwrite or pollute another user's listing images by uploading to their folder path.
+
+Additionally, there is **no DELETE policy** on `listing-images`. Sellers cannot delete their own listing photos, and the bucket has **no file size limit** (`file_size_limit: null`). Users can upload files of any size, potentially filling the storage bucket.
+
+---
+
+### B-3 · HIGH — Duplicate and Conflicting RLS Policies on `profiles`
+
+The `profiles` table has 7 policies, several of which conflict or are duplicated:
+
+**SELECT policies (two, both for `authenticated`):**
+- `"Authenticated users can view other user profiles for contact"` — `USING: true` (all rows visible)
+- `"Users can read their own profile only"` — `USING: auth.uid() = id` (own row only)
+
+With PERMISSIVE policies, these are OR'd together. The effective result is any authenticated user can see **all** profiles (the first policy makes the second redundant). But the naming implies the intent was to restrict access, which is not what's happening.
+
+**UPDATE policies (three total — two are identical duplicates):**
+- `"Enable users to update their own profile"` — role: `authenticated`, `auth.uid() = id`
+- `"Users can update their own profile"` — role: `public`, `auth.uid() = id`
+- `"Users can update their own profile data"` — role: `public`, `auth.uid() = id` (identical to above)
+
+The two `public`-role UPDATE policies are identical duplicates. Multiple conflicting policies on the same table create confusion and risk of unintended access if any are accidentally dropped or modified.
+
+---
+
+### B-4 · HIGH — `validate_new_user_email` Function Is a Dead Letter
+
+The migration creates `validate_new_user_email()` with a Gmail developer whitelist. However, the **live trigger** `before_user_insert_validate_email` is attached to a **different function**: `validate_user_email_domain()`.
+
+`validate_user_email_domain` does NOT have the Gmail whitelist — it blocks ALL non-`@iimidr.ac.in` emails with no exceptions. The migration's `validate_new_user_email` function is deployed but never called by any trigger. It is dead code on the live DB.
+
+Implication: developer accounts using Gmail addresses cannot be used to sign up new sessions. If the developer accounts `raghavtripathi2408@gmail.com` / `raghavtripathi2203@gmail.com` need to be re-invited or re-onboarded, they will be blocked.
+
+---
+
+### B-5 · HIGH — `listings_with_seller_email` View Missing `tags` Column
+
+The live view definition for `listings_with_seller_email` does NOT include the `tags` column:
+
+```sql
+SELECT l.id, l.title, l.description, l.min_price, l.photos, l.seller_id,
+       l.end_time, l.created_at, l.upper_cap, l.rules, l.status,
+       l.winning_bid_id, l.winning_bidder_id, u.email AS seller_email
+-- NO l.tags
+```
+
+The listing detail page (`listings/(detail)/[id]/page.tsx`) fetches from `listings_with_seller_email` to display a listing. Any code that tries to read `listing.tags` from this view will get `undefined`. Tags are used for display and search — they will be missing on the listing detail page for active/open auctions.
+
+---
+
+### B-6 · MEDIUM — `push_subscriptions` Table Exists But Notification Pipeline Is Incomplete
+
+**Live data:** 141 users have a `push_subscriptions` row (one per user due to `UNIQUE(user_id)` constraint). The `send-test-notification` edge function exists on the live server. Yet the `user_notifications` table (where notification records would be stored) is completely absent.
+
+The push subscription system is half-implemented: user browsers are registered for push, but there is no backend mechanism to:
+- Create notification records in the database
+- Trigger the `send-test-notification` / notification-delivery edge function when auction events occur (bid placed, auction closed, etc.)
+
+The `user_notifications` table, the notification creation triggers/functions, and the delivery logic are all missing. The entire notification pipeline exists only as infrastructure stubs.
+
+---
+
+### B-7 · MEDIUM — `get_public_seller_profile` Function Not in Migrations
+
+The live DB has a `get_public_seller_profile(profile_id_to_fetch uuid)` SECURITY DEFINER function that correctly bypasses RLS to expose seller profile data to unauthenticated users. This was likely added to fix the issue where the seller profile page fails for unauthenticated visitors (see security concern #9 in the original audit).
+
+However, this function is not in any migration file. If the local migrations are run (e.g., `supabase db reset`), this function will not exist, breaking the public seller profile page.
+
+---
+
+### B-8 · MEDIUM — `avatars` Bucket Has Duplicate UPDATE Policies
+
+Two identical UPDATE policies exist on the `avatars` bucket:
+- `"Authenticated users can manage their own avatar"` — `(bucket_id = 'avatars') AND (owner = auth.uid())`
+- `"Authenticated users can update their own avatar"` — `(bucket_id = 'avatars') AND (owner = auth.uid())`
+
+These are functionally identical. One is a leftover from a policy rename operation. While harmless in practice (both allow the same UPDATE), duplicate policies are confusing and should be cleaned up.
+
+---
+
+### B-9 · LOW — `push_subscriptions` UNIQUE Constraint on `user_id`
+
+```sql
+CREATE UNIQUE INDEX push_subscriptions_user_id_key ON push_subscriptions USING btree (user_id);
+```
+
+One push subscription per user. If a user registers on a second device (phone + laptop), the second registration will either fail (if the app doesn't handle the unique conflict) or overwrite the first, meaning push notifications only reach the most recently registered device.
+
+---
+
+### B-10 · LOW — Two Edge Functions Exist in Production But Not Locally
+
+- `email-domain-validation` (ACTIVE, verify_jwt: true) — deployed but not in the local `supabase/functions/` directory
+- `send-test-notification` (ACTIVE, verify_jwt: false) — deployed but not in the local `supabase/functions/` directory
+
+These functions cannot be updated, version-controlled, or redeployed from the current codebase. Any changes must be made directly in the Supabase dashboard.
+
+---
+
+### B-11 · INFO — App Scale (Live Data as of 2026-02-26)
+
+| Table | Row Count |
+|---|---|
+| `profiles` | 141 |
+| `push_subscriptions` | 141 (1:1 with profiles — every user has a push sub) |
+| `listings` | 27 |
+| `bids` | 3 |
+| `listing_chats` | 0 |
+| `watched_listings` | 2 |
+
+---
+
+### Corrections to Earlier Analysis
+
+- **`bid_count` in `listings_with_highest_bid`** — The earlier static analysis incorrectly stated this column was missing. **Live DB confirmed:** the view does compute and expose `bid_count` via a correlated subquery. The "Most Bids" sort IS functional.
+- **`validate_new_user_email` trigger** — Corrected: the trigger `before_user_insert_validate_email` is attached to `validate_user_email_domain`, not `validate_new_user_email`. The latter is a dead function.
+
+---
+
+## Priority Fix Order (Updated)
+
+### Immediate / Blocking
+
+1. **B-1** — Fix the cron job auth token: update the pg_cron job to use the correct `CLOSE_EXPIRED_AUCTIONS_SECRET` value, and increase `timeout_milliseconds` to at least 10000.
+2. **C-1, C-2** — Add `.catch()` to all `getSession()` calls; always call `setLoading(false)` in catch.
+3. **C-3** — In watchlist store catch block, call `supabase.removeChannel(channel)` before clearing the reference.
+4. **C-4** — In `WatchlistButton`, call `setIsLoading(false)` on all early returns.
+
+### High Priority / Broken Features
+
+5. **H-4 + B-6** — Either create the `user_notifications` table (migration) and wire up the full notification pipeline, or remove all frontend notification references.
+6. **H-5** — Replace `supabase.from('users')` with a query via `profiles` or `get_public_seller_profile` RPC.
+7. **B-5** — Add `tags` column to the `listings_with_seller_email` view so listing detail pages show tags.
+8. **B-2** — Fix the `listing-images` INSERT policy to enforce user path ownership; add a DELETE policy; set a reasonable file size limit.
+
+### Medium Priority / Security & Stability
+
+9. **B-3** — Consolidate the 7 `profiles` RLS policies into 3 clear, intentional ones (decide: should all authenticated users see all profiles, or only their own?).
+10. **B-4** — Either attach `validate_new_user_email` (with Gmail whitelist) to the trigger, or accept `validate_user_email_domain` (no whitelist) and remove the dead function.
+11. **H-1, H-2, H-3** — Audit every realtime channel setup; ensure cleanup is unconditional.
+12. **H-6** — Move `loadData` out of `useEffect` dependencies for the countdown, or use a ref.
+13. **H-7** — Add a flag to the watchlist store preventing concurrent init calls.
+
+### Low Priority / Hygiene
+
+14. **B-7, B-10** — Capture `get_public_seller_profile`, `email-domain-validation`, `send-test-notification`, and `push_subscriptions` in migrations/local code.
+15. **B-8** — Remove duplicate `avatars` UPDATE storage policy.
+16. **M-1 through M-6** — Fix missing deps, add error surfaces, wrap localStorage in try/catch.
+17. **L-2** — Restrict CORS on `close-expired-auctions` edge function.
+
+---
