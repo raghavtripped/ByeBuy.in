@@ -175,6 +175,7 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
         realtimeSubscription: null // Clear the subscription immediately
       });
       
+      let channel: RealtimeChannel | null = null;
       try {
         // Fetch initial watchlist
         const { data, error } = await supabase
@@ -183,33 +184,37 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
           .eq('user_id', userId);
 
         if (error) throw error;
-        
+
         const listingIds = data?.map(item => item.listing_id) || [];
-        
+
         // Set up realtime channel
-        const channel = await setupRealtimeChannel(
+        channel = await setupRealtimeChannel(
           userId,
           (listingId) => get().actions.addToWatchlistLocal(listingId),
           (listingId) => get().actions.removeFromWatchlistLocal(listingId)
         );
-        
+
         // Only update state if we're still on the same user
         if (get().currentUserId === userId) {
-          set({ 
+          set({
             watchedListingIds: new Set(listingIds),
             hasFetchedInitialWatchlist: true,
             isLoading: false,
             error: null,
             realtimeSubscription: channel
           });
+          channel = null; // ownership transferred to store state
         } else {
           // Clean up if user has changed
           await cleanupRealtimeChannel(channel);
+          channel = null;
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to initialize watchlist';
         console.error('[WatchlistStore] Error:', errorMessage);
-        set({ 
+        // Ensure channel is cleaned up even if it was created before the error
+        if (channel) await cleanupRealtimeChannel(channel);
+        set({
           error: errorMessage,
           isLoading: false,
           hasFetchedInitialWatchlist: true,

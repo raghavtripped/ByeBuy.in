@@ -34,8 +34,14 @@ function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark'); // Default to dark as per original
 
   useEffect(() => {
-    // Check for saved theme preference
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
+    // Check for saved theme preference (guarded against localStorage unavailability)
+    let savedTheme: 'light' | 'dark' | null = null;
+    try {
+      const raw = localStorage.getItem('theme');
+      if (raw === 'light' || raw === 'dark') savedTheme = raw;
+    } catch {
+      // localStorage unavailable (e.g. private mode in some browsers)
+    }
     // Check for OS preference
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
@@ -53,7 +59,11 @@ function useTheme() {
   const toggleTheme = useCallback(() => {
     setTheme(prevTheme => {
       const newTheme = prevTheme === 'light' ? 'dark' : 'light';
-      localStorage.setItem('theme', newTheme);
+      try {
+        localStorage.setItem('theme', newTheme);
+      } catch {
+        console.warn('[Navbar] Could not save theme preference to localStorage');
+      }
       if (newTheme === 'dark') {
         document.documentElement.classList.add('dark');
       } else {
@@ -125,14 +135,20 @@ export default function Navbar() {
       }
     };
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const initialUser = session?.user ?? null;
-      setUser(initialUser);
-      if (initialUser) {
-        await fetchUserProfile(initialUser.id);
-      }
-      setLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(async ({ data: { session } }) => {
+        const initialUser = session?.user ?? null;
+        setUser(initialUser);
+        if (initialUser) {
+          await fetchUserProfile(initialUser.id);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('[Navbar] getSession failed:', err);
+        setUser(null);
+        setLoading(false);
+      });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_e, session) => {
       const currentUser = session?.user ?? null;
@@ -321,7 +337,9 @@ export default function Navbar() {
     if (user?.id) {
       fetchUnread(user.id);
       // Realtime subscription to updates on this user's notifications
-      channel = supabase.channel(`noti-${user.id}`)
+      // Unique suffix prevents duplicate-channel conflict if async cleanup from
+      // a previous user state hasn't fully completed before the new channel is created.
+      channel = supabase.channel(`noti-${user.id}-${Date.now()}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'user_notifications', filter: `user_id=eq.${user.id}` }, () => {
           fetchUnread(user.id);
         })

@@ -161,9 +161,9 @@ export default function ProfilePage() {
         const todayIso = new Date().toISOString();
 
         const [
-          { count: act },
-          { count: sold },
-          { count: won },
+          { count: act, error: e1 },
+          { count: sold, error: e2 },
+          { count: won, error: e3 },
         ] = await Promise.all([
           supabase
             .from('listings')
@@ -183,6 +183,9 @@ export default function ProfilePage() {
             .eq('status', 'closed')
             .eq('winning_bidder_id', authUser.id),
         ]);
+        if (e1) console.error('[ProfilePage] Active listings count error:', e1.message);
+        if (e2) console.error('[ProfilePage] Items sold count error:', e2.message);
+        if (e3) console.error('[ProfilePage] Auctions won count error:', e3.message);
 
         console.log('[ProfilePage] Stats fetched:', { act, sold, won });
         setActiveListingsCount(act ?? 0);

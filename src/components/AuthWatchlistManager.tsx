@@ -11,7 +11,21 @@ export default function AuthWatchlistManager() {
   } = useWatchlistStore((state: WatchlistState) => state.actions);
   const isMounted = useRef(false);
   const initializationAttempted = useRef(false);
+  // Tracks which userId is currently being initialized to prevent concurrent double-calls.
+  // Both initializeAuth (getSession path) and onAuthStateChange(SIGNED_IN) can fire for
+  // the same user on initial page load — this ref gates the second concurrent call.
+  const initializingForUserId = useRef<string | null>(null);
   const authListenerRef = useRef<{ subscription: { unsubscribe: () => void } } | null>(null);
+
+  const safeInitializeWatchlist = async (userId: string) => {
+    if (initializingForUserId.current === userId) return;
+    initializingForUserId.current = userId;
+    try {
+      await initializeWatchlist(userId);
+    } finally {
+      initializingForUserId.current = null;
+    }
+  };
 
   useEffect(() => {
     isMounted.current = true;
@@ -24,7 +38,7 @@ export default function AuthWatchlistManager() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user && isMounted.current) {
-          await initializeWatchlist(session.user.id);
+          await safeInitializeWatchlist(session.user.id);
         }
       } catch (error) {
         console.error('[AuthWatchlistManager] Initial auth check error:', error);
@@ -37,8 +51,9 @@ export default function AuthWatchlistManager() {
 
       try {
         if (event === 'SIGNED_IN' && session?.user) {
-          await initializeWatchlist(session.user.id);
+          await safeInitializeWatchlist(session.user.id);
         } else if (event === 'SIGNED_OUT') {
+          initializingForUserId.current = null;
           await clearWatchlist();
         }
       } catch (error) {

@@ -43,16 +43,31 @@ export default function NotificationsPage() {
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (!error && data) {
+    if (error) {
+      console.error('[Notifications] Failed to fetch notifications:', error.message);
+    } else if (data) {
       setNotifications(data);
     }
   };
 
   const markAsRead = async (notificationId: string) => {
-    await supabase
+    // Optimistic update: mark as read in local state immediately
+    setNotifications(prev =>
+      prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
+    );
+
+    const { error } = await supabase
       .from('user_notifications')
       .update({ read: true })
       .eq('id', notificationId);
+
+    if (error) {
+      console.error('[Notifications] Failed to mark as read:', error.message);
+      // Revert optimistic update on failure
+      setNotifications(prev =>
+        prev.map(n => n.id === notificationId ? { ...n, read: false } : n)
+      );
+    }
   };
 
   if (loading) {

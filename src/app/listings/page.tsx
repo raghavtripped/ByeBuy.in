@@ -215,7 +215,9 @@ export default function ListingsPage() {
         }
 
         // Create and subscribe to new channel
-        channel = supabase.channel('public-listings-active-page');
+        // Use a unique channel name per mount to avoid duplicate-channel collisions
+        // if a previous cleanup didn't fully complete before re-mount.
+        channel = supabase.channel(`public-listings-active-${Date.now()}`);
         
         channel
           .on<ListingTablePayload>(
@@ -229,6 +231,7 @@ export default function ListingsPage() {
             }
           )
           .subscribe((status) => {
+            if (!isMounted) return;
             console.log('Listings RT subscription status:', status);
             if (status === 'SUBSCRIBED') {
               console.log('Successfully subscribed to listings updates');

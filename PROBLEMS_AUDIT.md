@@ -1742,3 +1742,52 @@ Verified: `push_subscriptions` table has `id, user_id (UNIQUE), subscription_det
 ---
 
 *Review completed: 2026-02-26. All findings cross-verified against live code and live Supabase backend via MCP. No resolution actions taken — comments only.*
+
+---
+
+## Fix Status Log
+**Updated:** 2026-04-14 — All code-side fixes applied; DB migrations created (apply after billing resolved on 2026-04-21)
+
+### Code Fixes (applied to disk — no DB required)
+
+| Issue | Status | Details |
+|---|---|---|
+| C-1 | ✅ FIXED | `src/hooks/useAuth.ts` — added `.catch()` on `getSession()` |
+| C-2 | ✅ FIXED | `src/components/Navbar.tsx` — added `.catch()` on `getSession()` |
+| C-3 | ✅ FIXED | `src/stores/watchlistStore.ts` — `channel` declared before `try`; catch calls `cleanupRealtimeChannel(channel)` |
+| C-4 | ✅ NO CHANGE NEEDED | False positive — `finally` block already handles all exit paths |
+| H-1 | ✅ FIXED | `src/app/listings/page.tsx` — unique channel name per mount (`Date.now()` suffix) |
+| H-2 | ✅ FIXED | `src/app/listings/(detail)/[id]/page.tsx` — `CHANNEL_ERROR` now calls `supabase.removeChannel()` on bids and listing channels |
+| H-3 | ✅ FIXED | `src/components/Navbar.tsx` — notification channel name uses `Date.now()` suffix |
+| H-5 | ✅ FIXED | `src/app/listings/(detail)/[id]/page.tsx` — replaced `from('users')` (doesn't exist) with `from('profiles')` |
+| H-6 | ✅ FIXED | `src/app/listings/(detail)/[id]/page.tsx` — countdown timer uses `loadDataRef` pattern; `loadData` removed from deps |
+| H-7 | ✅ FIXED | `src/components/AuthWatchlistManager.tsx` — added `initializingForUserId` ref; concurrent `initializeWatchlist` calls for same user are now blocked |
+| M-1 | ✅ NO CHANGE NEEDED | False positive — handler doesn't read `isUserMenuOpen` directly |
+| M-2 | ✅ FIXED | `src/app/listings/page.tsx` — added `isMounted` guard at top of subscribe callback |
+| M-3 | ✅ FIXED | `src/app/my-listings/page.tsx` — confirmed empty dep array is intentional; added explanatory comment |
+| M-4 | ✅ FIXED | `src/components/Navbar.tsx` — `localStorage.setItem` wrapped in `try/catch` |
+| M-5 | ✅ FIXED | `src/app/notifications/page.tsx` — `markAsRead` now does optimistic update + reverts on error; `fetchNotifications` logs errors |
+| M-6 | ✅ FIXED | `src/app/profile/page.tsx` — individual query errors in `Promise.all` stats fetch now logged; `src/app/listings/(detail)/[id]/page.tsx` — winner bid/profile fetch errors now logged |
+| L-2 | ✅ FIXED | `supabase/functions/close-expired-auctions/cors.ts` — CORS restricted to `https://byebuy.in` |
+| L-6 | ✅ FIXED | `src/components/Navbar.tsx` — theme `localStorage` read validated at runtime + wrapped in `try/catch` |
+
+### DB Migrations Created (apply after 2026-04-21 when billing is resolved)
+
+| Issue | Migration File | What It Does |
+|---|---|---|
+| B-5 | `20260414000001_add_tags_to_listings_with_seller_email.sql` | Adds `l.tags` column to `listings_with_seller_email` view |
+| H-4 + B-6 | `20260414000002_create_user_notifications_table.sql` | Creates `user_notifications` table, RLS policies, bid notification trigger, auction-close winner notification trigger |
+| B-2 | `20260414000003_fix_listing_images_storage_policies.sql` | Enforces `{user_id}/...` path ownership on INSERT, adds DELETE policy, sets 5 MB limit + image MIME types |
+| B-3 | `20260414000004_consolidate_profiles_rls_policies.sql` | Drops 3 redundant/duplicate policies on `profiles` table |
+| B-7 / Schema drift | `20260414000005_add_get_public_seller_profile_function.sql` | Captures `get_public_seller_profile` RPC in migrations (was live-only) |
+| B-8 | `20260414000006_remove_duplicate_avatars_policy.sql` | Drops duplicate `avatars` bucket UPDATE policy |
+| Schema drift | `20260414000007_capture_push_subscriptions_table.sql` | Captures `push_subscriptions` table + RLS in migrations (was live-only) |
+| B-4 / L-3 | `20260414000008_fix_email_validation_trigger.sql` | Re-points trigger to `validate_new_user_email` (with Gmail whitelist); drops dead `validate_user_email_domain` |
+
+### Still Requires Manual Action
+
+| Issue | What's Needed |
+|---|---|
+| B-1 | **Cron job wrong auth token (auctions never auto-close)** — Migration template created at `supabase/migrations/20260414000009_fix_cron_job_auth_token.MANUAL.sql`. Open that file, paste the real `CLOSE_EXPIRED_AUCTIONS_SECRET` from Supabase Dashboard → Edge Functions → `close-expired-auctions` → Environment Variables, then run it in the SQL editor. Do NOT commit the secret to git. |
+| B-9 | ✅ NO CODE TO FIX — The push subscription frontend registration code does not exist in the current codebase (the PWA guide is a future implementation spec). The 141 rows in `push_subscriptions` were created by an old prototype. When the PWA push flow is implemented per `PWA_PUSH_GUIDE.md`, use `upsert({ onConflict: 'user_id' })` instead of `insert()` so that a second device overwrites the first rather than erroring with 23505. |
+| B-10 | ⚠️ STUBS CREATED — Supabase MCP unauthorized (billing issue, resolves 2026-04-21). Stub files created at `supabase/functions/email-domain-validation/index.ts` and `supabase/functions/send-test-notification/index.ts` with instructions. After billing resolves: copy real source from Supabase Dashboard → Edge Functions → [function name] → Code, paste into stub files, then `supabase functions deploy <name>`. Do NOT deploy the stubs as-is. |

@@ -135,7 +135,9 @@ export default function MyListingsPage() {
         setLoading(false);
       }
     },
-    []
+    [] // eslint-disable-line react-hooks/exhaustive-deps
+    // Safe: only closes over `supabase` (module singleton) and local setters.
+    // All user-specific data arrives via the `u` parameter, not closed-over state.
   );
 
   /* --------------------- realtime handler ---------------------------- */

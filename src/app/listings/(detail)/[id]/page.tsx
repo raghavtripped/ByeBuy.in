@@ -1,7 +1,7 @@
 // src/app/listings/(detail)/[id]/page.tsx
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -141,10 +141,12 @@ export default function ListingDetails() {
           fetchedListingData = {...lData, photos: parseListingPhotos(lData.photos), description: lData.description || '', title: lData.title || "Untitled Listing", status: lData.status as Listing['status']};
           if (fetchedListingData.status === 'closed' && fetchedListingData.winning_bidder_id) {
               if (fetchedListingData.winning_bid_id) {
-                  const {data: WBidData} = await supabase.from('bids').select('bid_price').eq('id', fetchedListingData.winning_bid_id).single();
+                  const {data: WBidData, error: wBidErr} = await supabase.from('bids').select('bid_price').eq('id', fetchedListingData.winning_bid_id).single();
+                  if (wBidErr) console.error('[ListingDetail] Winner bid fetch error:', wBidErr.message);
                   if (WBidData) fetchedListingData.final_sale_price = WBidData.bid_price;
               }
-              const {data: WUserData} = await supabase.from('users').select('email').eq('id', fetchedListingData.winning_bidder_id).single();
+              const {data: WUserData, error: wUserErr} = await supabase.from('profiles').select('email').eq('id', fetchedListingData.winning_bidder_id).single();
+              if (wUserErr) console.error('[ListingDetail] Winner profile fetch error:', wUserErr.message);
               if (WUserData) setWinnerEmail(WUserData.email);
           }
       }
@@ -167,8 +169,14 @@ export default function ListingDetails() {
     bidsChannel.on<BidTablePayload>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` }, async (payload) => { if (payload.new?.id) { const { data: nb } = await supabase.from('bids_with_bidder_email').select('*').eq('id', payload.new.id).single(); if (nb) setBids(cb => { if (cb.find(b => b.id === nb.id)) return cb; const ub = [nb as Bid, ...cb]; return ub.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());});}});
     const listingChannel = supabase.channel(`listing-details-status-${id}`);
     listingChannel.on<ListingTablePayload>('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'listings', filter: `id=eq.${id}` }, (payload) => { const u = payload.new; if (!u) return; setListing(p => { if (!p) return null; if ((u.status && p.status !== u.status) || (u.winning_bidder_id !== undefined && p.winning_bidder_id !== u.winning_bidder_id) || (u.winning_bid_id !== undefined && p.winning_bid_id !== u.winning_bid_id)) { loadData(); return p; } const np: Partial<Listing> = {}; if (u.title !== undefined && p.title !== u.title) np.title = u.title; if (u.description !== undefined && p.description !== u.description) np.description = u.description || ''; if (u.min_price !== undefined && p.min_price !== u.min_price) np.min_price = u.min_price; if (u.upper_cap !== undefined && p.upper_cap !== u.upper_cap) np.upper_cap = u.upper_cap; if (u.rules !== undefined && p.rules !== u.rules) np.rules = u.rules; if (u.photos !== undefined) { const prp = parseListingPhotos(u.photos); if (JSON.stringify(prp) !== JSON.stringify(p.photos)) np.photos = prp;} return Object.keys(np).length > 0 ? { ...p, ...np } : p;});});
-    bidsChannel.subscribe((s,e) => { if (s === 'CHANNEL_ERROR') console.error('Bids RT Error:', e); else if (s === 'TIMED_OUT') console.warn('Bids RT Timeout');});
-    listingChannel.subscribe((s,e) => { if (s === 'CHANNEL_ERROR') console.error('Listing RT Error:', e); else if (s === 'TIMED_OUT') console.warn('Listing RT Timeout');});
+    bidsChannel.subscribe((s,e) => {
+      if (s === 'CHANNEL_ERROR') { console.error('Bids RT Error:', e); supabase.removeChannel(bidsChannel); }
+      else if (s === 'TIMED_OUT') console.warn('Bids RT Timeout');
+    });
+    listingChannel.subscribe((s,e) => {
+      if (s === 'CHANNEL_ERROR') { console.error('Listing RT Error:', e); supabase.removeChannel(listingChannel); }
+      else if (s === 'TIMED_OUT') console.warn('Listing RT Timeout');
+    });
     return () => { supabase.removeChannel(bidsChannel); supabase.removeChannel(listingChannel); };
   }, [id, loadData]);
 
@@ -181,7 +189,12 @@ export default function ListingDetails() {
   const photos = listing?.photos ?? [];
   const currentHighestBidVal = useMemo(() => bids[0]?.bid_price ?? 0, [bids]);
   const { sliderMin, sliderMax, sliderStep, displaySlider } = useMemo(() => { if (!listing || auctionEnded) return { sliderMin: 1, sliderMax: 100, sliderStep: 1, displaySlider: false }; const nextValidBid = Math.max(1, currentHighestBidVal + 1); if (listing.upper_cap && nextValidBid >= listing.upper_cap) return { sliderMin: nextValidBid, sliderMax: nextValidBid, sliderStep: 1, displaySlider: false }; const sMin = nextValidBid; let sMax; if (listing.upper_cap && listing.upper_cap > sMin) { sMax = listing.upper_cap - 1; } else { const base = currentHighestBidVal || listing.min_price; const jump3 = base + Math.max(500, Math.ceil(base * 0.30 / 50) * 50); sMax = Math.max(sMin + 500, jump3); sMax = Math.min(sMax, 200000); } if (sMax <= sMin) sMax = sMin + Math.max(100, Math.ceil(sMin * 0.1)); if (listing.upper_cap && sMax >= listing.upper_cap) sMax = listing.upper_cap - 1; if (sMax <= sMin) return { sliderMin: sMin, sliderMax: sMin + (sMin === 0 ? 100 : Math.max(100, Math.ceil(sMin * 0.1))), sliderStep: 1, displaySlider: sMin === 0 ? true : false }; let sStep = 1; const range = sMax - sMin; if (range <= 100) sStep = 1; else if (range <= 500) sStep = 5; else if (range <= 2000) sStep = 10; else if (range <= 10000) sStep = 50; else if (range <= 50000) sStep = 100; else sStep = 250; return { sliderMin: Math.max(1, sMin), sliderMax: Math.max(sMin + sStep, sMax), sliderStep: sStep, displaySlider: true }; }, [listing, auctionEnded, currentHighestBidVal]);
-  useEffect(() => { if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) { setCountdown(null); return; } const updateTimer = (): boolean => { if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) { setCountdown(null); return true; } const remaining = formatCountdown(listing.end_time); setCountdown(remaining); if (remaining === "Auction Ended") { if (!auctionEnded) { loadData(); } return true; } return false; }; if (updateTimer()) return; const intervalId = window.setInterval(() => { if (updateTimer()) clearInterval(intervalId); }, 1000); return () => clearInterval(intervalId);}, [listing?.end_time, listing?.status, auctionEnded, loadData, id]);
+  // Keep a stable ref to loadData so the countdown timer doesn't re-create its interval
+  // every time loadData's identity changes (which happens when bids arrive via realtime).
+  const loadDataRef = useRef(loadData);
+  useEffect(() => { loadDataRef.current = loadData; }, [loadData]);
+
+  useEffect(() => { if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) { setCountdown(null); return; } const updateTimer = (): boolean => { if (!listing?.end_time || auctionEnded || isPast(listing.end_time)) { setCountdown(null); return true; } const remaining = formatCountdown(listing.end_time); setCountdown(remaining); if (remaining === "Auction Ended") { if (!auctionEnded) { loadDataRef.current(); } return true; } return false; }; if (updateTimer()) return; const intervalId = window.setInterval(() => { if (updateTimer()) clearInterval(intervalId); }, 1000); return () => clearInterval(intervalId);}, [listing?.end_time, listing?.status, auctionEnded, id]);
   const handlePlaceBidClick = () => {
     setBidStatusMessage(null);
     if (!user) { router.push(`/auth?redirect=/listings/${id}`); return; }
