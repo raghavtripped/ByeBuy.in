@@ -618,6 +618,38 @@ for each row execute function public.validate_new_user_email();
 - The `validate_new_user_email` function is defined but not attached to a trigger in these migrations. Attach if you intend to enforce the domain/whitelist.
 - Automated closing schedule for auctions is not configured; either set up `pg_cron` to call the Edge Function URL or use Supabase Scheduler.
 
+
+## 10) Egress optimizations (2026-04-22)
+
+Applied in commit `c0d2362` to reduce Supabase Egress (billed at $0.09/GB uncached once the plan's 5 GB / 250 GB quota is exceeded). The biggest wins are on realtime-heavy paths — each incoming bid or chat message triggered a per-row refetch that previously pulled every column, including large JSONB payloads.
+
+### Changes
+
+| File | Before | After |
+| --- | --- | --- |
+| `src/components/ListingChat.tsx` | `select('*')` on `listing_chats_with_sender_email` for initial fetch and per-message realtime refetch | Explicit `id, listing_id, sender_id, content, created_at, sender_email`; `.limit(200)` on initial fetch |
+| `src/app/notifications/page.tsx` | `select('*')` on `user_notifications` | Explicit columns matching the `Notification` type; `.limit(50)` |
+| `src/app/listings/(detail)/[id]/page.tsx` | `select('*')` on `archived_listings_details` and `bids_with_bidder_email` (used in initial load, realtime INSERT refetch, and winning bid insert `.select()`) | Explicit column lists for each call; `.limit(100)` on the bid history fetch |
+| `src/app/my-watchlist/page.tsx` | `select('*')` on `listings_with_highest_bid` | Only the fields `ListingCard` renders: `id, title, min_price, photos, current_highest_bid, end_time, status, bid_count, seller_id` |
+| `src/app/sellers/[sellerId]/page.tsx` | `select('*', { count: 'exact', head: true })` for active/sold counts | `select('id', { count: 'exact', head: true })` — count-only requests no longer reference the full row shape |
+| `src/app/listings/(detail)/[id]/edit/page.tsx` | `select('*, photos, tags')` on `listings` | Explicit columns matching the edit-form `Listing` interface |
+
+### Why this matters for egress
+
+The Supabase usage page attributes egress to Database (PostgREST) and Shared Pooler separately. These edits target the PostgREST path:
+
+- `select('*')` pulls every column in the table/view, including unused JSONB (`photos`, `tags`, `rules`, `description`) — often the largest per-row contributors.
+- Realtime subscriptions themselves don't carry payload bytes proportional to row size, but the *follow-up fetches* the client performs on INSERT/UPDATE events do. Narrowing those queries is what actually reduces Realtime-driven egress here.
+- Count-only queries with `head: true` still respect the selected column list — selecting `'*'` vs `'id'` changes metadata sent back, not just the response body.
+- `.limit()` on unbounded lists (chat, bids, notifications) prevents egress from growing unboundedly on long-lived listings.
+
+### Follow-ups worth considering
+
+- Restrict Realtime publications to the columns the client actually consumes (Supabase dashboard → Database → Publications). Payloads currently include every column of `listing_chats`, `bids`, and `listings`.
+- Audit the remaining `.select(...)` list-endpoints (`src/app/listings/page.tsx`, `my-listings/page.tsx`, `my-bids/page.tsx`, `listings/archive/page.tsx`) — they already use explicit fields, but pagination limits and field pruning should be re-reviewed whenever the card UI changes.
+- Turn on Smart CDN for Storage assets if listing photos start dominating egress — cached egress is $0.03/GB vs $0.09/GB uncached.
+
+
 — End of guide —
 
 
