@@ -39,9 +39,10 @@ export default function NotificationsPage() {
   const fetchNotifications = async (userId: string) => {
     const { data, error } = await supabase
       .from('user_notifications')
-      .select('*')
+      .select('id, created_at, message, type, read, user_id, link')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (error) {
       console.error('[Notifications] Failed to fetch notifications:', error.message);

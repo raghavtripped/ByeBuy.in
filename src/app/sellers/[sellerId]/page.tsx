@@ -76,7 +76,7 @@ export default function SellerProfile() {
         // Fetch active listings count
         const { count: activeCount, error: activeError } = await supabase
           .from('listings')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('seller_id', sellerId)
           .eq('status', 'active');
 
@@ -85,7 +85,7 @@ export default function SellerProfile() {
         // Fetch sold items count
         const { count: soldCount, error: soldError } = await supabase
           .from('listings')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('seller_id', sellerId)
           .eq('status', 'closed')
           .not('winning_bidder_id', 'is', null);

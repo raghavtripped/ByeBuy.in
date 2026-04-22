@@ -129,7 +129,7 @@ export default function ListingDetails() {
     setLoading(true); setError(null); setBids([]); setPrice(''); setWinnerEmail(null); setBidStatusMessage(null);
     try {
       let fetchedListingData: Partial<Listing> & { id: string, status: Listing['status'], description: string, title: string } | null = null;
-      const { data: archivedData, error: archivedError } = await supabase.from('archived_listings_details').select('*').eq('id', id).maybeSingle();
+      const { data: archivedData, error: archivedError } = await supabase.from('archived_listings_details').select('id, title, description, min_price, photos, end_time, upper_cap, rules, seller_email, seller_id, status, winning_bidder_id, winning_bid_id, final_sale_price, winner_email').eq('id', id).maybeSingle();
       if (archivedError) console.warn("Could not fetch from archived_listings_details:", archivedError?.message);
       if (archivedData) {
           fetchedListingData = {...archivedData, photos: parseListingPhotos(archivedData.photos), description: archivedData.description || '', title: archivedData.title || "Untitled Listing", status: archivedData.status as Listing['status'], final_sale_price: archivedData.final_sale_price,};
@@ -152,7 +152,7 @@ export default function ListingDetails() {
       }
       if (!fetchedListingData || !fetchedListingData.id ) { setError('Listing not found.'); setLoading(false); return; }
       setListing(fetchedListingData as Listing);
-      const { data: bData, error: bError } = await supabase.from('bids_with_bidder_email').select('*').eq('item_id', id).order('timestamp', { ascending: false });
+      const { data: bData, error: bError } = await supabase.from('bids_with_bidder_email').select('id, bid_price, bidder_id, timestamp, bidder_email').eq('item_id', id).order('timestamp', { ascending: false }).limit(100);
       if (bError) throw bError;
       setBids(bData ?? []);
     } catch (err: unknown) {
@@ -166,7 +166,7 @@ export default function ListingDetails() {
   useEffect(() => { 
     supabase.auth.getUser().then(({ data }) => setUser(data.user)); loadData();
     const bidsChannel = supabase.channel(`listing-bids-${id}`);
-    bidsChannel.on<BidTablePayload>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` }, async (payload) => { if (payload.new?.id) { const { data: nb } = await supabase.from('bids_with_bidder_email').select('*').eq('id', payload.new.id).single(); if (nb) setBids(cb => { if (cb.find(b => b.id === nb.id)) return cb; const ub = [nb as Bid, ...cb]; return ub.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());});}});
+    bidsChannel.on<BidTablePayload>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids', filter: `item_id=eq.${id}` }, async (payload) => { if (payload.new?.id) { const { data: nb } = await supabase.from('bids_with_bidder_email').select('id, bid_price, bidder_id, timestamp, bidder_email').eq('id', payload.new.id).single(); if (nb) setBids(cb => { if (cb.find(b => b.id === nb.id)) return cb; const ub = [nb as Bid, ...cb]; return ub.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());});}});
     const listingChannel = supabase.channel(`listing-details-status-${id}`);
     listingChannel.on<ListingTablePayload>('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'listings', filter: `id=eq.${id}` }, (payload) => { const u = payload.new; if (!u) return; setListing(p => { if (!p) return null; if ((u.status && p.status !== u.status) || (u.winning_bidder_id !== undefined && p.winning_bidder_id !== u.winning_bidder_id) || (u.winning_bid_id !== undefined && p.winning_bid_id !== u.winning_bid_id)) { loadData(); return p; } const np: Partial<Listing> = {}; if (u.title !== undefined && p.title !== u.title) np.title = u.title; if (u.description !== undefined && p.description !== u.description) np.description = u.description || ''; if (u.min_price !== undefined && p.min_price !== u.min_price) np.min_price = u.min_price; if (u.upper_cap !== undefined && p.upper_cap !== u.upper_cap) np.upper_cap = u.upper_cap; if (u.rules !== undefined && p.rules !== u.rules) np.rules = u.rules; if (u.photos !== undefined) { const prp = parseListingPhotos(u.photos); if (JSON.stringify(prp) !== JSON.stringify(p.photos)) np.photos = prp;} return Object.keys(np).length > 0 ? { ...p, ...np } : p;});});
     bidsChannel.subscribe((s,e) => {
@@ -221,7 +221,7 @@ export default function ListingDetails() {
     if (isNaN(amt) || amt <= 0) { setBidStatusMessage('⚠️ Invalid bid.'); setIsPlacingBid(false); setIsConfirmModalOpen(false); return; }
     setIsPlacingBid(true); setBidStatusMessage(null);
     try {
-      const { data: bidInsertData, error: insertError } = await supabase.from('bids').insert({ item_id: id, bidder_id: user.id, bid_price: amt }).select().single();
+      const { data: bidInsertData, error: insertError } = await supabase.from('bids').insert({ item_id: id, bidder_id: user.id, bid_price: amt }).select('id, bid_price, bidder_id, timestamp').single();
       if (insertError) throw insertError;
       // Optimistically update local bid list so UI reflects the new bid immediately
       if (bidInsertData) {

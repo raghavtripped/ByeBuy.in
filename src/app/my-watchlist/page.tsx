@@ -36,7 +36,7 @@ export default function WatchlistPage() {
       try {
         const { data, error } = await supabase
           .from('listings_with_highest_bid')
-          .select('*')
+          .select('id, title, min_price, photos, current_highest_bid, end_time, status, bid_count, seller_id')
           .in('id', Array.from(watchedListingIds));
 
         if (error) throw error;

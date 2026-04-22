@@ -100,7 +100,7 @@ export default function EditListingPage() {
         // Fetch listing data, now selecting the renamed 'photos' and 'tags' (JSONB) columns
         const { data: listingData, error: listingError } = await supabase
           .from('listings')
-          .select('*, photos, tags') // MODIFIED: Select 'photos' and 'tags' (final JSONB column names)
+          .select('id, title, description, min_price, upper_cap, end_time, seller_id, photos, tags, rules, status')
           .eq('id', listingId)
           .single();
 

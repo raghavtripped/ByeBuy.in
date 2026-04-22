@@ -45,9 +45,10 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
     try {
       const { data, error: fetchError } = await supabase
         .from('listing_chats_with_sender_email')
-        .select('*')
+        .select('id, listing_id, sender_id, content, created_at, sender_email')
         .eq('listing_id', listingId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(200);
 
       if (fetchError) {
         throw fetchError;
@@ -91,8 +92,8 @@ export default function ListingChat({ listingId, currentUser }: ListingChatProps
         async (payload) => {
           if (payload.new && payload.new.id) {
             const { data: newMessageDetails, error: fetchDetailsError } = await supabase
-              .from('listing_chats_with_sender_email') 
-              .select('*')
+              .from('listing_chats_with_sender_email')
+              .select('id, listing_id, sender_id, content, created_at, sender_email')
               .eq('id', payload.new.id)
               .single();
 
