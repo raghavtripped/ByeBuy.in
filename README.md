@@ -1,344 +1,273 @@
-# ByeBuy - Campus Auction Marketplace
+# ByeBuy — Campus Auction Marketplace
 
-A modern, campus-centric online auction platform designed specifically for students at IIM Indore. ByeBuy provides a secure and intuitive marketplace where students can buy and sell items within their campus community, featuring real-time bidding, instant notifications, and a seamless user experience.
+A modern, campus-centric online auction platform built for students at **IIM Indore**. ByeBuy is a secure, mobile-first marketplace where students buy and sell items within their campus community, with real-time bidding, live chat, watchlists, and instant in-app notifications.
 
-## 🚀 Live Demo
+## 🚀 Live
 
-**Production URL**: [https://byebuy.in](https://byebuy.in)
+**Production**: [https://byebuy.in](https://byebuy.in)
 
 ## 🏗️ Tech Stack
 
 ### Frontend
-- **Framework**: Next.js 15.4.2 with App Router
+- **Framework**: Next.js 15.4.10 (App Router, client-rendered root layout)
 - **Language**: TypeScript 5.x
-- **UI Library**: React 19.1.0
-- **Styling**: Tailwind CSS 3.4.17 with custom dark theme
-- **Component Libraries**: 
-  - Headless UI 2.2.4 (Accessible UI components)
-  - React Icons 5.5.0
-  - React Slick 0.30.3 (Image carousels)
-  - Framer Motion 11.18.2 (Animations)
-  - Lucide React 0.513.0 (Icons)
+- **UI**: React 19.1.0
+- **Styling**: Tailwind CSS 3.4.17 (custom dark theme, `tailwindcss-fluid-type`)
+- **Components & UX**:
+  - Headless UI 2.2.4 (accessible primitives)
+  - Heroicons 2.2.0 / Lucide React 0.513.0 / React Icons 5.5.0
+  - React Slick 0.30.3 + slick-carousel (image carousels)
+  - Framer Motion 11.18.2 (animations)
+  - react-hot-toast 2.5.2 (toasts)
+  - react-share 5.2.2 (social sharing)
+
+### State Management
+- **Zustand 5.0.4** — global stores for watchlist and notifications
+- React hooks + custom hooks (`useAuth`, `useNotifications`) for local/reusable state
 
 ### Backend & Infrastructure
-- **Backend as a Service**: Supabase
-  - Authentication (Email/Password + Google OAuth)
-  - PostgreSQL Database with Row Level Security
-  - Storage (for listing images and avatars)
-  - Realtime subscriptions for live updates
-  - Edge Functions for automated auction closing
-- **Deployment**: Vercel with automatic deployments
+- **Supabase** (Backend as a Service):
+  - Authentication (Email/Password + Google OAuth, restricted to `@iimidr.ac.in`)
+  - PostgreSQL with Row Level Security (RLS)
+  - Storage (`listing-images` and `avatars` buckets)
+  - Realtime subscriptions for live bids, chat, and notifications
+  - Edge Functions for scheduled auction closing and notifications
+- **Hosting**: Vercel (automatic deployments from `main`)
 - **Domain**: Custom domain with SSL
 
-### Development Tools
-- **State Management**: Zustand 5.0.4
-- **Linting**: ESLint 9.28.0
-- **Package Manager**: npm
-- **Database Migrations**: Supabase CLI
-- **Security Testing**: Custom SQL injection test suite
+### Tooling
+- ESLint 9.28.0 (`eslint-config-next`)
+- Supabase CLI (migrations, edge functions)
+- Custom SQL injection test suite (Node)
 
 ## 🎯 Core Features
 
-### 🔐 Authentication & User Management
-- **Institutional Email Only**: Restricted to @iimidr.ac.in emails
-- **Google OAuth Integration**: Seamless sign-in with Google accounts
-- **Profile Management**: Custom avatars, hostel info, batch details
-- **Account Settings**: Password reset, profile updates
-- **User Statistics**: Active listings, items sold, auctions won
+### 🔐 Authentication & Profiles
+- Institutional email only (`@iimidr.ac.in`), enforced via DB trigger
+- Google OAuth + Email/Password
+- Profile management: avatar, hostel, batch
+- Account settings and password reset
+- User stats: active listings, items sold, auctions won
 
-### 📋 Listing Management
-- **Multi-Photo Upload**: Drag & drop interface with up to 5 images
-- **Category System**: 6 predefined categories (Electronics, Furniture, Textbooks, etc.)
-- **Auction Configuration**: 
-  - Minimum starting bid
-  - Optional "Buy Now" price (upper cap)
-  - Custom end time
-  - Auction rules and descriptions
-- **Real-time Updates**: Live status changes and bid notifications
-- **Listing Editing**: Modify active listings before bidding starts
-- **Archival System**: Automatic archiving of closed auctions
+### 📋 Listings
+- Multi-photo upload (drag & drop, up to 5 images)
+- 6 categories: Electronics & Gadgets, Furniture & Dorm Essentials, Textbooks & Study Materials, Apparel & Accessories, Sports & Hobby Gear, Other
+- Auction config: minimum starting bid, optional "Buy Now" cap, custom end time, rules/description
+- Live preview while creating a listing
+- Edit active listings; automatic archival of closed auctions
 
-### 🎲 Bidding System
-- **Real-time Bidding**: Live bid updates across all users
-- **Bid Validation**: Minimum bid increments, maximum limits
-- **Bid History**: Complete transaction history with timestamps
-- **Auto-closing**: Auctions automatically close when "Buy Now" price is met
-- **Winner Selection**: Automated winner determination at auction end
+### 🎲 Bidding
+- Real-time bids across all viewers
+- Bid validation (minimum increments, caps)
+- Full bid history with timestamps
+- Auto-close when "Buy Now" price is met
+- Automated winner determination at auction end
 
-### 💬 Communication & Social Features
-- **Real-time Chat**: Built-in messaging system for each listing
-- **Watchlist**: Save favorite listings for easy tracking
-- **Notifications**: Real-time alerts for bids, auction endings, and messages
-- **Share Functionality**: Social media sharing for listings
+### 💬 Communication & Social
+- Per-listing real-time chat
+- Watchlist for saving favorite listings
+- In-app notifications (bids, auction outcomes, system messages) with unread badge
+- Social sharing for listings
 
-### 🎨 User Experience
-- **Responsive Design**: Mobile-first approach with dedicated mobile navigation
-- **Dark/Light Mode**: Theme switching with system preference detection
-- **Search & Filters**: 
-  - Global search across titles and descriptions
-  - Category-based filtering
-  - Multiple sort options (newest, ending soon, price, bid count)
-- **Loading States**: Smooth loading animations and skeleton screens
-- **Error Handling**: Graceful error states with retry mechanisms
+### 🎨 Experience
+- Mobile-first responsive design with dedicated bottom navigation
+- Dark/light mode with system-preference detection and manual toggle
+- Global search + category filters + sort (newest, ending soon, price, bid count)
+- Splash screen with guaranteed timeout, skeleton/loading states, error boundaries
 
 ## 📱 Pages & Routes
 
-### Public Pages
-- **`/`** → Redirects to `/listings`
-- **`/listings`** → Main marketplace with all active auctions
-- **`/listings/[id]`** → Individual auction detail page with bidding
-- **`/listings/[id]/edit`** → Edit listing (seller only)
-- **`/auth`** → Authentication page (sign in/sign up)
-- **`/about`** → About page
-- **`/help`** → Help center and guidelines
-- **`/terms`** → Terms of service
-- **`/sellers/[sellerId]`** → Seller profile page
+### Public
+- `/` → redirects to `/listings`
+- `/listings` → marketplace (active auctions)
+- `/listings/[id]` → auction detail + bidding
+- `/listings/[id]/edit` → edit listing (seller only)
+- `/listings/archive` → closed/cancelled auctions
+- `/auth` → sign in / sign up
+- `/about`, `/help`, `/terms`
+- `/sellers/[sellerId]` → public seller profile
 
-### Protected Pages (Require Authentication)
-- **`/listings/new`** → Create new auction listing
-- **`/my-listings`** → User's created listings (active/past)
-- **`/my-bids`** → User's bidding history and current bids
-- **`/my-watchlist`** → User's saved/favorited listings
-- **`/profile`** → User profile and statistics
-- **`/notifications`** → User notifications center
-- **`/account/settings`** → Account settings
-- **`/update-password`** → Password update
+### Protected
+- `/listings/new` → create listing
+- `/my-listings` → your listings
+- `/my-bids` → your bids
+- `/my-watchlist` → your saved listings
+- `/profile` → profile & stats
+- `/notifications` → notification center
+- `/account/settings` → account settings
+- `/update-password` → password update
+
+Also includes `sitemap.ts` and `robots.txt` for SEO.
 
 ## 🧩 Key Components
 
-### Core UI Components
-- **`ListingCard.tsx`** → Main auction card with hover effects and real-time data
-- **`Navbar.tsx`** → Global navigation with search, user menu, and theme toggle
-- **`MobileBottomNav.tsx`** → Mobile-optimized bottom navigation
-- **`ListingChat.tsx`** → Real-time chat system for each listing
-- **`ConfirmBidModal.tsx`** → Bid confirmation with validation
-- **`WatchlistButton.tsx`** → Add/remove listings from watchlist
-- **`UserAvatar.tsx`** → User profile picture component
-- **`LoadingSpinner.tsx`** → Consistent loading states
-- **`EmptyState.tsx`** → Empty state illustrations
+### Core UI
+- `ListingCard.tsx`, `Navbar.tsx`, `MobileBottomNav.tsx`, `Footer.tsx`
+- `ListingChat.tsx`, `ConfirmBidModal.tsx`, `WatchlistButton.tsx`
+- `UserAvatar.tsx`, `LoadingSpinner.tsx`, `EmptyState.tsx`, `InfoPopover.tsx`
 
-### Feature Components
-- **`CategoryFilterModal.tsx`** → Category-based listing filters
-- **`SortOptionModal.tsx`** → Sorting options for listings
-- **`IntegratedSearchBar.tsx`** → Advanced search with filters
-- **`NotificationToast.tsx`** → Global notification system
-- **`ShareButtons.tsx`** → Social media sharing
-- **`PhotoUploader.tsx`** → Multi-photo upload with drag & drop
-- **`ListingPreview.tsx`** → Live preview during listing creation
+### Feature
+- `CategoryCard.tsx`, `CategoryFilterModal.tsx`, `SortOptionModal.tsx`
+- `IntegratedSearchBar.tsx`, `ShareButtons.tsx`, `ListingPreview` (in `listings/new`)
+- `NotificationProvider.tsx`, `NotificationToast.tsx`
 
-### Layout Components
-- **`SplashScreen.tsx`** → App initialization screen
-- **`Footer.tsx`** → Site footer with links
-- **`ErrorBoundary.tsx`** → Error handling wrapper
-- **`ThemeScript.tsx`** → Theme initialization script
+### Layout / Infra
+- `SplashScreen.tsx`, `ThemeScript.tsx`, `ErrorBoundary.tsx`, `AuthWatchlistManager.tsx`
 
-## 🗄️ Database Schema
+## 🗄️ Database
 
-### Core Tables
-- **`listings`** → Auction listings with photos, pricing, and status
-- **`bids`** → User bids with timestamps and amounts
-- **`profiles`** → User profile data (avatar, hostel, batch)
-- **`watched_listings`** → User watchlist items
-- **`listing_chats`** → Real-time chat messages
-- **`user_notifications`** → System notifications
+### Tables
+- `listings` — auction listings (photos & tags stored as JSONB), pricing, status
+- `bids` — bids with amount and timestamp
+- `profiles` — user profile data (avatar, hostel, batch)
+- `watched_listings` — watchlist entries
+- `listing_chats` — per-listing chat messages
+- `user_notifications` — in-app notifications (type: `bid` | `listing` | `system`, read flag, link)
+- `push_subscriptions` — Web Push subscription details (one row per user)
 
-### Database Views
-- **`listings_with_highest_bid`** → Listings with current highest bid info
-- **`listings_with_seller_email`** → Listings with seller contact info
-- **`bids_with_bidder_email`** → Bids with bidder contact info
-- **`archived_listings_details`** → Closed/cancelled listings with winner info
+### Views
+- `listings_with_highest_bid` — listings with current highest bid
+- `listings_with_seller_email` — listings with seller contact
+- `bids_with_bidder_email` — bids with bidder contact
+- `archived_listings_details` — closed/cancelled listings with winner info
+- `listing_chats_with_sender_email` — chat messages with sender info
 
-### Database Functions
-- **`get_distinct_listing_ids_for_bidder`** → Get all listings a user has bid on
-- **`finalize_auction_outcome`** → Manually close auctions and determine winners
-- **`close_auction`** → Automated auction closing logic
+### Functions (RPC)
+- `close_auction(uuid)` — closes an auction and determines outcome
+- `finalize_auction_outcome(uuid)` — finalizes winner/outcome
+- `get_distinct_listing_ids_for_bidder(uuid)` — listings a user has bid on
+- `get_public_seller_profile(...)` — safe public seller data
+- `handle_new_user()` / `validate_new_user_email()` — signup triggers (email domain enforcement)
 
-## 🔄 State Management
+> Schema is defined across `supabase/migrations/`. See **`SUPABASE_OVERVIEW.md`** for a complete object-by-object map plus a copy-paste SQL toolkit to inspect the live backend.
 
-### Global State (Zustand)
-- **`watchlistStore`** → Manages user's watched listings across sessions
-- **`notificationStore`** → Global notification system state
+## 🔧 Edge Functions
 
-### Local State
-- **React Hooks** → Component-specific state management
-- **Custom Hooks** → `useAuth`, `useNotifications` for reusable logic
+`supabase/functions/`:
+- **`close-expired-auctions`** — finds `active` listings past their `end_time` and closes each via `close_auction`. Requires `Authorization: Bearer <CLOSE_EXPIRED_AUCTIONS_SECRET>`. Env: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CLOSE_EXPIRED_AUCTIONS_SECRET`. Scheduled via Supabase cron.
+- **`email-domain-validation`** — application-level `@iimidr.ac.in` check (`verify_jwt: true`). *Source lives on the live project; the repo file is a stub — pull from the Supabase dashboard before redeploying.*
+- **`send-test-notification`** — Web Push sender (`verify_jwt: false`); uses VAPID keys. *Repo file is a stub — pull from the dashboard before redeploying.*
 
-## 🔧 Backend Services
+## 🔔 Notifications
 
-### Supabase Features
-- **Authentication**: JWT-based with Row Level Security (RLS)
-- **Storage**: Separate buckets for listing images and user avatars
-- **Realtime**: WebSocket subscriptions for live updates
-- **Edge Functions**: Automated auction closing and cleanup
-
-### Edge Functions
-- **`close-expired-auctions`** → Scheduled function to close expired auctions
-- **CORS Support** → Proper cross-origin request handling
-- **Error Handling** → Comprehensive error logging and recovery
-
-## 🎨 Design System
-
-### Color Palette
-- **Primary**: Indigo/Purple gradient theme
-- **Secondary**: Blue/Cyan accents
-- **Success**: Green for winning bids
-- **Warning**: Orange for ending soon
-- **Error**: Red for errors and cancellations
-
-### Dark Mode
-- **Custom Dark Theme**: Tailored dark mode with proper contrast
-- **System Preference**: Automatic theme detection
-- **Manual Toggle**: User-controlled theme switching
-
-### Responsive Breakpoints
-- **Mobile**: < 768px (bottom navigation)
-- **Tablet**: 768px - 1024px
-- **Desktop**: > 1024px (full navigation)
+- **In-app notifications** are live: backed by the `user_notifications` table, surfaced via `NotificationProvider`, the notifications page, and the Navbar unread badge.
+- **Web Push (PWA)** is in progress: the `push_subscriptions` table exists and a push edge function is deployed. The full client wiring (manifest, service worker, subscription flow) is documented in **`PWA_PUSH_GUIDE.md`**.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 - Node.js 18.x or later
-- npm or yarn
+- npm
 - Supabase CLI
 - Git
 
-### Local Development Setup
+### Setup
 
-1. **Clone the repository**:
+1. **Clone**
    ```bash
-   git clone https://github.com/yourusername/byebuy.git
-   cd byebuy
+   git clone https://github.com/raghavtripped/ByeBuy.in.git
+   cd ByeBuy.in
    ```
 
-2. **Install dependencies**:
+2. **Install**
    ```bash
    npm install
    ```
 
-3. **Environment Setup**:
-   Create a `.env.local` file with:
+3. **Environment** — create `.env.local`:
    ```env
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
    SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
    ```
 
-4. **Database Setup**:
+4. **Database (local)**
    ```bash
    supabase start
    supabase db reset
    supabase functions serve
    ```
 
-5. **Start Development Server**:
+5. **Run**
    ```bash
    npm run dev
    ```
+   App runs at http://localhost:3000.
 
-The application will be available at http://localhost:3000.
-
-### Security Testing
+### Scripts
 ```bash
-# Run SQL injection tests
-npm run security:sql-injection
+npm run dev      # development server
+npm run build    # production build
+npm run start    # serve production build
+npm run lint     # ESLint
 
-# Test production environment
-npm run security:sql-injection:prod
-
-# Run all security tests
+# Security testing
+npm run security:sql-injection        # local
+npm run security:sql-injection:prod   # against https://byebuy.in
 npm run security:test-all
 ```
 
 ## 🚀 Deployment
 
-### Production Deployment
-- **Platform**: Vercel with automatic deployments from main branch
-- **Domain**: Custom domain with SSL certificate
-- **Environment**: Production environment variables configured
-- **Edge Functions**: Deployed via Supabase CLI
+- **Vercel**: pushes to `main` trigger automatic build & deploy
+- **Supabase**: migrations applied via CLI; edge functions deployed with `supabase functions deploy <name>`
+- **Edge function scheduling**: `close-expired-auctions` runs on a Supabase cron schedule
 
-### Deployment Process
-1. Push to main branch triggers automatic deployment
-2. Vercel builds and deploys the Next.js application
-3. Supabase Edge Functions deployed separately
-4. Database migrations run automatically
+## 🔒 Security
 
-## 🔒 Security Features
+- Institutional email restriction (`@iimidr.ac.in`) at both DB trigger and (optionally) edge-function level
+- JWT-based sessions; Row Level Security on all user-data tables
+- Parameterized queries (no string-built SQL) — XSS/SQLi conscious
+- Security response headers (`Permissions-Policy`) set in `next.config.ts`
+- Automated SQL injection test suite (`sql-injection-test-suite.js`)
+- See `SECURITY_TESTING_README.md` and `SQL_INJECTION_TESTING_GUIDE.md`
 
-### Authentication Security
-- **Institutional Email Restriction**: Only @iimidr.ac.in emails allowed
-- **JWT Tokens**: Secure session management
-- **Row Level Security**: Database-level access control
-- **Password Policies**: Strong password requirements
-
-### Data Protection
-- **Input Validation**: Comprehensive form validation
-- **SQL Injection Prevention**: Parameterized queries
-- **XSS Protection**: Content Security Policy
-- **CSRF Protection**: Token-based request validation
-
-### Testing
-- **SQL Injection Test Suite**: Automated security testing
-- **Manual Security Audits**: Regular security reviews
-- **Error Handling**: Graceful error responses
-
-## 📊 Performance Optimizations
+## 📊 Performance
 
 ### Frontend
-- **Image Optimization**: Next.js Image component with lazy loading
-- **Code Splitting**: Automatic route-based code splitting
-- **Bundle Optimization**: Tree shaking and minification
-- **Caching**: Static asset caching and service workers
+- Next.js `<Image>` with WebP, tuned `deviceSizes`/`imageSizes`, and 31-day cache TTL (`next.config.ts`)
+- Route-based code splitting, tree shaking, minification
 
-### Backend
-- **Database Indexing**: Optimized queries with proper indexes
-- **Connection Pooling**: Efficient database connections
-- **CDN**: Global content delivery network
-- **Caching**: Redis caching for frequently accessed data
+### Backend / Supabase egress optimizations
+- Explicit field selection instead of `select('*')` to cut payload size
+- Capped list queries to bound result sets and reduce egress
+- Indexed queries (e.g. `listings(status, end_time)`, unread-notification partial index)
 
-## 🔮 Future Enhancements
+## 📚 Repository Docs
 
-### Planned Features
-- **Enhanced Image Management**: Advanced image editing and optimization
-- **Advanced Search**: AI-powered search with filters
-- **In-app Messaging**: Direct messaging between users
-- **Mobile App**: Native iOS/Android applications
-- **Analytics Dashboard**: Detailed user and auction analytics
-- **Payment Integration**: Secure payment processing
-- **Campus Integration**: SSO with campus authentication systems
+- `SUPABASE_OVERVIEW.md` — full Supabase map + live inspection SQL toolkit
+- `PWA_PUSH_GUIDE.md` — end-to-end PWA + Web Push implementation guide
+- `PROBLEMS_AUDIT.md` — issue audit with resolution plans
+- `SESSION_FIXES_2026_04_14.md` — detailed fix log (loading/realtime/security)
+- `SECURITY_TESTING_README.md`, `SQL_INJECTION_TESTING_GUIDE.md` — security testing
 
-### Technical Improvements
-- **Performance Monitoring**: Real-time performance tracking
-- **A/B Testing**: Feature experimentation framework
-- **Internationalization**: Multi-language support
-- **Progressive Web App**: Offline functionality and app-like experience
+## 🔮 Roadmap
+
+- Complete Web Push (PWA install, service worker, offline support)
+- Wire notification triggers (`notify_seller_on_bid`, `notify_winner_on_close`) into the push pipeline
+- Direct user-to-user messaging
+- Payment integration
+- Analytics dashboard
+- Campus SSO integration
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
+1. Fork the repo
+2. Create a branch (`git checkout -b feature/your-feature`)
+3. Commit (`git commit -m 'Add your feature'`)
+4. Push (`git push origin feature/your-feature`)
 5. Open a Pull Request
 
-### Development Guidelines
-- Follow TypeScript best practices
-- Maintain consistent code formatting
-- Write comprehensive tests
-- Update documentation for new features
-- Follow the existing component patterns
+Follow TypeScript best practices, match existing component patterns, keep formatting consistent, and update docs for new features.
 
 ## 📄 License
 
-This project is private and proprietary. All rights reserved.
+Private and proprietary. All rights reserved.
 
 ## 📞 Support
 
-For support and questions:
 - **Email**: support@byebuy.in
-- **Documentation**: Check the `/help` page
-- **Issues**: Report bugs through the help center
+- **In-app**: `/help`
 
 ---
 
